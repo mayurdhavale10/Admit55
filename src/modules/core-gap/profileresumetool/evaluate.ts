@@ -1,32 +1,42 @@
-import { ProfileResume, Evaluation, Gap } from "../../schemas/profileresumetool/types";
+import { analyzeMetrics } from "@/src/modules/core-nlp/metrics";
+import { analyzeVerbs } from "@/src/modules/core-nlp/verbs";
+import { analyzeLength } from "@/src/modules/core-nlp/length";
+import { analyzeKeywords } from "@/src/modules/core-nlp/keywords";
+import { analyzeDuplicates } from "@/src/modules/core-nlp/dedupe";
+import { analyzeConsistency } from "@/src/modules/core-nlp/consistency";
+import { scoreDimensions } from "./scoring";
+import { computeGaps } from "./gaps";
+import { EVAL_VERSION } from "./constants";
+import type { EvaluationOutput, PersonaKey } from "@/src/modules/schemas/profileresumetool/evaluation";
+import type { ProfileResume } from "@/src/modules/schemas/profileresumetool/types";
 
-export function evaluateProfile(pr: ProfileResume): Evaluation {
-  // ✅ make the type explicit
-  const gaps: Gap[] = [];
+export function evaluateProfile(pr: ProfileResume, opts: { persona: PersonaKey; track?: string }): EvaluationOutput {
+  const persona = opts.persona;
+  const track = opts.track ?? "product_management";
 
-  const hasNumbers = pr.roles.some(r => r.bullets?.some(b => /\d/.test(b.text)));
-  if (!hasNumbers) {
-    gaps.push({
-      id: "low_metricization",
-      title: "Resume lacks metrics",
-      dimension: "workImpact",
-      severity: "medium",            // or "medium" as const
-      evidence: ["No numbers detected"],
-      remedies: [
-        {
-          action: "Add %/$/# to top bullets",
-          effort: "S",               // or "S" as const
-          proof: ["Updated resume bullets"]
-        }
-      ]
-    });
-  }
+  const metrics = analyzeMetrics(pr);
+  const verbs = analyzeVerbs(pr);
+  const length = analyzeLength(pr);
+  const keywords = analyzeKeywords(pr, track);
+  const duplicates = analyzeDuplicates(pr);
+  const consistency = analyzeConsistency(pr);
 
-  const scoreBase = 70 + (hasNumbers ? 10 : -5);
-  const readiness = {
-    score: Math.max(0, Math.min(100, scoreBase)),
-    band: scoreBase >= 85 ? "Strong" : scoreBase >= 70 ? "Competitive" : scoreBase >= 55 ? "Stretch" : "Not Yet"
+  const { dimensions, readiness } = scoreDimensions({ persona, metrics, verbs, length, keywords, dedupe: duplicates, consistency });
+  const gaps = computeGaps({ metrics, verbs, length, keywords, dedupe: duplicates, consistency });
+
+  return {
+    version: EVAL_VERSION,
+    persona,
+    readiness,
+    dimensions,
+    gaps,
+    trace: {
+      rulesApplied: ["score.dimensions.v1", "gaps.core.v1"],
+      extraction: {
+        metrics: { overallDensity: metrics.overallDensity },
+        keywords: { coverage: keywords.coverage },
+        length: { longShare: length.longShare }
+      }
+    }
   };
-
-  return { userId: pr.userId, readiness, gaps, createdAt: new Date() };
 }

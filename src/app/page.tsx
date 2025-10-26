@@ -1,25 +1,18 @@
-import Link from "next/link";
+// Server Component
+import AboveTheFold from '@src/sections/landing/AboveTheFold';
+import How from '@src/sections/landing/How';
+import WhyAdmit55 from '../sections/landing/whyadmit55';
+import Testimonial from '../sections/landing/testimonial';
+import Footer from '../components/footer/footer';
 
-export default function Home() {
+export default function Page() {
   return (
-    <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 8 }}>Admit55</h1>
-      <p style={{ marginBottom: 24 }}>
-        Welcome! Choose a tool to begin.
-      </p>
-
-      <nav style={{ display: "flex", gap: 12 }}>
-        <Link href="/tools/profileresumetool">
-          <button style={{ padding: "10px 14px", cursor: "pointer" }}>
-            Open Profile-Resume Tool
-          </button>
-        </Link>
-        <Link href="/admin/profileresumetool">
-          <button style={{ padding: "10px 14px", cursor: "pointer" }}>
-            Admin Console
-          </button>
-        </Link>
-      </nav>
+    <main>
+      <AboveTheFold />
+      <How />
+      <WhyAdmit55 />
+      <Testimonial />
+      <Footer />
     </main>
   );
 }

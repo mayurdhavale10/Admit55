@@ -1,0 +1,50 @@
+{
+  "consulting": [
+    "hypothesis", "workstream", "client", "stakeholder", "executive", "C-suite",
+    "benchmark", "market sizing", "growth strategy", "cost reduction", "operating model",
+    "transformation", "PMO", "pilot", "change management", "business case",
+    "topline", "margin", "synergy", "due diligence"
+  ],
+  "product_management": [
+    "roadmap", "PRD", "MVP", "A/B testing", "conversion", "activation",
+    "retention", "churn", "funnel", "north star metric", "user research",
+    "JTBD", "backlog", "sprint", "OKR", "feature adoption",
+    "DAU", "MAU", "NPS", "ARR"
+  ],
+  "finance": [
+    "DCF", "LBO", "IRR", "NPV", "valuation", "financial model",
+    "P&L", "balance sheet", "cash flow", "EBITDA", "capex",
+    "working capital", "sell-side", "buy-side", "deal sourcing",
+    "due diligence", "synergies", "portfolio", "risk"
+  ],
+  "operations": [
+    "throughput", "cycle time", "lead time", "OEE", "utilization",
+    "six sigma", "lean", "kaizen", "bottleneck", "capacity",
+    "forecasting", "S&OP", "inventory", "defect rate", "quality",
+    "logistics", "cost per unit", "yield", "on-time delivery"
+  ],
+  "marketing": [
+    "CAC", "LTV", "ROAS", "conversion rate", "SEO", "SEM",
+    "brand awareness", "positioning", "segment", "targeting",
+    "content strategy", "campaign", "attribution", "pipeline",
+    "CPL", "CTR", "engagement", "KOL", "influencer"
+  ],
+  "healthcare": [
+    "clinical", "patient outcomes", "claims", "provider", "payer",
+    "EMR", "EHR", "HIPAA", "utilization management", "care pathway",
+    "readmission", "quality metrics", "trial", "regulatory", "pharma",
+    "biotech", "formulary", "reimbursement", "RCT", "CRO"
+  ],
+  "energy": [
+    "renewables", "solar", "wind", "EV", "grid", "load",
+    "LCOE", "storage", "battery", "hydrogen", "capacity factor",
+    "PPAs", "carbon", "emissions", "offset", "efficiency",
+    "retrofit", "EPC", "brownfield", "greenfield"
+  ],
+  "government": [
+    "policy", "public sector", "RFP", "grant", "procurement",
+    "regulatory", "compliance", "stakeholder engagement", "impact evaluation",
+    "governance", "transparency", "audit", "budget", "program management",
+    "social outcomes", "cost-benefit", "public-private partnership", "mandate"
+  ]
+}

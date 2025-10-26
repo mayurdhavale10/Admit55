@@ -1,0 +1,19 @@
+{
+  "actionVerbs": [
+    "led", "owned", "drove", "launched", "built", "created", "designed", "deployed",
+    "pioneered", "optimized", "scaled", "negotiated", "closed", "delivered", "executed",
+    "accelerated", "reduced", "increased", "improved", "transformed", "rescued",
+    "restructured", "automated", "standardized", "streamlined", "orchestrated",
+    "architected", "developed", "implemented", "managed", "mentored", "hired",
+    "initiated", "coordinated", "established", "spearheaded", "consolidated",
+    "revamped", "piloted", "commercialized", "productized"
+  ],
+  "supportVerbs": [
+    "supported", "assisted", "helped", "worked on", "participated", "contributed",
+    "involved", "exposed to", "familiar with", "responsible for", "tasked with"
+  ],
+  "passivePatterns": [
+    "was ", "were ", "been ", "being ", "is ", "are ", "by ",
+    "was responsible for", "were responsible for", "was involved in", "were involved in"
+  ]
+}
