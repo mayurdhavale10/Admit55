@@ -4,7 +4,7 @@ import {
   DIMENSION_IDS,
   GAP_IDS,
   PERSONA_KEYS,
-} from "../../core-gap/profileresumetool/constants";
+} from "../../heuristics/profileresumetool/analysis/constants";
 
 /** ---- Enums derived from literal ID arrays (safe with Zod v4) ---- */
 export const DimensionIdZ = z.enum(DIMENSION_IDS);

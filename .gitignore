@@ -38,4 +38,40 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+
+# ---------------------------
+# TRAINING DATA & MODELS (NEW)
+# ---------------------------
+
+# Large training data folders
+data/
+llama32_3b_lora_out/
+llama3_lora_out/
+merged_model/
+offload_dir/
+runs/
+logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+
+# Model weights
+*.safetensors
+*.bin
+*.ckpt
+checkpoint-*/
+
+# Training scripts (optional - keep in Git if you want)
+# *.py
+
+# Temporary files
+tmp_*.txt
+diagnosis_report.txt
+invalid_predictions.json

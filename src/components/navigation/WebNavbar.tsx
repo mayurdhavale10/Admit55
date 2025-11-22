@@ -1,27 +1,24 @@
-'use client';
+// WebNavbar.tsx
+"use client";
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Navbar, { type LinkItem } from '@src/components/navigation/Navbar';
+import Navbar, { type LinkItem, type LinkComp } from './Navbar';
 
+// All menu items
 const items: LinkItem[] = [
   { href: '/', label: 'Home' },
-  { href: '/tools', label: 'Tools' },
-  { href: '/consultation', label: '1:1consultation' },
-  { href: '/contactus', label: 'Contactus' },
+  { href: '/your-tools', label: 'YourTools' },
+  { href: '/profile-review', label: 'Profile Review' },
+  { href: '/b-school-match', label: 'B-School Match' },
+  { href: '/dream-b-schools', label: 'Dream B-Schools' },
+  { href: '/alum-coaches', label: 'Alum Coaches' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
 ];
 
-const NextLink = ({
-  href,
-  children,
-  className,
-  onClick,
-}: {
-  href: string;
-  children: React.ReactNode;
-  className?: string;
-  onClick?: () => void;
-}) => (
+// Wrapper for Next.js Link
+const NextLink: LinkComp = ({ href, children, className, onClick }) => (
   <Link href={href} className={className} onClick={onClick}>
     {children}
   </Link>
@@ -29,19 +26,19 @@ const NextLink = ({
 
 export default function WebNavbar() {
   const pathname = usePathname() ?? '/';
+
   return (
     <Navbar
       items={items}
       LinkComponent={NextLink}
       activeHref={pathname}
-      colors={{ bg: '#EFEFEF' }}   // slightly darker grey than before
-      navText="#6C6C6C"
+      navText="#FFFFFF"
       brand={{
         name: 'ADMIT55',
         href: '/',
-        logoSrc: '/logo/admit55logo.webp',
+        logoSrc: '/logo/admit55_final_logo.webp',
         logoAlt: 'Admit55 logo',
-        nameColor: '#A3A3A3',
+        nameColor: '#003366',
       }}
     />
   );

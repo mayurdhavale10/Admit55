@@ -6,14 +6,49 @@
     "restructured", "automated", "standardized", "streamlined", "orchestrated",
     "architected", "developed", "implemented", "managed", "mentored", "hired",
     "initiated", "coordinated", "established", "spearheaded", "consolidated",
-    "revamped", "piloted", "commercialized", "productized"
+    "revamped", "piloted", "commercialized", "productized",
+    "analyzed", "modeled", "evaluated", "synthesized", "forecasted", "estimated",
+    "benchmarked", "audited", "simulated", "diagnosed", "quantified",
+    "formulated", "strategized", "conceptualized", "structured", "mapped",
+    "brainstormed", "ideated", "innovated", "conceived", "visualized", "crafted",
+    "wrote", "authored", "published", "edited", "documented", "communicated",
+    "presented", "pitched", "negotiated", "influenced", "persuaded",
+    "trained", "mentored", "coached", "guided", "supervised", "directed",
+    "oversaw", "delegated", "motivated", "inspired", "empowered",
+    "collaborated", "partnered", "aligned", "integrated", "facilitated",
+    "liaised", "bridged", "supported", "assisted", "synchronized",
+    "tested", "debugged", "monitored", "reviewed", "optimized", "analyzed",
+    "maintained", "enhanced", "secured", "validated", "refactored", "documented",
+    "launched", "released", "migrated", "transitioned", "modernized",
+    "localized", "deployed", "configured", "automated", "containerized",
+    "monetized", "budgeted", "forecasted", "invested", "allocated", "controlled",
+    "priced", "procured", "negotiated", "billed", "evaluated", "approved",
+    "increased", "improved", "enhanced", "boosted", "expanded", "strengthened",
+    "grew", "achieved", "secured", "surpassed", "exceeded", "attained"
   ],
+
   "supportVerbs": [
     "supported", "assisted", "helped", "worked on", "participated", "contributed",
-    "involved", "exposed to", "familiar with", "responsible for", "tasked with"
+    "involved", "exposed to", "familiar with", "responsible for", "tasked with",
+    "provided support to", "collaborated with", "aided", "shadowed", "coordinated with",
+    "contributed to", "executed under", "helped deliver", "assisted in executing",
+    "performed tasks related to", "helped implement", "took part in",
+    "worked alongside", "supported the delivery of", "involved in planning"
   ],
+
   "passivePatterns": [
     "was ", "were ", "been ", "being ", "is ", "are ", "by ",
-    "was responsible for", "were responsible for", "was involved in", "were involved in"
+    "was responsible for", "were responsible for",
+    "was involved in", "were involved in",
+    "was tasked with", "were tasked with",
+    "was assigned to", "were assigned to",
+    "was handled by", "were handled by",
+    "was managed by", "were managed by",
+    "was executed by", "were executed by",
+    "was delivered by", "were delivered by",
+    "was coordinated by", "were coordinated by",
+    "was approved by", "were approved by",
+    "was completed by", "were completed by",
+    "has been conducted by", "have been managed by"
   ]
 }

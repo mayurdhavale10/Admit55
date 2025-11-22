@@ -1,388 +1,114 @@
 'use client';
 
+import Link from 'next/link';
+import { ShieldCheck, GraduationCap, FileText } from 'lucide-react';
+
+type Coach = {
+  name: string;
+  subtitle: string;   // e.g., school + current role
+  role: string;       // Essay Coach / Interview Mentor etc.
+  highlight: string;  // e.g., “12+ mentees admitted”
+  Icon: React.ComponentType<{ className?: string }>;
+};
+
+const COACHES: Coach[] = [
+  {
+    name: 'Akshay Goel',
+    subtitle: "ISB ’21 | Ex-McKinsey",
+    role: 'Admissions Strategy',
+    highlight: '12+ mentees admitted',
+    Icon: GraduationCap,
+  },
+  {
+    name: 'Vaishali',
+    subtitle: "IIM Bangalore ’19 | Product Manager",
+    role: 'Essay Coach',
+    highlight: 'Essay Coach',
+    Icon: FileText,
+  },
+];
+
 export default function WhyAdmit55() {
   return (
-    <section
-      className="relative w-full py-20 px-[6vw]"
-      style={{ background: '#EFEFEF' }}
-    >
-      <div className="max-w-7xl mx-auto">
-        {/* Heading: Why Admit55? */}
-        <div className="mb-16">
-          <h2
-            className="text-5xl md:text-6xl font-bold"
-            style={{
-              fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-              textAlign: 'left',
-            }}
-          >
-            <span style={{ color: '#1d1d1f' }}>Why </span>
-            <span className="logo-with-brush">
-              <span style={{ color: '#A3A3A3', fontWeight: 700, position: 'relative', zIndex: 2 }}>
-                Admit55
-              </span>
-              <img
-                src="/logo/admit55logo.webp"
-                alt="Admit55"
-                style={{
-                  height: '50px',
-                  width: 'auto',
-                  display: 'inline-block',
-                  verticalAlign: 'middle',
-                  position: 'relative',
-                  marginLeft: '8px',
-                  zIndex: 2,
-                }}
-              />
-            </span>
-            <span style={{ color: '#1d1d1f' }}>?</span>
-          </h2>
+    <section className="relative w-full bg-gradient-to-b from-[#0a3a6a] to-[#0b487f] text-white">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14 sm:py-16 lg:py-20">
+
+        {/* Guarantee pill */}
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-md bg-amber-400 px-3 py-1 text-sm font-semibold text-slate-900 shadow">
+            <ShieldCheck className="h-4 w-4" />
+            100% GUARANTEE
+          </div>
         </div>
 
-        {/* Content Grid: Image on left */}
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* Left side - Journey Image with overlaid tool icons */}
-          <div className="flex justify-center relative">
-            {/* SVG filter for brush effect */}
-            <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-              <defs>
-                <filter id="brush-filter-journey">
-                  <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise"/>
-                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" xChannelSelector="R" yChannelSelector="G"/>
-                  <feGaussianBlur stdDeviation="0.2"/>
-                </filter>
-              </defs>
-            </svg>
+        {/* Heading + subcopy */}
+        <h2 className="mt-5 text-center text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
+          Guaranteed Admission or 100% Money Back
+        </h2>
+        <p className="mx-auto mt-4 max-w-3xl text-center text-slate-100/90">
+          Work 1:1 with ISB, IIM, and INSEAD alumni who’ve helped hundreds of candidates
+          succeed. If you don’t secure admission to your top 5 B-Schools, we’ll refund you —
+          no questions asked.
+        </p>
 
-            {/* Background journey path */}
-            <img
-              src="/whyadmit55/journey.webp"
-              alt="Journey"
-              style={{
-                width: '100%',
-                maxWidth: '500px',
-                height: 'auto',
-                objectFit: 'contain',
-              }}
-            />
-            
-            {/* ACCEPTED text at top - Brushy style */}
-            <div
-              className="brush-text-journey"
-              style={{
-                position: 'absolute',
-                top: '2%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                fontSize: '36px',
-                fontWeight: 900,
-                letterSpacing: '2px',
-              }}
-            >
-              ACCEPTED
-            </div>
+        {/* Divider label */}
+        <div className="mt-8 flex items-center gap-4">
+          <div className="h-px flex-1 bg-white/20" />
+          <span className="text-sm font-semibold tracking-wide text-white/80 select-none">
+            Meet Your Coaches
+          </span>
+          <div className="h-px flex-1 bg-white/20" />
+        </div>
 
-            {/* Reapplication Tool - Top right */}
-            <a 
-              href="/tools/reapplicationtool"
-              style={{ 
-                position: 'absolute', 
-                top: '18%', 
-                right: '15%', 
-                textAlign: 'center',
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <img
-                src="/logo/reapplicationtool.webp"
-                alt="Reapplication Tool"
-                className="journey-icon"
-                style={{ 
-                  width: '80px',
-                  height: '80px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto',
-                }}
-              />
-              {/* Reapplication Tool Text */}
-              <div
-                className="brush-text-journey"
-                style={{
-                  fontSize: '13px',
-                  marginTop: '8px',
-                  maxWidth: '150px',
-                }}
-              >
-                stay reassured you got<br/>your other shots too
-              </div>
-            </a>
+        {/* Coach cards – centered, only 2 columns max */}
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          {COACHES.map((c, i) => (
+            <CoachCard key={i} coach={c} />
+          ))}
+        </div>
 
-            {/* Community Tool - Upper middle LEFT */}
-            <a 
-              href="/tools/communitytool"
-              style={{ 
-                position: 'absolute', 
-                top: '38%', 
-                left: '5%', 
-                textAlign: 'center',
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <img
-                src="/logo/community.webp"
-                alt="Community Tool"
-                className="journey-icon"
-                style={{ 
-                  width: '80px',
-                  height: '80px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto',
-                }}
-              />
-              {/* Community Tool Text */}
-              <div
-                className="brush-text-journey"
-                style={{
-                  fontSize: '13px',
-                  marginTop: '8px',
-                  maxWidth: '180px',
-                }}
-              >
-                feel confused? connect with<br/>people who are going through<br/>the same journey
-              </div>
-            </a>
+        {/* CTA */}
+        <div className="mt-8 flex justify-center">
+          <Link
+            href="/book-session"
+            prefetch={false}
+            className="inline-flex items-center justify-center rounded-md bg-red-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-red-900/20 ring-1 ring-red-400/40 transition hover:bg-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            Book a Session
+          </Link>
+        </div>
 
-            {/* Essay Tool - Middle right */}
-            <a 
-              href="/tools/essaytool"
-              style={{ 
-                position: 'absolute', 
-                top: '58%', 
-                right: '12%', 
-                textAlign: 'center',
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <img
-                src="/logo/essaytool.webp"
-                alt="Essay Tool"
-                className="journey-icon"
-                style={{ 
-                  width: '80px',
-                  height: '80px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto',
-                }}
-              />
-              {/* Essay Tool Text */}
-              <div
-                className="brush-text-journey"
-                style={{
-                  fontSize: '13px',
-                  marginTop: '8px',
-                  maxWidth: '150px',
-                }}
-              >
-                ESSAY FORMAT<br/>BY THE BEST
-              </div>
-            </a>
+        {/* Fine print */}
+        <p className="mt-3 text-center text-xs text-white/70">
+          Limited slots available • Premium coaching packages starting at ₹50,000
+        </p>
+      </div>
+    </section>
+  );
+}
 
-            {/* Profile Resume Tool - Bottom left */}
-            <a 
-              href="/tools/profileresumetool"
-              style={{ 
-                position: 'absolute', 
-                top: '78%', 
-                left: '5%', 
-                textAlign: 'center',
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <img
-                src="/logo/profileresumetool.webp"
-                alt="Profile Resume Tool"
-                className="journey-icon"
-                style={{ 
-                  width: '100px',
-                  height: '100px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto',
-                }}
-              />
-              {/* Profile Resume Tool Text */}
-              <div
-                className="brush-text-journey"
-                style={{
-                  fontSize: '13px',
-                  marginTop: '8px',
-                  maxWidth: '180px',
-                }}
-              >
-                Do your profile evaluation<br/>KNOW WHAT IS BEST FOR YOU
-              </div>
-            </a>
-          </div>
+/* ---------- subcomponents ---------- */
 
-          {/* Right side - Content */}
-          <div style={{ paddingLeft: '20px', marginTop: '-100px' }}>
-            <h3
-              style={{
-                fontSize: '42px',
-                fontWeight: 700,
-                color: '#1d1d1f',
-                fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-                marginBottom: '24px',
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Because we've lived your journey.
-            </h3>
-            <p
-              style={{
-                fontSize: '20px',
-                lineHeight: '1.6',
-                color: '#A3A3A3',
-                fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-                fontWeight: 700,
-                marginBottom: '16px',
-              }}
-            >
-              We know the anxiety, the ambition, and the late nights behind every dream admit.
-            </p>
-            <p
-              style={{
-                fontSize: '20px',
-                lineHeight: '1.6',
-                color: '#A3A3A3',
-                fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-                fontWeight: 700,
-                marginBottom: '16px',
-              }}
-            >
-              Admit55 isn't just a product — it's alive through your journey.
-            </p>
-            <p
-              style={{
-                fontSize: '20px',
-                lineHeight: '1.6',
-                color: '#A3A3A3',
-                fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-                fontWeight: 700,
-                marginBottom: '24px',
-              }}
-            >
-              We walk beside you, guide you, and never let go until you get accepted.
-            </p>
-            <h3
-              style={{
-                fontSize: '42px',
-                fontWeight: 700,
-                color: '#1d1d1f',
-                fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-                letterSpacing: '-0.02em',
-                marginTop: '80px',
-              }}
-            >
-              Our team comprises graduates from
-            </h3>
-            
-            {/* University Logos */}
-            <div style={{ 
-              display: 'flex', 
-              gap: '32px', 
-              alignItems: 'center', 
-              marginTop: '32px',
-              flexWrap: 'wrap',
-            }}>
-              <img
-                src="/whyadmit55/IIMA.webp"
-                alt="IIM Ahmedabad"
-                style={{
-                  height: '80px',
-                  width: 'auto',
-                  objectFit: 'contain',
-                }}
-              />
-              <img
-                src="/whyadmit55/IIMB.webp"
-                alt="IIM Bangalore"
-                style={{
-                  height: '80px',
-                  width: 'auto',
-                  objectFit: 'contain',
-                }}
-              />
-              <img
-                src="/whyadmit55/IIMKozhikode.webp"
-                alt="IIM Kozhikode"
-                style={{
-                  height: '80px',
-                  width: 'auto',
-                  objectFit: 'contain',
-                }}
-              />
-              <img
-                src="/whyadmit55/ISBB.webp"
-                alt="ISB Bangalore"
-                style={{
-                  height: '80px',
-                  width: 'auto',
-                  objectFit: 'contain',
-                }}
-              />
-            </div>
-          </div>
+function CoachCard({ coach }: { coach: Coach }) {
+  const { name, subtitle, role, highlight, Icon } = coach;
+  return (
+    <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-6 backdrop-blur-sm shadow-lg shadow-black/10 transition hover:-translate-y-0.5">
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
+          <Icon className="h-7 w-7 text-emerald-300" />
+        </div>
+        <div>
+          <div className="text-lg font-semibold">{name}</div>
+          <div className="text-sm text-white/80">{subtitle}</div>
         </div>
       </div>
 
-      <style jsx>{`
-        .logo-with-brush {
-          position: relative;
-          display: inline-block;
-          isolation: isolate;
-        }
+      <div className="mt-4 h-px w-full bg-white/10" />
 
-        .logo-with-brush::before {
-          content: '';
-          position: absolute;
-          bottom: 0px;
-          left: -10px;
-          right: -10px;
-          height: 20px;
-          background: #FFE500;
-          opacity: 0.7;
-          border-radius: 50%;
-          transform: skewY(-2deg);
-          z-index: 0;
-        }
-
-        .journey-icon {
-          z-index: 2;
-        }
-
-        .brush-text-journey {
-          font-family: 'Brush Script MT', 'SF Pro Display', cursive, sans-serif;
-          color: #1d1d1f;
-          font-weight: 700;
-          line-height: 1.4;
-          letter-spacing: 0.5px;
-          filter: contrast(1.2) url('#brush-filter-journey');
-          text-shadow: 
-            1px 1px 0px rgba(0,0,0,0.1),
-            -0.5px -0.5px 0px rgba(0,0,0,0.05);
-          z-index: 1;
-        }
-      `}</style>
-    </section>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-white/90">{role}</span>
+        <span className="text-xs font-semibold text-emerald-300">{highlight}</span>
+      </div>
+    </div>
   );
 }

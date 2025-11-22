@@ -1,9 +1,15 @@
-'use client';
+// Navbar.tsx
+"use client";
 
-import { useState, type ReactNode, type ReactElement } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+  type ReactElement,
+} from 'react';
 
 export type LinkItem = { href: string; label: string };
-
 export type LinkComp = (props: {
   href: string;
   children: ReactNode;
@@ -11,127 +17,232 @@ export type LinkComp = (props: {
   onClick?: () => void;
 }) => ReactElement;
 
+type Brand = {
+  name: string;
+  href: string;
+  logoSrc?: string;
+  logoAlt?: string;
+  nameColor?: string;
+  logoScale?: number;
+};
+
+function cn(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(' ');
+}
+
+const HEADER_HEIGHT = 84;
+const LOGO_BOX = 56;
+const LOGO_SCALE_DEFAULT = 2.6;
+const SCROLL_THRESHOLD = 80;
+const MD_BREAKPOINT = 768;
+
 export default function Navbar({
   items,
   LinkComponent,
   activeHref,
-  colors = { bg: '#EFEFEF' },   // a little more grey than before (#F2F2F2 -> #EFEFEF)
-  navText = '#6C6C6C',
+  navText = '#003366',
   brand = {
-    name: 'ADMIT55',
+    name: '',
     href: '/',
-    logoSrc: '/logo/admit55logo.webp',
+    logoSrc: '/logo/admit55_final_logo.webp',
     logoAlt: 'Admit55 logo',
-    nameColor: '#A3A3A3',
+    nameColor: '#003366',
   },
 }: {
   items: LinkItem[];
   LinkComponent: LinkComp;
   activeHref?: string;
-  colors?: { bg: string };
   navText?: string;
-  brand?: { name: string; href: string; logoSrc?: string; logoAlt?: string; nameColor?: string };
+  brand?: Brand;
 }): ReactElement {
-  const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > SCROLL_THRESHOLD);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= MD_BREAKPOINT) setMobileOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => {
+      window.removeEventListener('resize', onResize);
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
+  const textColor = scrolled ? '#003366' : '#FFFFFF';
+
+  const chipBase =
+    'px-4 py-2 rounded-full border transition-colors text-sm font-medium inline-flex items-center whitespace-nowrap';
+  const chipGlassy = cn(
+    chipBase,
+    scrolled
+      ? 'border-black/15 bg-white/60 hover:bg-white/70'
+      : 'border-white/25 bg-white/10 hover:bg-white/15',
+  );
+  const chipActive = cn(
+    chipBase,
+    'bg-[#00C875]/15 border-[#00C875]/30 ring-1 ring-[#00C875]/50',
+  );
+
+  const isActive = useCallback(
+    (href: string) => activeHref === href || (href !== '/' && activeHref?.startsWith(href)),
+    [activeHref],
+  );
+
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  const toggleMobile = useCallback(() => setMobileOpen((v) => !v), []);
+
+  const mobilePanelId = 'navbar-mobile-panel';
+  const logoScale = brand.logoScale ?? LOGO_SCALE_DEFAULT;
+  const CTA_HREF = '/mba/tools/profileresumetool';
 
   return (
     <header
-      className="sticky top-0 z-50 border-b"
-      style={{
-        backgroundColor: colors.bg,
-        borderColor: 'rgba(0,0,0,0.08)',
-        height: 72,                 // 🔒 navbar height unchanged
-        overflow: 'visible',        // allow visual overflow if needed
-      }}
+      className={cn(
+        'fixed top-0 left-0 right-0 z-50 transition-colors',
+        'pt-[max(0px,env(safe-area-inset-top))]',
+        scrolled ? 'backdrop-blur bg-white/70 border-b border-black/5' : 'bg-transparent',
+      )}
+      style={{ height: `${HEADER_HEIGHT}px` }}
     >
-      <nav
-        className="mx-auto flex max-w-7xl items-center justify-between px-4"
-        style={{ height: '100%' }}
-      >
-        {/* Brand */}
-        <LinkComponent href={brand.href} className="flex items-center gap-3">
-          {brand.logoSrc ? (
-            <img
-              src={brand.logoSrc}
-              alt={brand.logoAlt ?? 'logo'}
-              style={{
-                display: 'block',
-                width: 72,
-                height: 72,
-                objectFit: 'contain',
-                // Visually bigger logo without changing layout height:
-                transform: 'scale(1.15)',      // ~15% larger
-                transformOrigin: 'left center' // grows to the right, stays centered vertically
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                backgroundColor: '#A3A3A3',
-                transform: 'scale(1.15)',
-                transformOrigin: 'left center'
-              }}
-            />
-          )}
-          <span className="text-base md:text-lg font-semibold" style={{ color: brand.nameColor ?? '#A3A3A3' }}>
-            {brand.name}
-          </span>
-        </LinkComponent>
+      <nav className="w-full px-0 grid grid-cols-[auto_1fr_auto] items-center h-full">
+        {/* LEFT — BRAND */}
+        <div className="pl-5 md:pl-6 flex items-center gap-2">
+          <LinkComponent href={brand.href} className="flex items-center gap-2" onClick={closeMobile}>
+            {brand.logoSrc && (
+              <div
+                className="overflow-hidden flex items-center justify-center"
+                style={{ height: LOGO_BOX, width: LOGO_BOX }}
+              >
+                <img
+                  src={brand.logoSrc}
+                  alt={brand.logoAlt ?? 'logo'}
+                  className="w-full h-full object-cover object-center"
+                  style={{ transform: `scale(${logoScale})`, transformOrigin: 'center', willChange: 'transform' }}
+                />
+              </div>
+            )}
 
-        {/* Desktop nav */}
-        <ul className="hidden items-center gap-6 md:flex">
-          {items.map(({ href, label }) => {
-            const active = activeHref === href;
-            return (
-              <li key={href}>
-                <LinkComponent
-                  href={href}
-                  className={`text-sm transition-opacity ${active ? 'font-semibold' : 'opacity-90 hover:opacity-100'}`}
-                >
-                  <span style={{ color: navText }}>{label}</span>
-                </LinkComponent>
-              </li>
-            );
-          })}
-        </ul>
+            {brand.name && (
+              <span
+                className="whitespace-nowrap font-semibold leading-none text-[18px] md:text-[22px] transition-colors duration-200"
+                style={{ color: scrolled ? (brand.nameColor ?? '#003366') : '#FFFFFF' }}
+              >
+                {brand.name}
+              </span>
+            )}
+          </LinkComponent>
+        </div>
 
-        {/* Mobile toggle */}
-        <button
-          className="md:hidden rounded-md p-2"
-          aria-label="Toggle menu"
-          onClick={() => setOpen((v) => !v)}
-          style={{ color: navText }}
-        >
-          ☰
-        </button>
+        {/* CENTER — DESKTOP MENU */}
+        <div className="hidden md:flex items-center gap-3 justify-center px-3 md:px-5 flex-nowrap">
+          {items.map(({ href, label }) => (
+            <LinkComponent
+              key={href}
+              href={href}
+              className={isActive(href) ? chipActive : chipGlassy}
+              onClick={closeMobile}
+            >
+              <span className="whitespace-nowrap" style={{ color: textColor }}>
+                {label}
+              </span>
+            </LinkComponent>
+          ))}
+        </div>
+
+        {/* RIGHT — CTA + HAMBURGER */}
+        <div className="flex items-center justify-end pr-4">
+          {/* Desktop CTA */}
+          <div className="hidden md:block">
+            <LinkComponent
+              href={CTA_HREF}
+              className={cn(
+                'px-5 py-2 rounded-md border-transparent transition-colors font-medium',
+                'text-[18px] md:text-[22px] leading-none',
+                'bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap',
+              )}
+              onClick={closeMobile}
+            >
+              <span>Get My Profile Snapshot</span>
+            </LinkComponent>
+          </div>
+
+          {/* Mobile Hamburger */}
+          <div className="md:hidden">
+            <button
+              type="button"
+              aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
+              aria-controls={mobilePanelId}
+              onClick={toggleMobile}
+              className={cn(
+                'inline-flex items-center justify-center rounded-full p-2',
+                scrolled ? 'bg-white/70 border border-black/10' : 'bg-white/15 border border-white/20',
+              )}
+              style={{ color: textColor }}
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                {mobileOpen ? (
+                  <>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </>
+                ) : (
+                  <>
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </>
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
       </nav>
 
-      {/* Mobile panel */}
-      {open && (
-        <div
-          className="md:hidden border-t"
-          style={{
-            backgroundColor: colors.bg,
-            borderColor: 'rgba(0,0,0,0.08)'
-          }}
-        >
-          <ul className="px-4 py-3 space-y-2">
+      {/* MOBILE PANEL */}
+      <div
+        id={mobilePanelId}
+        className={cn('md:hidden transition-all duration-200 ease-out overflow-hidden', mobileOpen ? 'max-h-[600px]' : 'max-h-0')}
+        aria-hidden={!mobileOpen}
+      >
+        <div className={cn('mx-4 mb-4 rounded-2xl border shadow-sm backdrop-blur', scrolled ? 'bg-white/80 border-black/10' : 'bg-white/20 border-white/25')}>
+          <div className="p-3 flex flex-col gap-2">
             {items.map(({ href, label }) => (
-              <li key={href}>
-                <LinkComponent
-                  href={href}
-                  className="block rounded-md px-2 py-2 text-sm"
-                  onClick={() => setOpen(false)}
-                >
-                  <span style={{ color: navText }}>{label}</span>
-                </LinkComponent>
-              </li>
+              <LinkComponent
+                key={href}
+                href={href}
+                onClick={closeMobile}
+                className={cn('w-full text-center', isActive(href) ? chipActive : chipGlassy)}
+              >
+                <span className="whitespace-nowrap" style={{ color: textColor }}>
+                  {label}
+                </span>
+              </LinkComponent>
             ))}
-          </ul>
+
+            {/* MOBILE CTA */}
+            <LinkComponent
+              href={CTA_HREF}
+              onClick={closeMobile}
+              className={cn(
+                'px-4 py-2 rounded-full border-transparent transition-colors text-sm font-semibold',
+                'w-full bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap',
+              )}
+            >
+              <span>Get My Profile Snapshot</span>
+            </LinkComponent>
+          </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }

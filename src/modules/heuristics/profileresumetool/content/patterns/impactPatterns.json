@@ -1,0 +1,67 @@
+{
+  "percent": [
+    "(\\b\\+?\\-?\\d{1,3})\\s?%\\b",
+    "(increase|improv(ed|e)|growth|reduc(e|ed)|decreas(e|ed)|cut|boost|enhanc(ed|e)|optimi(s|z)ed?)\\s+(by|to)\\s+(\\d{1,3})\\s?%\\b",
+    "(achiev(ed|e)?|deliver(ed|y)?)\\s+(\\d{1,3})\\s?%\\s+(target|growth|conversion|accuracy|uplift|efficiency)"
+  ],
+
+  "money": [
+    "(₹|rs\\.?|inr|usd|\\$|eur|€|gbp|£|sgd|s\\$|cad|aud|a\\$|aed|¥|jpy|hkd|₩)\\s?\\d+[\\d,]*(\\.?\\d+)?\\b",
+    "\\b\\d+\\s?(crore|lakh|million|billion|thousand|k)\\b",
+    "(raised|generated|saved|revenue|budget|cost|profit|fund(ed|ing))\\s+(of|worth|valued at)?\\s?(₹|\\$|eur|€|gbp|£|inr|usd|cad|aud|million|lakh|crore)\\s?\\d+[\\d,]*(\\.?\\d+)?"
+  ],
+
+  "pnl": [
+    "\\bp&l\\b",
+    "\\bprofit(ability|able)?\\b",
+    "\\bmargin(s)?\\b",
+    "\\broi\\b",
+    "\\brevenue\\b",
+    "\\bcost(\\s+(saving|reduction|optimization|cutting|efficiency|avoidance))?\\b",
+    "\\btop[- ]line\\b",
+    "\\bbottom[- ]line\\b"
+  ],
+
+  "launches": [
+    "\\b(launched|rolled( |-)?out|shipped|go(-| )live|beta|released|deployed|implemented|introduced|migrated)\\b",
+    "\\b(pilot(ed)?|prototype(d)?|proof of concept|mvp|sandbox|test launch)\\b"
+  ],
+
+  "scale": [
+    "\\b(handled|managed|led|owned|drove|oversaw|delivered|executed|supported)\\s+(a|an)?\\s?(team|project|portfolio|business|account|initiative|campaign|unit|program)\\s+(of|with)?\\s*\\d+[\\d,]*(\\+)?(\\s*(members|employees|users|clients|SKUs|products|accounts|stores|branches|cities|countries))?\\b",
+    "\\b(scale(d)?|expand(ed)?|grew|increased)\\s+(to|by)?\\s*\\d+[\\d,]*(\\+)?(\\s*(users|customers|clients|downloads|installs|stores|cities|regions|markets|branches|suppliers))?\\b"
+  ],
+
+  "metrics": [
+    "\\b(KPI|OKR|metric|goal|target|objective)s?\\b",
+    "\\b(conversion|efficiency|accuracy|latency|uptime|availability|throughput|churn|retention|growth|sales|profit|lead)s?\\b",
+    "\\b(measured|tracked|analyz(ed|e)d|benchmarked|evaluat(ed|e))\\s+(against|using)?\\s*(KPI|OKR|target|metric|benchmark)\\b"
+  ],
+
+  "quality": [
+    "\\b(improv(ed|e)|enhanc(ed|e)|refin(ed|e)|revamp(ed|e)|streamlin(ed|e)|upgrad(ed|e)|stabiliz(ed|e)|optimi(s|z)ed?)\\b",
+    "\\b(error|defect|bug|downtime|rework|complaint)s?\\s+(reduc(ed|tion)|fix(ed|ing))\\b",
+    "\\b(automation|automated|digitiz(ed|e)|standardiz(ed|e))\\b"
+  ],
+
+  "leadership": [
+    "\\b(led|managed|mentored|supervised|directed|guided|coached|trained|influenced|coordinated|collaborated)\\b",
+    "\\b(head(ed)?|owned|drove|initiated|architect(ed)?|spearheaded|championed)\\b"
+  ],
+
+  "strategy": [
+    "\\b(strategy|strategic|roadmap|plan|framework|vision|policy|business case|market entry|go(-| )to(-| )market|gtm|pricing|forecast|budget|P&L)\\b",
+    "\\b(conceptualiz(ed|e)|formulat(ed|e)|develop(ed|e)|crafted|designed)\\s+(a|the)?\\s*(strategy|plan|blueprint|initiative)\\b"
+  ],
+
+  "client_impact": [
+    "\\b(client|customer|partner|stakeholder|vendor|supplier|agency|investor)s?\\b",
+    "\\b(satisfaction|NPS|CSAT|renewal|retention|feedback|conversion)s?\\b",
+    "\\b(improved|increased|enhanced|boosted|driven|achieved)\\s+(client|customer|partner|user)\\s+(experience|growth|success|retention|adoption)\\b"
+  ],
+
+  "innovation": [
+    "\\b(innovativ(e|ely)|patent(ed)?|invent(ed|ion)|new|novel|first[- ]of[- ]its[- ]kind|disrupt(ed|ive)|transform(ed|ative))\\b",
+    "\\b(automation|ml|ai|blockchain|cloud|genai|data[- ]driven|predictive|analytics|microservice|api|platform|pipeline|model)\\b"
+  ]
+}
