@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+// POST /admin/mba/datasets/build
 export async function POST() {
   try {
     // Placeholder for dataset build logic
@@ -8,13 +9,15 @@ export async function POST() {
       message: "Dataset build endpoint - coming soon",
     });
   } catch (error) {
+    console.error("Dataset build failed:", error);
     return NextResponse.json(
-      { error: "Dataset build failed" },
+      { success: false, error: "Dataset build failed" },
       { status: 500 }
     );
   }
 }
 
+// GET /admin/mba/datasets/build
 export async function GET() {
   return NextResponse.json({
     status: "ready",
@@ -22,4 +25,5 @@ export async function GET() {
   });
 }
 
-export const dynamic = 'force-dynamic';
+// Ensures the route always runs server-side (never cached)
+export const dynamic = "force-dynamic";
