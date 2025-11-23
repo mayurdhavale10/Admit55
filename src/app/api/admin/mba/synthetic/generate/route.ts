@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
-// ⭐ FIX: Force Node.js runtime so fs/path/crypto can run
 export const runtime = "nodejs";
 
-// Import default exports from generators
-import generateTier1Elite from "@/src/data/generation/generators/tier1EliteGenerator";
-import generateTier2Mid from "@/src/data/generation/generators/tier2MidGenerator";
-import generateTier3Regular from "@/src/data/generation/generators/tier3RegularGenerator";
-import generateNonTraditional from "@/src/data/generation/generators/nontraditionalGenerator";
-import generateInternational from "@/src/data/generation/generators/internationalGenerator";
-import generateEdgeNoise from "@/src/data/generation/generators/edgeNoiseGenerator";
+// Use @src/ consistently
+import generateTier1Elite from "@src/data/generation/generators/tier1EliteGenerator";
+import generateTier2Mid from "@src/data/generation/generators/tier2MidGenerator";
+import generateTier3Regular from "@src/data/generation/generators/tier3RegularGenerator";
+import generateNonTraditional from "@src/data/generation/generators/nontraditionalGenerator";
+import generateInternational from "@src/data/generation/generators/internationalGenerator";
+import generateEdgeNoise from "@src/data/generation/generators/edgeNoiseGenerator";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
       `[API] Generating ${n} resumes for tier=${tier} (seed=${seed})`
     );
 
-    let result: { count: number; outDir?: string; outJsonl?: string };
+    let result: { count: number; outDir?: string; outJsonl?: string; ok?: boolean; output?: string; labels?: string };
 
     switch (tier) {
       case "tier1_elite":
@@ -105,7 +104,7 @@ export async function POST(req: Request) {
       ok: true,
       tier,
       count: result.count,
-      output: result.outJsonl ?? result.outDir ?? null,
+      output: result.outJsonl ?? result.output ?? result.outDir ?? null,
     });
   } catch (err: any) {
     console.error("[synthetic/generate] ERROR", err);
