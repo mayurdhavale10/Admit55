@@ -3,13 +3,13 @@ import { NextResponse } from "next/server";
 // ⭐ FIX: Force Node.js runtime so fs/path/crypto can run
 export const runtime = "nodejs";
 
-// Explicitly import all generators
-import generateTier1Raw from "@src/data/generation/generators/tier1EliteGenerator";
-import generateTier2Raw from "@src/data/generation/generators/tier2MidGenerator";
-import generateTier3Raw from "@src/data/generation/generators/tier3RegularGenerator";
-import generateNonTraditionalRaw from "@src/data/generation/generators/nontraditionalGenerator";
-import generateInternationalRaw from "@src/data/generation/generators/internationalGenerator";
-import generateEdgeNoiseRaw from "@src/data/generation/generators/edgeNoiseGenerator";
+// Explicitly import all generators - FIXED PATHS
+import generateTier1Raw from "@/src/data/generation/generators/tier1EliteGenerator";
+import generateTier2Raw from "@/src/data/generation/generators/tier2MidGenerator";
+import generateTier3Raw from "@/src/data/generation/generators/tier3RegularGenerator";
+import generateNonTraditionalRaw from "@/src/data/generation/generators/nontraditionalGenerator";
+import generateInternationalRaw from "@/src/data/generation/generators/internationalGenerator";
+import generateEdgeNoiseRaw from "@/src/data/generation/generators/edgeNoiseGenerator";
 
 type GeneratorFn = (
   count: number,
