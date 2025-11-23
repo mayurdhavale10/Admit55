@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+// ⭐ FIX: Force Node.js runtime so fs/path/crypto can run
+export const runtime = "nodejs";
+
 // Explicitly import all generators
 import generateTier1Raw from "@src/data/generation/generators/tier1EliteGenerator";
 import generateTier2Raw from "@src/data/generation/generators/tier2MidGenerator";
@@ -7,10 +10,6 @@ import generateTier3Raw from "@src/data/generation/generators/tier3RegularGenera
 import generateNonTraditionalRaw from "@src/data/generation/generators/nontraditionalGenerator";
 import generateInternationalRaw from "@src/data/generation/generators/internationalGenerator";
 import generateEdgeNoiseRaw from "@src/data/generation/generators/edgeNoiseGenerator";
-
-/* -------------------------------------------------------------------------- */
-/*                          STANDARDIZED GENERATOR TYPE                       */
-/* -------------------------------------------------------------------------- */
 
 type GeneratorFn = (
   count: number,
@@ -21,7 +20,6 @@ type GeneratorFn = (
   labelsDir?: string;
 }>;
 
-/* ------------------------ CAST TO STANDARD SIGNATURE ---------------------- */
 const generateTier1 = generateTier1Raw as GeneratorFn;
 const generateTier2 = generateTier2Raw as GeneratorFn;
 const generateTier3 = generateTier3Raw as GeneratorFn;
@@ -29,10 +27,8 @@ const generateNonTraditional = generateNonTraditionalRaw as GeneratorFn;
 const generateInternational = generateInternationalRaw as GeneratorFn;
 const generateEdgeNoise = generateEdgeNoiseRaw as GeneratorFn;
 
-/* ----------------------- NEXT.JS DYNAMIC CONFIG --------------------------- */
 export const dynamic = "force-dynamic";
 
-/* ------------------------------ SUPPORTED TIERS --------------------------- */
 type SupportedTier =
   | "tier1_elite"
   | "tier2_mid"
@@ -50,8 +46,6 @@ const SUPPORTED_TIERS: SupportedTier[] = [
   "edge_noise",
 ];
 
-/* ---------------------------- Utility Functions --------------------------- */
-
 function parseNumber(v: unknown, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) && !Number.isNaN(n)
@@ -59,15 +53,11 @@ function parseNumber(v: unknown, fallback = 0) {
     : fallback;
 }
 
-/* --------------------------------- ROUTE ---------------------------------- */
-
 export async function POST(req: Request) {
   try {
     const raw = await req.json().catch(() => ({}));
-
     const tier = String(raw?.tier ?? "tier1_elite") as SupportedTier;
 
-    // Default counts per tier
     const defaultCount =
       tier === "tier1_elite"
         ? 1000
@@ -104,7 +94,6 @@ export async function POST(req: Request) {
 
     let result: Awaited<ReturnType<GeneratorFn>>;
 
-    /* ---------------------------- DISPATCH GENERATOR ---------------------------- */
     switch (tier) {
       case "tier1_elite":
         result = await generateTier1(n, seed);
@@ -126,7 +115,6 @@ export async function POST(req: Request) {
         break;
     }
 
-    /* ---------------------------- SUCCESS RESPONSE ---------------------------- */
     return NextResponse.json({
       ok: true,
       tier,
