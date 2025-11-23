@@ -1,0 +1,15 @@
+{
+  "role_signal_weights": {
+    "Product": { "leadership": 0.8, "impact": 0.9, "tools": 0.85, "international": 0.7, "aliases": ["Product Management", "PM"] },
+    "Consulting": { "leadership": 0.85, "impact": 0.9, "tools": 0.8, "international": 0.8, "aliases": ["Strategy Consulting", "Management Consulting"] },
+    "Operations": { "leadership": 0.75, "impact": 0.8, "tools": 0.7, "international": 0.6, "aliases": ["Supply Chain", "Operations Management"] },
+    "Finance": { "leadership": 0.8, "impact": 0.9, "tools": 0.85, "international": 0.75, "aliases": ["Corporate Finance", "FP&A", "Investment"] },
+    "Marketing": { "leadership": 0.7, "impact": 0.8, "tools": 0.7, "international": 0.65, "aliases": ["Growth", "Brand", "Digital Marketing"] },
+    "Analytics": { "leadership": 0.6, "impact": 0.85, "tools": 0.95, "international": 0.7, "aliases": ["Data Analytics", "Data Science"] },
+    "Technology": { "leadership": 0.7, "impact": 0.8, "tools": 0.9, "international": 0.75, "aliases": ["Software Engineering", "Tech"] },
+    "Entrepreneurial": { "leadership": 1.0, "impact": 0.95, "tools": 0.75, "international": 0.85, "aliases": ["Entrepreneurship", "Founder", "Startup"] },
+    "Human Resources": { "leadership": 0.85, "impact": 0.7, "tools": 0.65, "international": 0.6, "aliases": ["HR", "People Ops", "Human_Resources"] },
+    "Public Sector": { "leadership": 0.9, "impact": 0.75, "tools": 0.6, "international": 0.65, "aliases": ["Government", "Policy", "Public_Sector"] }
+  },
+  "notes": "Evaluator calibration map — determines how each job role contributes to leadership, impact, tools, and international feature scoring during LoRA fine-tuning."
+}

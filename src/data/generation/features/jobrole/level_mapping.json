@@ -1,0 +1,53 @@
+{
+  "tier_id": "role_levels_simple",
+  "tier_label": "Professional Job Level and Leadership Hierarchy (Simple Map)",
+  "global_weight": 0.8,
+
+  "levels": {
+    "Level_1": {
+      "label": "Entry / Analyst",
+      "keywords": ["Analyst", "Intern", "Associate", "Trainee"],
+      "tier_score": 0.25,
+      "impact_multiplier": 0.8,
+      "aliases": ["Analyst I", "Junior Analyst"]
+    },
+    "Level_2": {
+      "label": "Mid / Associate",
+      "keywords": ["Consultant", "Engineer", "Executive", "Associate Consultant"],
+      "tier_score": 0.45,
+      "impact_multiplier": 0.9,
+      "aliases": ["Analyst II", "Business Associate"]
+    },
+    "Level_3": {
+      "label": "Manager / Lead",
+      "keywords": ["Manager", "Lead", "Supervisor", "Owner"],
+      "tier_score": 0.65,
+      "impact_multiplier": 1.0,
+      "aliases": ["Team Lead", "Project Manager"]
+    },
+    "Level_4": {
+      "label": "Senior / Director",
+      "keywords": ["Head", "Director", "Principal", "General Manager"],
+      "tier_score": 0.82,
+      "impact_multiplier": 1.1,
+      "aliases": ["Associate Director", "AVP"]
+    },
+    "Level_5": {
+      "label": "Executive / CXO",
+      "keywords": ["VP", "CXO", "Founder", "Managing Director", "Partner"],
+      "tier_score": 1.0,
+      "impact_multiplier": 1.25,
+      "aliases": ["C-Suite", "Executive Vice President"]
+    }
+  },
+
+  "edge_case_adjustments": {
+    "Senior Analyst":         { "maps_to": "Level_2", "bonus": 0.05 },
+    "Associate Director":     { "maps_to": "Level_4", "bonus": 0.08 },
+    "AVP":                    { "maps_to": "Level_4", "bonus": 0.10 },
+    "Consultant_MBB":         { "maps_to": "Level_3", "bonus": 0.15, "aliases": ["Consultant (MBB)"] },
+    "Founder_SmallStartup":   { "maps_to": "Level_5", "bonus": 0.20, "aliases": ["Founder (Small Startup)"] }
+  },
+
+  "notes": "Schema-aligned with role_hierarchy_levels: uses Level_* keys, tier_score, impact_multiplier, and explicit edge-case mappings."
+}

@@ -1,0 +1,112 @@
+{
+  "tier_id": "region_weights_global_distribution",
+  "tier_label": "Geographical & International Exposure Weights",
+  "global_weight": 0.85,
+
+  "regions": {
+    "India": {
+      "region_score": 1.0,
+      "subregions": ["Delhi NCR", "Mumbai", "Bangalore", "Hyderabad", "Chennai", "Pune", "Kolkata"],
+      "typical_roles": ["Manager", "Consultant", "Engineer", "Analyst"],
+      "currency": "INR",
+      "impact_multiplier": 1.0,
+      "aliases": ["Domestic", "India Base"],
+      "notes": "Major domestic applicant base for ISB/IIM. Serves as baseline region; diverse industry mix."
+    },
+
+    "North_America": {
+      "region_score": 1.25,
+      "countries": ["United States", "Canada"],
+      "typical_roles": ["Software Engineer", "Product Manager", "Consultant", "Data Scientist", "Founder"],
+      "currency": "USD",
+      "impact_multiplier": 1.15,
+      "aliases": ["USA", "US", "Canada", "North America"],
+      "notes": "High exposure and leadership maturity; ~5% of admits. Top compensation benchmarks."
+    },
+
+    "Europe": {
+      "region_score": 1.15,
+      "countries": ["United Kingdom", "Germany", "France", "Netherlands", "Switzerland", "Ireland"],
+      "typical_roles": ["Consultant", "Finance Analyst", "Project Manager", "Marketing Manager"],
+      "currency": "GBP/EUR",
+      "impact_multiplier": 1.1,
+      "aliases": ["EU", "European Union", "UK", "Western Europe"],
+      "notes": "Prestigious global corporate experience. Smaller but high-quality academic representation."
+    },
+
+    "Middle_East": {
+      "region_score": 1.10,
+      "countries": ["UAE", "Qatar", "Saudi Arabia", "Oman", "Kuwait", "Bahrain"],
+      "typical_roles": ["Project Engineer", "Finance Manager", "Banker", "Operations Head"],
+      "currency": "AED/SAR",
+      "impact_multiplier": 1.05,
+      "aliases": ["GCC", "Dubai", "Qatar", "Saudi"],
+      "notes": "Tax-free roles with managerial weight. ~3% of pool, strong financial acumen signal."
+    },
+
+    "Asia_Pacific": {
+      "region_score": 1.20,
+      "countries": ["Singapore", "Japan", "Hong Kong", "Australia", "Malaysia", "Thailand"],
+      "typical_roles": ["Regional Product Manager", "Tech Lead", "Consultant", "Finance Lead"],
+      "currency": "SGD/JPY/AUD",
+      "impact_multiplier": 1.1,
+      "aliases": ["APAC", "ASEAN", "Australia"],
+      "notes": "Cross-border experience. Common among MNC managers; strong adaptability and exposure signal."
+    },
+
+    "Africa": {
+      "region_score": 1.10,
+      "countries": ["South Africa", "Nigeria", "Kenya", "Egypt"],
+      "typical_roles": ["Consultant", "Operations Manager", "Business Head"],
+      "currency": "ZAR/NGN",
+      "impact_multiplier": 1.0,
+      "aliases": ["African Continent"],
+      "notes": "Rare frontier-market profiles with high leadership potential and resilience."
+    },
+
+    "Latin_America": {
+      "region_score": 1.08,
+      "countries": ["Brazil", "Mexico", "Chile", "Argentina"],
+      "typical_roles": ["Operations Lead", "Trade Analyst", "Supply Chain Manager"],
+      "currency": "BRL/MXN",
+      "impact_multiplier": 1.05,
+      "aliases": ["LATAM"],
+      "notes": "Very rare, globally mobile professionals; adds cultural diversity and market insight."
+    },
+
+    "Others": {
+      "region_score": 1.05,
+      "countries": ["Israel", "Turkey", "Russia", "Ukraine", "Poland"],
+      "typical_roles": ["Tech Lead", "Cybersecurity Specialist", "Logistics Manager"],
+      "currency": "ILS/TRY/RUB",
+      "impact_multiplier": 1.0,
+      "aliases": ["Miscellaneous Regions", "Emerging Europe"],
+      "notes": "Low frequency but high intellectual capital and global credibility."
+    }
+  },
+
+  "distribution_targets": {
+    "India": 0.88,
+    "North_America": 0.05,
+    "Europe": 0.025,
+    "Middle_East": 0.025,
+    "Asia_Pacific": 0.03,
+    "Africa": 0.005,
+    "Latin_America": 0.005,
+    "Others": 0.005
+  },
+
+  "evaluation_weights": {
+    "global_exposure_bonus": 0.15,
+    "currency_signal_weight": 0.10,
+    "leadership_bonus_if_foreign": 0.05
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "author": "Mayur Dhavale",
+    "version": "v2.1"
+  },
+
+  "notes": "Defines normalized region-based diversity weights and exposure scores used during synthetic resume generation and evaluation. Schema-aligned with academics, industry, and legal datasets for stable LoRA training."
+}

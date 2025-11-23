@@ -1,0 +1,36 @@
+{
+  "tenure_heuristics": {
+    "avg_tenure_years": {
+      "Analyst": 2,
+      "Consultant": 2.5,
+      "Associate": 2.5,
+      "Manager": 3.5,
+      "Lead": 4,
+      "Director": 5,
+      "VP": 6,
+      "CXO": 7,
+      "Founder": 5
+    },
+    "promotion_likelihood": {
+      "Analyst_to_Consultant": 0.7,
+      "Consultant_to_Manager": 0.6,
+      "Manager_to_Director": 0.5,
+      "Director_to_VP": 0.3,
+      "VP_to_CXO": 0.2
+    },
+    "stability_weight": {
+      "short_stay_penalty": -0.1,
+      "long_stay_bonus": 0.1,
+      "ideal_tenure_range": [2, 5]
+    },
+    "sector_progression_speed": {
+      "Consulting": 1.1,
+      "Product": 1.0,
+      "Operations": 0.9,
+      "Finance": 0.85,
+      "Startups": 1.3,
+      "Public_Sector": 0.7
+    },
+    "notes": "Used to generate realistic work history timelines and adjust career trajectory scoring for stability and progression patterns."
+  }
+}

@@ -1,0 +1,283 @@
+{
+  "tier_id": "nontraditional_backgrounds",
+  "tier_label": "Non-Traditional Backgrounds (Doctors, Lawyers, Creatives, Defense, NGO)",
+  "tier_score": 0.78,
+  "frequency": 0.05,
+
+  "global_weight": 0.78,
+  "academic_weight": 0.7,
+  "foreign_subgroup_weight": 1.0,
+  "impact_weight_bonus": 1.2,
+
+  "colleges": {
+    "Medicine_LifeSciences": [
+      {
+        "name": "AIIMS New Delhi",
+        "aliases": ["All India Institute of Medical Sciences Delhi"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "JIPMER Pondicherry",
+        "aliases": [],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "AFMC Pune",
+        "aliases": ["Armed Forces Medical College"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "Kasturba Medical College Manipal",
+        "aliases": ["KMC Manipal"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "Government Medical College Nagpur",
+        "aliases": ["GMC Nagpur"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "NIPER Mohali",
+        "aliases": ["National Institute of Pharmaceutical Education and Research Mohali"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "PGIMER Chandigarh",
+        "aliases": ["Post Graduate Institute of Medical Education and Research"],
+        "domain": "Medicine/LifeSciences"
+      }
+    ],
+
+    "Law_Policy_Public": [
+      {
+        "name": "NLSIU Bangalore",
+        "aliases": ["National Law School of India University Bangalore"],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "NLU Delhi",
+        "aliases": ["National Law University Delhi"],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "NALSAR Hyderabad",
+        "aliases": ["NALSAR University of Law Hyderabad"],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "Symbiosis Law School Pune",
+        "aliases": [],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "Amity Law School Delhi",
+        "aliases": [],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "Faculty of Law (Delhi University)",
+        "aliases": ["DU Law Faculty"],
+        "domain": "Law/Policy"
+      }
+    ],
+
+    "Creative_Arts_Media": [
+      {
+        "name": "Film and Television Institute of India (FTII)",
+        "aliases": [],
+        "domain": "Creative/Arts/Media"
+      },
+      {
+        "name": "Whistling Woods International Mumbai",
+        "aliases": ["WWI Mumbai"],
+        "domain": "Creative/Arts/Media"
+      },
+      {
+        "name": "NID Ahmedabad",
+        "aliases": ["National Institute of Design Ahmedabad"],
+        "domain": "Design/Architecture"
+      },
+      {
+        "name": "NIFT Delhi",
+        "aliases": ["National Institute of Fashion Technology Delhi"],
+        "domain": "Design/Architecture"
+      },
+      {
+        "name": "Xavier Institute of Communications Mumbai",
+        "aliases": ["XIC Mumbai"],
+        "domain": "Creative/Arts/Media"
+      },
+      {
+        "name": "KM Music Conservatory Chennai",
+        "aliases": [],
+        "domain": "Creative/Arts/Media"
+      },
+      {
+        "name": "Pearl Academy Delhi",
+        "aliases": [],
+        "domain": "Creative/Arts/Media"
+      },
+      {
+        "name": "Shiamak Davar Institute of Performing Arts",
+        "aliases": ["SDIPA"],
+        "domain": "Creative/Arts/Media"
+      }
+    ],
+
+    "Defense_Sports": [
+      {
+        "name": "National Defence Academy (NDA)",
+        "aliases": ["NDA Pune"],
+        "domain": "Defense/Sports"
+      },
+      {
+        "name": "Indian Military Academy (IMA)",
+        "aliases": ["IMA Dehradun"],
+        "domain": "Defense/Sports"
+      },
+      {
+        "name": "Air Force Academy Hyderabad",
+        "aliases": [],
+        "domain": "Defense/Sports"
+      },
+      {
+        "name": "Naval Academy Ezhimala",
+        "aliases": [],
+        "domain": "Defense/Sports"
+      },
+      {
+        "name": "National Institute of Sports Patiala",
+        "aliases": ["NIS Patiala"],
+        "domain": "Defense/Sports"
+      }
+    ],
+
+    "Social_Impact_NGO": [
+      {
+        "name": "Tata Institute of Social Sciences (TISS) Mumbai",
+        "aliases": [],
+        "domain": "Social/NGO"
+      },
+      {
+        "name": "Azim Premji University (APU)",
+        "aliases": [],
+        "domain": "Social/NGO"
+      },
+      {
+        "name": "Institute of Rural Management Anand (IRMA)",
+        "aliases": [],
+        "domain": "Social/NGO"
+      },
+      {
+        "name": "Xavier Institute of Social Service (XISS) Ranchi",
+        "aliases": [],
+        "domain": "Social/NGO"
+      },
+      {
+        "name": "Indian School of Development Management (ISDM)",
+        "aliases": [],
+        "domain": "Social/NGO"
+      },
+      {
+        "name": "Ambedkar University Delhi",
+        "aliases": [],
+        "domain": "Social/NGO"
+      }
+    ],
+
+    "Agriculture_Rural_Development": [
+      {
+        "name": "Tamil Nadu Agricultural University (TNAU)",
+        "aliases": [],
+        "domain": "Agriculture/Rural"
+      },
+      {
+        "name": "Punjab Agricultural University (PAU)",
+        "aliases": [],
+        "domain": "Agriculture/Rural"
+      },
+      {
+        "name": "IARI Delhi",
+        "aliases": ["Indian Agricultural Research Institute"],
+        "domain": "Agriculture/Rural"
+      },
+      {
+        "name": "MANAGE Hyderabad",
+        "aliases": ["National Institute of Agricultural Extension Management"],
+        "domain": "Agriculture/Rural"
+      },
+      {
+        "name": "Anand Agricultural University",
+        "aliases": [],
+        "domain": "Agriculture/Rural"
+      },
+      {
+        "name": "Pantnagar University",
+        "aliases": ["Govind Ballabh Pant University of Agriculture and Technology"],
+        "domain": "Agriculture/Rural"
+      }
+    ],
+
+    "Entrepreneurial_Founders": [
+      {
+        "name": "Self-founded Startup",
+        "aliases": ["Startup Founder", "Founder"],
+        "domain": "Entrepreneurial"
+      },
+      {
+        "name": "Bootstrapped Brand",
+        "aliases": [],
+        "domain": "Entrepreneurial"
+      },
+      {
+        "name": "Family Business Successor",
+        "aliases": [],
+        "domain": "Entrepreneurial"
+      },
+      {
+        "name": "Creator / Influencer Brand",
+        "aliases": ["Content Creator", "Digital Influencer"],
+        "domain": "Entrepreneurial"
+      },
+      {
+        "name": "Freelance Consultant (10+ Clients)",
+        "aliases": ["Freelance Professional", "Independent Consultant"],
+        "domain": "Entrepreneurial"
+      },
+      {
+        "name": "Registered MSME Owner",
+        "aliases": [],
+        "domain": "Entrepreneurial"
+      }
+    ],
+
+    "Engineering_Tech": [],
+    "Management_Business": [],
+    "Design_Architecture": [],
+    "Foreign_Elite": [],
+    "Distance_Open": []
+  },
+
+  "domain_distribution": {
+    "Medicine/LifeSciences": 0.2,
+    "Law/Policy": 0.15,
+    "Creative/Arts/Media": 0.15,
+    "Defense/Sports": 0.1,
+    "Social/NGO": 0.15,
+    "Agriculture/Rural": 0.1,
+    "Entrepreneurial": 0.15
+  },
+
+  "avg_scores": {
+    "GMAT": [640, 700],
+    "CAT_percentile": [75, 90]
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "source": "Admit55 Synthetic Academic Hierarchy v2.1",
+    "author": "Mayur Dhavale"
+  },
+
+  "notes": "Represents ~5–7% of MBA admits. Candidates often stand out for unique stories: social impact, creative arts, sports, or medical backgrounds. Highly diverse set — vital for bias correction and semantic generalization."
+}

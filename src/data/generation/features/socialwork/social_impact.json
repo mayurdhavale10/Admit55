@@ -1,0 +1,55 @@
+{
+  "social_work": {
+    "CSR_Initiatives": {
+      "examples": [
+        "Led CSR campaign on education for 1,200 underprivileged children",
+        "Organized waste segregation drives in collaboration with Swachh Bharat Mission",
+        "Coordinated blood donation camps across 3 corporate offices",
+        "Initiated employee volunteering program impacting 500+ rural families",
+        "Implemented digital literacy program for government school teachers"
+      ],
+      "weight": 0.85,
+      "notes": "Corporate-backed CSR or structured social impact work. Evaluated positively for leadership and empathy."
+    },
+    "NGO_Volunteering": {
+      "examples": [
+        "Volunteered with Teach for India for 6 months",
+        "Mentored rural students under Pratham NGO",
+        "Worked with Goonj to distribute 10,000 clothing items",
+        "Supported flood relief efforts with Indian Red Cross",
+        "Taught basic computer skills to rural women in Maharashtra"
+      ],
+      "weight": 0.9,
+      "notes": "Grassroots volunteering; often a positive differentiator for younger or Tier-2 candidates."
+    },
+    "Sustainability_Projects": {
+      "examples": [
+        "Implemented waste management system at workplace reducing waste by 40%",
+        "Built solar-powered study lamps for rural schools",
+        "Organized awareness campaigns on clean energy in 20+ schools",
+        "Partnered with local municipality to plant 5,000 trees",
+        "Collaborated with NGO to improve water sanitation in villages"
+      ],
+      "weight": 0.88,
+      "notes": "Eco-focused initiatives align with modern ESG/impact narrative. Strong appeal for social innovation candidates."
+    },
+    "Leadership_Fellowships": {
+      "examples": [
+        "Selected for Young India Fellowship (YIF)",
+        "Global Shapers Community (World Economic Forum) – Member",
+        "UN Volunteer Program – Youth Outreach",
+        "Climate Reality Leadership Corps – Fellow",
+        "ISB ChangeMaker Program Participant"
+      ],
+      "weight": 1.0,
+      "notes": "High signal for leadership and social awareness; rare, elite, and globally recognized."
+    }
+  },
+  "distribution": {
+    "CSR_Initiatives": 0.3,
+    "NGO_Volunteering": 0.4,
+    "Sustainability_Projects": 0.2,
+    "Leadership_Fellowships": 0.1
+  },
+  "notes": "Defines social work and volunteering data for synthetic resumes. 15–20% of candidates typically report some form of social impact involvement."
+}

@@ -1,0 +1,85 @@
+{
+  "tier_id": "startup_impact",
+  "tier_label": "Founder & Venture Impact Signals",
+  "global_weight": 0.95,
+
+  "metrics": {
+    "revenue_in_inr_crore": {
+      "description": "Trailing-12M revenue (or ARR for SaaS), normalized to INR crore",
+      "thresholds": {
+        "100_plus": 1.00,
+        "50_to_100": 0.90,
+        "10_to_50": 0.80,
+        "1_to_10": 0.65,
+        "lt_1": 0.50
+      }
+    },
+    "valuation_in_inr_crore": {
+      "description": "Most recent post-money valuation",
+      "thresholds": {
+        "1000_plus": 1.00,
+        "200_to_1000": 0.90,
+        "50_to_200": 0.80,
+        "10_to_50": 0.70
+      },
+      "notes": "Use lower weight than revenue for bootstrapped firms"
+    },
+    "funding_raised_in_usd_m": {
+      "description": "Cumulative external capital raised (USD millions)",
+      "thresholds": {
+        "100_plus": 0.90,
+        "20_to_100": 0.80,
+        "5_to_20": 0.70,
+        "lt_5": 0.60
+      }
+    },
+    "users_or_customers": {
+      "description": "Active users or paying customers (pick relevant)",
+      "thresholds": {
+        "10m_plus_users_or_10k_plus_pay_cust": 0.90,
+        "1m_to_10m_or_1k_to_10k": 0.80,
+        "100k_to_1m_or_100_to_1k": 0.70
+      }
+    },
+    "profitability": {
+      "description": "Sustained profitability (EBITDA+ for >3 quarters)",
+      "boolean_bonus": 0.08
+    },
+    "exits": {
+      "description": "Acquisition/IPO",
+      "bonuses": {
+        "ipo": 0.15,
+        "strategic_acquisition": 0.12,
+        "acquihire": 0.05
+      }
+    }
+  },
+
+  "evaluation_weights": {
+    "revenue_in_inr_crore": 0.45,
+    "valuation_in_inr_crore": 0.15,
+    "funding_raised_in_usd_m": 0.15,
+    "users_or_customers": 0.15,
+    "profitability": 0.05,
+    "exits": 0.05
+  },
+
+  "normalization": {
+    "currency_priority": ["INR", "USD", "EUR", "SGD"],
+    "use_currency_weights": true,
+    "timeframe_months": 12,
+    "source_of_truth": ["audited", "press", "investor_deck", "linkedin_about"]
+  },
+
+  "text_patterns": {
+    "keywords": ["founded", "co-founded", "bootstrapped", "scaled", "ARR", "MRR", "revenue", "users", "customers", "acquired", "IPO", "valuation", "funding"],
+    "synonyms": {
+      "revenue": ["sales", "turnover", "topline"],
+      "users": ["MAU", "DAU", "active users"],
+      "customers": ["paying clients", "subscribers"]
+    }
+  },
+
+  "notes": "Designed to let Tier-3 academics + Tier-1 startup impact outrank Tier-1 academics with low impact.",
+  "meta": { "last_updated": "2025-11-11", "author": "Mayur Dhavale", "version": "v2.1" }
+}

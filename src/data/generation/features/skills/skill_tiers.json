@@ -1,0 +1,230 @@
+{
+  "version": "1.0",
+  "dataset": "Skill Tiers by Industry",
+  "last_updated": "2025-11-07",
+  "schema": {
+    "Tier 1": "Advanced / Leadership / Deep Expertise",
+    "Tier 2": "Professional / Practitioner / Mid-level",
+    "Tier 3": "Foundational / Entry / Support Skills"
+  },
+  "industries": {
+    "Technology": {
+      "Tier 1": [
+        "Machine Learning",
+        "Deep Learning",
+        "Computer Vision",
+        "Natural Language Processing",
+        "Cloud Architecture (AWS, Azure, GCP)",
+        "MLOps & Model Deployment",
+        "Cybersecurity Architecture",
+        "Full-Stack Development (MERN/Next.js)",
+        "Data Engineering",
+        "Generative AI & LLM Integration"
+      ],
+      "Tier 2": [
+        "Python Programming",
+        "SQL & Database Design",
+        "REST API Development",
+        "DevOps / CI-CD",
+        "Docker & Kubernetes",
+        "Microservices",
+        "System Design",
+        "Software Testing / QA",
+        "Networking Fundamentals"
+      ],
+      "Tier 3": [
+        "HTML / CSS / JavaScript",
+        "Basic Python / Java",
+        "Version Control (Git)",
+        "Debugging / IDE Usage",
+        "MS Office / Documentation"
+      ]
+    },
+    "Finance": {
+      "Tier 1": [
+        "Financial Modeling",
+        "Investment Banking Analysis",
+        "M&A Advisory",
+        "Risk Management",
+        "Quantitative Finance / Derivatives",
+        "Venture Capital / Private Equity",
+        "Financial Forecasting with AI"
+      ],
+      "Tier 2": [
+        "Accounting Principles",
+        "Valuation Techniques (DCF, Comps)",
+        "Corporate Finance",
+        "Excel / VBA Automation",
+        "Financial Statement Analysis",
+        "Budgeting & Forecasting"
+      ],
+      "Tier 3": [
+        "Bookkeeping",
+        "MS Excel Basics",
+        "Tally / ERP Basics",
+        "Cash Flow Tracking"
+      ]
+    },
+    "Consulting": {
+      "Tier 1": [
+        "Strategy Formulation",
+        "Operations Optimization",
+        "Data-Driven Decision Making",
+        "Change Management",
+        "Digital Transformation Advisory",
+        "Business Analytics"
+      ],
+      "Tier 2": [
+        "Market Research",
+        "Process Mapping",
+        "Business Case Preparation",
+        "Excel Modeling",
+        "PowerPoint Storyboarding"
+      ],
+      "Tier 3": [
+        "Presentation Skills",
+        "Communication Skills",
+        "Basic Data Analysis (Excel, Sheets)"
+      ]
+    },
+    "Healthcare": {
+      "Tier 1": [
+        "Clinical Research Management",
+        "Pharmacovigilance",
+        "Healthcare Analytics",
+        "Public Health Policy",
+        "Bioinformatics"
+      ],
+      "Tier 2": [
+        "Medical Coding",
+        "Healthcare Quality Assurance",
+        "Lab Data Handling",
+        "Hospital Operations"
+      ],
+      "Tier 3": [
+        "Patient Care Assistance",
+        "Basic Medical Terminology",
+        "Clinical Documentation"
+      ]
+    },
+    "Manufacturing": {
+      "Tier 1": [
+        "Lean Manufacturing",
+        "Six Sigma Black Belt",
+        "Supply Chain Analytics",
+        "Automation & Robotics",
+        "Process Simulation"
+      ],
+      "Tier 2": [
+        "Quality Control",
+        "Production Planning",
+        "Inventory Management",
+        "ERP Systems (SAP/MM)",
+        "Maintenance Management"
+      ],
+      "Tier 3": [
+        "Shop-Floor Operations",
+        "Material Handling",
+        "Safety & Compliance Basics"
+      ]
+    },
+    "Marketing": {
+      "Tier 1": [
+        "Brand Strategy",
+        "Digital Marketing Leadership",
+        "SEO/SEM Analytics",
+        "Marketing Automation (HubSpot, Marketo)",
+        "Content Strategy & Growth"
+      ],
+      "Tier 2": [
+        "Social Media Marketing",
+        "Copywriting",
+        "Google Ads / Meta Ads",
+        "Email Campaign Management",
+        "Public Relations"
+      ],
+      "Tier 3": [
+        "Content Posting",
+        "Basic Graphic Design (Canva)",
+        "Community Management"
+      ]
+    },
+    "Design": {
+      "Tier 1": [
+        "UI/UX Design Systems",
+        "Interaction Design",
+        "3D Modeling / BIM",
+        "Design Thinking Facilitation"
+      ],
+      "Tier 2": [
+        "Wireframing / Prototyping",
+        "Figma / Adobe XD",
+        "Visual Design",
+        "Interior / Architectural Drafting"
+      ],
+      "Tier 3": [
+        "Basic AutoCAD",
+        "Sketching",
+        "Rendering Basics"
+      ]
+    },
+    "Education": {
+      "Tier 1": [
+        "Curriculum Design",
+        "Educational Data Mining",
+        "Policy Research",
+        "EdTech Product Strategy"
+      ],
+      "Tier 2": [
+        "Teaching Pedagogy",
+        "Statistical Analysis (SPSS, R)",
+        "Survey Design",
+        "Academic Writing"
+      ],
+      "Tier 3": [
+        "Lesson Planning",
+        "Classroom Delivery",
+        "Basic Data Collection"
+      ]
+    },
+    "Law": {
+      "Tier 1": [
+        "Corporate Law",
+        "Mergers & Acquisitions Legal Advisory",
+        "IPR & Technology Law",
+        "Public Policy Analysis",
+        "Legal Research Automation"
+      ],
+      "Tier 2": [
+        "Legal Drafting",
+        "Contract Review",
+        "Compliance Management",
+        "Taxation Law"
+      ],
+      "Tier 3": [
+        "Case Research",
+        "Documentation",
+        "Court Procedure Basics"
+      ]
+    },
+    "Environment": {
+      "Tier 1": [
+        "Climate Policy Modeling",
+        "Sustainability Reporting",
+        "AgriTech Product Design",
+        "Carbon Accounting"
+      ],
+      "Tier 2": [
+        "Environmental Impact Assessment",
+        "Agribusiness Management",
+        "Waste Management Systems"
+      ],
+      "Tier 3": [
+        "Field Surveying",
+        "Farming Technology Basics",
+        "Soil & Water Testing"
+      ]
+    }
+  },
+  "notes": "Each industry block defines three skill tiers: Tier 1 (strategic/leadership), Tier 2 (professional/practitioner), Tier 3 (entry/operational). Keys normalized to match sector taxonomy across the repo."
+}

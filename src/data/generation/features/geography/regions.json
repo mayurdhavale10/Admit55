@@ -1,0 +1,47 @@
+{
+  "regions": {
+    "India": {
+      "weight": 0.83,
+      "subregions": ["North India", "South India", "West India", "East India"],
+      "cities": ["Bangalore", "Mumbai", "Hyderabad", "Delhi", "Chennai", "Pune", "Ahmedabad", "Kolkata"],
+      "notes": "Major domestic base. 80–85% of ISB/IIM cohorts are India-based professionals."
+    },
+    "North_America": {
+      "weight": 0.05,
+      "subregions": ["United States", "Canada"],
+      "cities": ["San Francisco", "New York", "Toronto", "Vancouver", "Seattle", "Austin"],
+      "notes": "Strong NRI representation; top MNCs and startups feed global applicants."
+    },
+    "Europe": {
+      "weight": 0.03,
+      "subregions": ["UK", "Germany", "France", "Netherlands", "Switzerland"],
+      "cities": ["London", "Berlin", "Paris", "Amsterdam", "Zurich", "Dublin"],
+      "notes": "Expats and European professionals, primarily consulting and finance backgrounds."
+    },
+    "Middle_East": {
+      "weight": 0.03,
+      "subregions": ["UAE", "Saudi Arabia", "Qatar", "Oman", "Kuwait", "Bahrain"],
+      "cities": ["Dubai", "Abu Dhabi", "Riyadh", "Doha", "Muscat"],
+      "notes": "2–4% of cohort; project managers, oil & gas engineers, bankers, consultants."
+    },
+    "Asia_Pacific": {
+      "weight": 0.04,
+      "subregions": ["Singapore", "Hong Kong", "Japan", "Australia", "Malaysia"],
+      "cities": ["Singapore", "Hong Kong", "Tokyo", "Sydney", "Melbourne", "Kuala Lumpur"],
+      "notes": "Regional MNC professionals and NRI applicants in finance and product roles."
+    },
+    "Africa": {
+      "weight": 0.01,
+      "subregions": ["South Africa", "Kenya", "Nigeria"],
+      "cities": ["Johannesburg", "Nairobi", "Lagos"],
+      "notes": "Senior managers, consultants, and entrepreneurs in energy, mining, trade."
+    },
+    "Latin_America": {
+      "weight": 0.01,
+      "subregions": ["Brazil", "Mexico", "Chile"],
+      "cities": ["São Paulo", "Mexico City", "Santiago"],
+      "notes": "Rare but growing pool from global MNCs and exchange students."
+    }
+  },
+  "notes": "Defines region distribution for ISB/IIM cohorts. Used for diversity sampling and currency mapping."
+}

@@ -1,0 +1,146 @@
+{
+  "currencies": {
+    "INR": {
+      "symbol": "₹",
+      "region": "India",
+      "unit": "LPA",
+      "conversion_to_usd": 0.012,
+      "range": { "entry": [6, 12], "mid": [12, 25], "senior": [25, 50], "executive": [50, 100] },
+      "crore_format": true,
+      "base_weight": 0.6,
+      "example_phrases": [
+        "₹30 LPA annual package",
+        "₹80 lakh business impact",
+        "₹2 crore revenue growth"
+      ]
+    },
+    "USD": {
+      "symbol": "$",
+      "region": "North America",
+      "unit": "USD/year",
+      "conversion_to_usd": 1.0,
+      "range": { "entry": [60000, 90000], "mid": [90000, 140000], "senior": [140000, 200000], "executive": [200000, 350000] },
+      "base_weight": 1.0,
+      "example_phrases": [
+        "$120K annual compensation",
+        "Delivered $5M cost savings",
+        "Managed $200M global project"
+      ]
+    },
+    "GBP": {
+      "symbol": "£",
+      "region": "United Kingdom",
+      "unit": "GBP/year",
+      "conversion_to_usd": 1.26,
+      "range": { "entry": [35000, 50000], "mid": [50000, 80000], "senior": [80000, 120000], "executive": [120000, 200000] },
+      "base_weight": 0.92,
+      "example_phrases": [
+        "£85K per annum",
+        "Generated £5M revenue",
+        "Oversaw £100M portfolio"
+      ]
+    },
+    "EUR": {
+      "symbol": "€",
+      "region": "Europe",
+      "unit": "EUR/year",
+      "conversion_to_usd": 1.08,
+      "range": { "entry": [40000, 60000], "mid": [60000, 90000], "senior": [90000, 130000], "executive": [130000, 200000] },
+      "base_weight": 0.88,
+      "example_phrases": [
+        "€90K annual salary",
+        "Delivered €10M cost reduction",
+        "Managed €150M European operations"
+      ]
+    },
+    "SGD": {
+      "symbol": "S$",
+      "region": "Singapore",
+      "unit": "SGD/year",
+      "conversion_to_usd": 0.74,
+      "range": { "entry": [70000, 100000], "mid": [100000, 130000], "senior": [130000, 180000], "executive": [180000, 250000] },
+      "base_weight": 0.9,
+      "example_phrases": [
+        "S$120K annual package",
+        "Delivered S$3M in annual savings",
+        "Managed regional budget of S$200M"
+      ]
+    },
+    "AUD": {
+      "symbol": "A$",
+      "region": "Australia",
+      "unit": "AUD/year",
+      "conversion_to_usd": 0.67,
+      "range": { "entry": [60000, 90000], "mid": [90000, 130000], "senior": [130000, 180000], "executive": [180000, 250000] },
+      "base_weight": 0.85,
+      "example_phrases": [
+        "A$110K annual salary",
+        "Delivered A$5M contract",
+        "Oversaw A$150M operations"
+      ]
+    },
+    "AED": {
+      "symbol": "د.إ",
+      "region": "Middle East",
+      "unit": "AED/year",
+      "conversion_to_usd": 0.27,
+      "range": { "entry": [150000, 250000], "mid": [250000, 400000], "senior": [400000, 600000], "executive": [600000, 900000] },
+      "base_weight": 0.75,
+      "example_phrases": [
+        "AED 360K annual package",
+        "Led AED 12M transformation project",
+        "Delivered AED 50M savings"
+      ]
+    },
+    "HKD": {
+      "symbol": "HK$",
+      "region": "Hong Kong",
+      "unit": "HKD/year",
+      "conversion_to_usd": 0.13,
+      "range": { "entry": [300000, 500000], "mid": [500000, 800000], "senior": [800000, 1200000], "executive": [1200000, 2000000] },
+      "base_weight": 0.87,
+      "example_phrases": [
+        "HK$800K compensation",
+        "Managed HK$50M Asia portfolio",
+        "Delivered HK$200M efficiency gain"
+      ]
+    },
+    "JPY": {
+      "symbol": "¥",
+      "region": "Japan",
+      "unit": "JPY/year",
+      "conversion_to_usd": 0.0067,
+      "range": { "entry": [4000000, 6000000], "mid": [6000000, 9000000], "senior": [9000000, 13000000], "executive": [13000000, 20000000] },
+      "base_weight": 0.8,
+      "example_phrases": [
+        "¥10M annual package",
+        "Reduced costs by ¥200M",
+        "Oversaw ¥1.2B manufacturing budget"
+      ]
+    },
+    "MultiCurrency": {
+      "symbol": "-",
+      "region": "Global",
+      "unit": "varied",
+      "conversion_to_usd": 1.0,
+      "range": { "entry": [1, 2], "mid": [2, 5], "senior": [5, 10], "executive": [10, 25] },
+      "base_weight": 1.05,
+      "example_phrases": [
+        "Managed $5M project spanning India and Singapore",
+        "Coordinated ₹50 Cr + $10M multi-region initiative",
+        "Oversaw global portfolio valued in USD, INR, and EUR"
+      ]
+    }
+  },
+  "conversion_matrix": {
+    "USD_to_INR": 83,
+    "GBP_to_INR": 104,
+    "EUR_to_INR": 90,
+    "SGD_to_INR": 62,
+    "AUD_to_INR": 55,
+    "AED_to_INR": 22,
+    "HKD_to_INR": 10.6,
+    "JPY_to_INR": 0.56
+  },
+  "notes": "Defines salary scales, currency symbols, and compensation weights for global and Indian markets. Used in synthetic resume generator and evaluator scoring."
+}

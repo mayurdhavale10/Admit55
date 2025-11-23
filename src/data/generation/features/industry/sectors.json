@@ -1,0 +1,175 @@
+{
+  "tier_id": "industry_sector_distribution",
+  "tier_label": "Industry, Sector, and Subsector Classification",
+  "global_weight": 0.88,
+
+  "categories": {
+    "Finance_Consulting": {
+      "sector_score": 1.0,
+      "subsectors": {
+        "Banking": 0.9,
+        "Investment Banking": 1.0,
+        "Private Equity": 1.1,
+        "Venture Capital": 1.1,
+        "Consulting (MBB/Big4)": 1.0,
+        "Insurance": 0.85,
+        "Corporate Finance": 0.9,
+        "Risk Advisory": 0.88
+      },
+      "frequency": 0.20,
+      "impact_multiplier": 1.0,
+      "aliases": ["Finance", "Consulting", "Advisory"],
+      "notes": "High-tier professional services sectors directly correlated with ISB/IIM admits. Strong quantitative and leadership signal."
+    },
+
+    "Technology_Product": {
+      "sector_score": 0.95,
+      "subsectors": {
+        "Software Development": 0.9,
+        "SaaS / Cloud": 1.0,
+        "AI / Machine Learning": 1.1,
+        "Data Science": 1.05,
+        "Cybersecurity": 0.95,
+        "IoT / Hardware": 0.9,
+        "Web3 / Blockchain": 0.85
+      },
+      "frequency": 0.25,
+      "impact_multiplier": 1.05,
+      "aliases": ["Tech", "Product", "Software"],
+      "notes": "Core STEM and innovation-driven industries. Common among engineers and global tech professionals."
+    },
+
+    "FMCG_Retail": {
+      "sector_score": 0.85,
+      "subsectors": {
+        "FMCG / Consumer Goods": 0.9,
+        "Retail": 0.85,
+        "E-commerce": 0.95,
+        "Brand Marketing": 0.88,
+        "Luxury / Lifestyle": 0.9,
+        "D2C": 0.92
+      },
+      "frequency": 0.10,
+      "impact_multiplier": 0.95,
+      "aliases": ["Consumer Goods", "Retail Marketing"],
+      "notes": "Balanced mix of brand, operations, and marketing functions. Stable corporate feeder segment."
+    },
+
+    "Manufacturing_Operations": {
+      "sector_score": 0.8,
+      "subsectors": {
+        "Manufacturing": 0.85,
+        "Automotive": 0.88,
+        "Chemicals": 0.8,
+        "Metals": 0.75,
+        "Aerospace": 0.85,
+        "Industrial Design": 0.9,
+        "Supply Chain / Logistics": 0.9
+      },
+      "frequency": 0.10,
+      "impact_multiplier": 0.9,
+      "aliases": ["Operations", "Engineering"],
+      "notes": "Traditional yet critical sector; rewards technical excellence and managerial optimization."
+    },
+
+    "Healthcare_LifeSciences": {
+      "sector_score": 0.78,
+      "subsectors": {
+        "Healthcare": 0.8,
+        "Pharma": 0.85,
+        "Medical Devices": 0.9,
+        "Healthtech": 0.95,
+        "Public Health": 0.8
+      },
+      "frequency": 0.08,
+      "impact_multiplier": 0.95,
+      "aliases": ["Medical", "Life Sciences"],
+      "notes": "Growing segment bridging medicine, tech, and policy. High ethical and social relevance."
+    },
+
+    "Energy_Environment": {
+      "sector_score": 0.75,
+      "subsectors": {
+        "Oil & Gas": 0.8,
+        "Renewables": 0.95,
+        "Battery / EVs": 0.9,
+        "Sustainability / Waste Management": 1.0
+      },
+      "frequency": 0.05,
+      "impact_multiplier": 1.1,
+      "aliases": ["Sustainability", "Energy Sector"],
+      "notes": "Transition economy sector — important for ESG narratives and leadership pipelines."
+    },
+
+    "Education_Social": {
+      "sector_score": 0.7,
+      "subsectors": {
+        "EdTech": 0.85,
+        "NGO / Social Impact": 0.9,
+        "Public Policy": 0.9,
+        "CSR / Rural Development": 0.95
+      },
+      "frequency": 0.06,
+      "impact_multiplier": 1.05,
+      "aliases": ["Development", "Policy", "Education"],
+      "notes": "High diversity and social consciousness representation. Adds moral weight and purpose-driven metrics."
+    },
+
+    "Creative_Media": {
+      "sector_score": 0.68,
+      "subsectors": {
+        "Media / PR / Advertising": 0.8,
+        "Film / Entertainment": 0.85,
+        "Design / UX / Fashion": 0.9,
+        "Content / Creator Economy": 0.95
+      },
+      "frequency": 0.05,
+      "impact_multiplier": 1.0,
+      "aliases": ["Arts", "Media", "Creative"],
+      "notes": "Creative leadership, design, and influence-driven roles. Rare but high impact when monetized or viral."
+    },
+
+    "Hospitality_Travel": {
+      "sector_score": 0.65,
+      "subsectors": {
+        "Hotels": 0.8,
+        "Aviation": 0.85,
+        "Tourism": 0.75,
+        "F&B": 0.8,
+        "Sports Management": 0.9
+      },
+      "frequency": 0.03,
+      "impact_multiplier": 0.9,
+      "aliases": ["Hospitality", "Travel", "Leisure"],
+      "notes": "People-first industry. Soft-skill heavy roles, valued for service leadership and customer empathy."
+    },
+
+    "Agriculture_Food": {
+      "sector_score": 0.6,
+      "subsectors": {
+        "AgriTech": 0.85,
+        "Food Processing": 0.8,
+        "Rural Development": 0.9,
+        "Dairy / Fisheries": 0.85
+      },
+      "frequency": 0.03,
+      "impact_multiplier": 1.0,
+      "aliases": ["Agriculture", "Food Industry"],
+      "notes": "Essential but low-frequency sector; strong impact stories in sustainability or agri-innovation."
+    }
+  },
+
+  "evaluation_weights": {
+    "sector_importance_weight": 0.15,
+    "innovation_bonus": 0.1,
+    "impact_bonus": 0.1
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "author": "Mayur Dhavale",
+    "version": "v2.1"
+  },
+
+  "notes": "Defines normalized sector and subsector taxonomy with weights and impact multipliers. Used for resume feature extraction, industry mapping, and cross-domain generalization during LoRA fine-tuning."
+}

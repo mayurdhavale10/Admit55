@@ -1,0 +1,102 @@
+{
+  "tier_id": "legal_public_defense",
+  "tier_label": "Legal, Public Sector, and Defense Backgrounds",
+  "global_weight": 0.75,
+  "academic_weight": 0.7,
+
+  "clusters": {
+    "Legal_Compliance": {
+      "tier_score": 0.8,
+      "examples": [
+        "Corporate Law",
+        "Mergers & Acquisitions",
+        "Regulatory Compliance",
+        "Contract Management",
+        "Intellectual Property Law",
+        "Litigation",
+        "Policy Advisory"
+      ],
+      "representative_colleges": [
+        "National Law School of India University (NLSIU)",
+        "NALSAR University of Law",
+        "NLU Delhi",
+        "Symbiosis Law School",
+        "Government Law College Mumbai",
+        "ILS Law College Pune"
+      ],
+      "typical_companies": [
+        "AZB & Partners",
+        "Cyril Amarchand Mangaldas",
+        "Khaitan & Co",
+        "Trilegal",
+        "EY Legal",
+        "Deloitte Legal",
+        "In-house Legal Teams (Unilever, Amazon, Reliance)"
+      ],
+      "impact_multiplier": 1.0,
+      "avg_experience_range": "3–7 years",
+      "notes": "Legal professionals valued for analytical reasoning, structured thinking, and compliance expertise."
+    },
+
+    "Public_Sector_Policy": {
+      "tier_score": 0.78,
+      "examples": [
+        "Civil Services (IAS, IRS, IPS, IFS)",
+        "Public Policy Consulting",
+        "Government Project Management",
+        "CSR / Development Sector",
+        "Public Sector Undertakings (PSUs)"
+      ],
+      "representative_organizations": [
+        "NITI Aayog",
+        "ONGC",
+        "NTPC",
+        "SBI",
+        "Indian Railways",
+        "Ministry of Finance",
+        "State Governments"
+      ],
+      "impact_multiplier": 1.1,
+      "avg_experience_range": "5–15 years",
+      "notes": "Public administrators with governance, policy, and implementation experience. Adds credibility and discipline."
+    },
+
+    "Defense_Services": {
+      "tier_score": 0.85,
+      "examples": [
+        "Indian Army Officer",
+        "Indian Navy Officer",
+        "Indian Air Force Officer",
+        "Defense Research (DRDO)",
+        "Defense Procurement / Logistics"
+      ],
+      "ranks_mapped": {
+        "Level_2": ["Lieutenant", "Captain"],
+        "Level_3": ["Major"],
+        "Level_4": ["Colonel", "Group Captain"]
+      },
+      "impact_multiplier": 1.15,
+      "avg_experience_range": "10–20 years",
+      "notes": "Exceptional leadership, operations, and discipline signal. Typically strong in teamwork and large-scale execution."
+    }
+  },
+
+  "evaluation_weights": {
+    "diversity_bonus": 0.15,
+    "leadership_multiplier": 1.1,
+    "impact_weight": 0.9
+  },
+
+  "region_distribution": {
+    "India": 0.9,
+    "International_Exposure": 0.1
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "author": "Mayur Dhavale",
+    "version": "v2.1"
+  },
+
+  "notes": "Covers rare but high-value professional backgrounds in legal, public, and defense sectors. Normalized with global weighting system for consistent cross-feature integration."
+}

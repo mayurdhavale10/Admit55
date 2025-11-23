@@ -1,0 +1,80 @@
+{
+  "tier_id": "awards_dataset_v2",
+  "tier_label": "Awards & Recognitions Data",
+  "global_weight": 0.1,
+  "impact_weight_bonus": 1.0,
+
+  "award_categories": {
+    "Corporate": {
+      "examples": [
+        "Employee of the Year – Deloitte",
+        "Spot Award for Exceptional Performance – Amazon",
+        "Leadership Excellence Award – Infosys",
+        "Innovation Champion – Google",
+        "Client Impact Award – McKinsey",
+        "Rising Star – Accenture Strategy",
+        "Top Performer (Top 5%) – TCS",
+        "President’s Award – Unilever"
+      ],
+      "weight": 0.9,
+      "notes": "Represents workplace recognition and leadership; reflects consistent professional excellence."
+    },
+    "Academic": {
+      "examples": [
+        "Dean’s List (Top 5%) – IIT Bombay",
+        "Gold Medal – University Topper",
+        "Best Research Paper – IIM Ahmedabad",
+        "Merit Scholarship – ISB",
+        "National Science Talent Scholar",
+        "IIT TechFest Winner",
+        "Best Student Leader – BITS Pilani",
+        "ISB Young Leader Award"
+      ],
+      "weight": 0.85,
+      "notes": "Reflects intellectual strength and academic excellence; supports analytical credibility."
+    },
+    "Startup_Entrepreneurship": {
+      "examples": [
+        "Winner – Startup India Innovation Challenge",
+        "Recognized by Forbes 30 Under 30 (Nominee)",
+        "Incubated at IIMB NSRCEL",
+        "Winner – TiE Global PitchFest",
+        "Top 3 Finalist – Google Startup Accelerator",
+        "Featured on YourStory",
+        "Top 10 Innovators – Economic Times Awards"
+      ],
+      "weight": 0.95,
+      "notes": "High variance but high impact category; demonstrates entrepreneurial drive and innovation."
+    },
+    "Extracurricular": {
+      "examples": [
+        "Best Speaker – National Debate Championship",
+        "Gold Medal – Inter-IIT Sports Meet",
+        "Winner – National Cultural Festival",
+        "Rotaract Club Leadership Award",
+        "National Music Championship – Silver",
+        "Lead Organizer – College Fest",
+        "Volunteer Excellence Award"
+      ],
+      "weight": 0.7,
+      "notes": "Shows balanced leadership, teamwork, and communication beyond academics or work."
+    }
+  },
+
+  "distribution": {
+    "Corporate": 0.4,
+    "Academic": 0.3,
+    "Startup_Entrepreneurship": 0.2,
+    "Extracurricular": 0.1
+  },
+
+  "avg_inclusion_rate": 0.2,
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "source": "Admit55 Synthetic Awards Generator v2.0",
+    "author": "Mayur Dhavale"
+  },
+
+  "notes": "Award generator dataset for resume synthesis. Approximately 20% of resumes include at least one award. Awards act as differentiators rather than primary determinants, providing credibility boosts across corporate, academic, and entrepreneurial dimensions."
+}

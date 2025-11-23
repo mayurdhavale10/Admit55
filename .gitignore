@@ -43,14 +43,14 @@ yarn-error.log*
 # TRAINING DATA & MODELS (NEW)
 # ---------------------------
 
-# Large training data folders
-data/
-llama32_3b_lora_out/
-llama3_lora_out/
-merged_model/
-offload_dir/
-runs/
-logs/
+# Large training data folders (ONLY ignore root-level data folder)
+/data/
+/llama32_3b_lora_out/
+/llama3_lora_out/
+/merged_model/
+/offload_dir/
+/runs/
+/logs/
 
 # Python cache
 __pycache__/

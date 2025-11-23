@@ -1,0 +1,197 @@
+{
+  "tier_id": "tier4_colleges",
+  "tier_label": "Tier 4 - Regional Engineering, State, and Private Universities",
+  "tier_score": 0.55,
+  "frequency": 0.25,
+
+  "global_weight": 0.55,
+  "academic_weight": 0.6,
+  "foreign_subgroup_weight": 1.0,
+  "impact_weight_bonus": 0.9,
+
+  "colleges": {
+    "Engineering_Tech": [
+      {
+        "name": "Vellore Institute of Technology (VIT)",
+        "aliases": ["VIT Vellore", "Vellore Tech University"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "SRM Institute of Science and Technology",
+        "aliases": ["SRM University Chennai"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "PES University Bengaluru",
+        "aliases": ["PESU Bangalore"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "RV College of Engineering",
+        "aliases": ["R.V. College Bangalore"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "BMS College of Engineering",
+        "aliases": ["BMSCE Bangalore"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "MIT-WPU Pune",
+        "aliases": ["MIT World Peace University"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "LNMIIT Jaipur",
+        "aliases": ["LNM Institute of Information Technology"],
+        "domain": "Engineering/Tech"
+      }
+    ],
+
+    "Commerce_Management": [
+      {
+        "name": "St. Joseph’s College Bangalore",
+        "aliases": [],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "BMCC Pune",
+        "aliases": ["Brihan Maharashtra College of Commerce"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "HR College Mumbai",
+        "aliases": ["Hassaram Rijhumal College of Commerce and Economics"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "Jai Hind College Mumbai",
+        "aliases": [],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "Loyola College Chennai",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      }
+    ],
+
+    "Arts_Humanities": [
+      {
+        "name": "Mount Carmel College Bangalore",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      },
+      {
+        "name": "Fergusson College Pune",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      },
+      {
+        "name": "Mithibai College Mumbai",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      },
+      {
+        "name": "Symbiosis College of Arts and Commerce Pune",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      }
+    ],
+
+    "Science_Research": [
+      {
+        "name": "Nagpur University",
+        "aliases": ["RTMNU Nagpur University"],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "Kerala University",
+        "aliases": [],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "Andhra University",
+        "aliases": [],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "Madurai Kamaraj University",
+        "aliases": [],
+        "domain": "Science/Research"
+      }
+    ],
+
+    "Law/Policy": [
+      {
+        "name": "Bharati Vidyapeeth New Law College Pune",
+        "aliases": [],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "Government Law College Mumbai",
+        "aliases": ["GLC Mumbai"],
+        "domain": "Law/Policy"
+      }
+    ],
+
+    "Medicine_LifeSciences": [],
+
+    "Design_Architecture": [],
+
+    "Foreign_Elite": [],
+
+    "Distance/Open": [],
+
+    "Regional_Universities": [
+      {
+        "name": "Lucknow University",
+        "aliases": [],
+        "domain": "General"
+      },
+      {
+        "name": "Mysore University",
+        "aliases": [],
+        "domain": "General"
+      },
+      {
+        "name": "Rajasthan Technical University",
+        "aliases": [],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Calcutta University",
+        "aliases": ["University of Calcutta"],
+        "domain": "General"
+      }
+    ]
+  },
+
+  "domain_distribution": {
+    "Engineering/Tech": 0.55,
+    "Management/Business": 0.2,
+    "Science/Research": 0.1,
+    "Arts/Humanities": 0.1,
+    "Law/Policy": 0.05
+  },
+
+  "region_distribution": {
+    "South_India": 0.35,
+    "West_India": 0.25,
+    "North_India": 0.25,
+    "East_India": 0.15
+  },
+
+  "avg_scores": {
+    "CAT_percentile": [70, 90],
+    "GMAT": [600, 680]
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "source": "Admit55 Synthetic Academic Hierarchy v2.1",
+    "author": "Mayur Dhavale"
+  },
+
+  "notes": "Represents the backbone of ISB/IIM applicant pool — regional engineering, private, and state universities. Balanced academic exposure, common in tech, analytics, and operations roles. Adds linguistic and socio-economic diversity to synthetic resumes."
+}

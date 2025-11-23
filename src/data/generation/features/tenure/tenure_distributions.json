@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "dataset": "Professional Tenure Distributions",
+  "last_updated": "2025-11-07",
+  "schema": {
+    "industry": "Primary work domain",
+    "avg_tenure_years": "Average number of years people stay in one company",
+    "distribution_pattern": "Approximate proportions of short, medium, and long tenures",
+    "edge_cases": "Rare but realistic patterns (e.g. frequent switchers or long loyalists)"
+  },
+  "industries": {
+    "Technology": {
+      "aliases": ["Tech"],
+      "avg_tenure_years": 2.8,
+      "distribution_pattern": { "0-1_year": 0.25, "1-3_years": 0.45, "3-5_years": 0.20, "5+_years": 0.10 },
+      "edge_cases": {
+        "Frequent_Switchers": "Some developers (especially in startups or contract roles) may switch every 8–12 months.",
+        "Long_Loyalists": "System architects, DevOps leads, or senior engineers at FAANG or enterprise firms may stay 6–10 years.",
+        "Founders": "Founding engineers in startups often show 4–8 year tenure (until acquisition or closure)."
+      }
+    },
+    "Finance": {
+      "avg_tenure_years": 3.5,
+      "distribution_pattern": { "0-1_year": 0.10, "1-3_years": 0.40, "3-5_years": 0.30, "5+_years": 0.20 },
+      "edge_cases": {
+        "Frequent_Switchers": "Analysts in investment banking often move within 2 years to PE, VC, or MBA programs.",
+        "Long_Loyalists": "Wealth managers and CFO-track roles at banks may stay over 10 years.",
+        "Founders": "Fintech founders average 5–7 years before exit or merger."
+      }
+    },
+    "Consulting": {
+      "aliases": ["Consulting_Management", "Management Consulting"],
+      "avg_tenure_years": 2.2,
+      "distribution_pattern": { "0-1_year": 0.20, "1-3_years": 0.55, "3-5_years": 0.20, "5+_years": 0.05 },
+      "edge_cases": {
+        "Frequent_Switchers": "Analysts and associates often leave within 18 months for corporate strategy roles or MBA.",
+        "Long_Loyalists": "Partners and senior consultants may stay 8–15 years in the same firm.",
+        "Founders": "Some consulting professionals spin off boutique consultancies after 4–6 years."
+      }
+    },
+    "Healthcare": {
+      "aliases": ["Healthcare_LifeSciences", "Life Sciences", "Medicine"],
+      "avg_tenure_years": 4.0,
+      "distribution_pattern": { "0-1_year": 0.08, "1-3_years": 0.30, "3-5_years": 0.35, "5+_years": 0.27 },
+      "edge_cases": {
+        "Frequent_Switchers": "Young clinical researchers may move often between hospitals or trials (1–2 year projects).",
+        "Long_Loyalists": "Doctors in government or trust hospitals often serve for 10–20 years.",
+        "Founders": "Healthcare entrepreneurs in diagnostics or telemedicine show 5–10 year engagement cycles."
+      }
+    },
+    "Manufacturing": {
+      "aliases": ["Manufacturing_Operations", "Industrial"],
+      "avg_tenure_years": 5.2,
+      "distribution_pattern": { "0-1_year": 0.05, "1-3_years": 0.25, "3-5_years": 0.30, "5+_years": 0.40 },
+      "edge_cases": {
+        "Frequent_Switchers": "Production engineers in Tier-2 suppliers may shift every 2 years for better pay.",
+        "Long_Loyalists": "Managers and plant heads often stay 10–20 years, especially in public sector or large conglomerates.",
+        "Founders": "Manufacturing entrepreneurs (automotive, materials) may run operations for decades."
+      }
+    },
+    "Marketing": {
+      "aliases": ["Marketing_Media", "Media"],
+      "avg_tenure_years": 2.5,
+      "distribution_pattern": { "0-1_year": 0.22, "1-3_years": 0.50, "3-5_years": 0.20, "5+_years": 0.08 },
+      "edge_cases": {
+        "Frequent_Switchers": "Agency professionals often switch every year due to campaign-based work or burnout.",
+        "Long_Loyalists": "CMOs or brand heads at legacy firms (FMCG, telecom) may stay 8–12 years.",
+        "Founders": "Media agency founders usually have 7–10 year continuous tenures."
+      }
+    },
+    "Education": {
+      "aliases": ["Education_Research", "Academia"],
+      "avg_tenure_years": 6.0,
+      "distribution_pattern": { "0-1_year": 0.05, "1-3_years": 0.15, "3-5_years": 0.30, "5+_years": 0.50 },
+      "edge_cases": {
+        "Frequent_Switchers": "Adjunct lecturers or project researchers may change every academic cycle (1 year).",
+        "Long_Loyalists": "Professors in universities typically serve 15–30 years.",
+        "Founders": "EdTech startup founders may stay engaged for 5–8 years per venture."
+      }
+    },
+    "Law": {
+      "aliases": ["Law_Policy", "Legal"],
+      "avg_tenure_years": 4.5,
+      "distribution_pattern": { "0-1_year": 0.10, "1-3_years": 0.35, "3-5_years": 0.30, "5+_years": 0.25 },
+      "edge_cases": {
+        "Frequent_Switchers": "Junior associates often switch firms within 1–2 years.",
+        "Long_Loyalists": "Senior advocates or partners may stay with a chamber for life.",
+        "Founders": "Policy think-tank founders or NGO leaders show 7–10 year tenures."
+      }
+    },
+    "Environment": {
+      "aliases": ["Environment_Agriculture", "Sustainability"],
+      "avg_tenure_years": 5.0,
+      "distribution_pattern": { "0-1_year": 0.08, "1-3_years": 0.25, "3-5_years": 0.35, "5+_years": 0.32 },
+      "edge_cases": {
+        "Frequent_Switchers": "Field officers or NGO workers may rotate frequently between projects.",
+        "Long_Loyalists": "Government or agricultural scientists often serve >15 years in one organization.",
+        "Founders": "AgriTech founders may maintain 5–9 year runs per startup."
+      }
+    },
+    "Public Sector": {
+      "aliases": ["Public_Sector_Government", "Government"],
+      "avg_tenure_years": 9.0,
+      "distribution_pattern": { "0-1_year": 0.02, "1-3_years": 0.10, "3-5_years": 0.18, "5+_years": 0.70 },
+      "edge_cases": {
+        "Frequent_Switchers": "Lateral-entry officers or consultants may leave in 1–2 years.",
+        "Long_Loyalists": "Civil servants and PSU employees often stay entire careers (25–35 years).",
+        "Founders": "Policy entrepreneurs (advisors/startups working with govt) may shift projects every 3–4 years."
+      }
+    }
+  },
+  "notes": "Each industry's tenure distribution reflects typical retention behavior, career mobility, and edge cases like rapid switchers and long-term loyalists. Used to simulate realistic work histories in synthetic resume generation."
+}

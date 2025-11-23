@@ -1,0 +1,251 @@
+{
+  "version": "1.0",
+  "dataset": "Sector-Specific Mapping",
+  "last_updated": "2025-11-07",
+  "schema": {
+    "sector": "Primary industry or vertical",
+    "sub_sectors": "Major functional subdivisions within the sector",
+    "keywords": "Common domain terms used for tagging and NLP mapping"
+  },
+  "sectors": {
+    "Technology": {
+      "sub_sectors": {
+        "Software & IT Services": [
+          "SaaS",
+          "Cloud Computing",
+          "AI/ML",
+          "Data Science",
+          "DevOps",
+          "Cybersecurity",
+          "Web & App Development"
+        ],
+        "Hardware & Electronics": [
+          "Semiconductors",
+          "Embedded Systems",
+          "IoT Devices",
+          "Consumer Electronics",
+          "Telecom Equipment"
+        ],
+        "IT Consulting & Services": [
+          "Digital Transformation",
+          "ERP Implementation",
+          "Systems Integration",
+          "Managed Services"
+        ]
+      },
+      "keywords": ["Tech", "Software", "Cloud", "AI", "IT Services", "Cybersecurity"]
+    },
+    "Finance": {
+      "sub_sectors": {
+        "Banking": [
+          "Retail Banking",
+          "Corporate Banking",
+          "Credit Risk",
+          "Treasury Operations"
+        ],
+        "Investment & Capital Markets": [
+          "Investment Banking",
+          "Asset Management",
+          "Private Equity",
+          "Venture Capital",
+          "Hedge Funds"
+        ],
+        "Fintech & Payments": [
+          "Digital Banking",
+          "Payment Gateways",
+          "Lending Platforms",
+          "Blockchain Finance"
+        ],
+        "Insurance": [
+          "Life Insurance",
+          "Reinsurance",
+          "Actuarial Services",
+          "Claims Management"
+        ]
+      },
+      "keywords": ["Finance", "Investment", "Banking", "Fintech", "Insurance", "Risk"]
+    },
+    "Consulting": {
+      "sub_sectors": {
+        "Strategy Consulting": [
+          "Corporate Strategy",
+          "M&A Advisory",
+          "Business Transformation"
+        ],
+        "Operations Consulting": [
+          "Process Optimization",
+          "Supply Chain Management",
+          "Lean Six Sigma"
+        ],
+        "IT & Digital Consulting": [
+          "ERP Consulting",
+          "Tech Strategy",
+          "Digitalization Projects"
+        ],
+        "Human Capital Consulting": [
+          "Organization Design",
+          "Change Management",
+          "Talent Analytics"
+        ]
+      },
+      "keywords": ["Consulting", "Strategy", "Advisory", "Operations", "Transformation"]
+    },
+    "Healthcare": {
+      "sub_sectors": {
+        "Hospitals & Healthcare": [
+          "Clinical Operations",
+          "Hospital Administration",
+          "Telemedicine"
+        ],
+        "Pharmaceuticals": [
+          "Drug Discovery",
+          "Clinical Trials",
+          "Regulatory Affairs"
+        ],
+        "Biotechnology": [
+          "Genomics",
+          "Bioinformatics",
+          "Molecular Biology"
+        ],
+        "Public Health": [
+          "Epidemiology",
+          "Health Policy",
+          "NGO & Development Health"
+        ]
+      },
+      "keywords": ["Healthcare", "Medicine", "Pharma", "Biotech", "Clinical Research"]
+    },
+    "Manufacturing": {
+      "sub_sectors": {
+        "Automotive": [
+          "Vehicle Manufacturing",
+          "Electric Vehicles",
+          "Automotive Supply Chain"
+        ],
+        "Industrial & Heavy Engineering": [
+          "Plant Operations",
+          "Maintenance",
+          "Automation"
+        ],
+        "Consumer Goods & Electronics": [
+          "FMCG Manufacturing",
+          "Packaging",
+          "Product Lifecycle"
+        ],
+        "Energy & Utilities": [
+          "Renewable Energy",
+          "Oil & Gas",
+          "Power Distribution"
+        ]
+      },
+      "keywords": ["Manufacturing", "Production", "Supply Chain", "Operations", "Energy"]
+    },
+    "Marketing": {
+      "sub_sectors": {
+        "Advertising & Branding": [
+          "Brand Management",
+          "Creative Strategy",
+          "Ad Campaigns"
+        ],
+        "Digital Marketing": [
+          "SEO/SEM",
+          "Content Marketing",
+          "Influencer Marketing",
+          "Analytics"
+        ],
+        "Media & Entertainment": [
+          "Film Production",
+          "OTT Platforms",
+          "Sports Management"
+        ]
+      },
+      "keywords": ["Marketing", "Advertising", "Branding", "Media", "Digital"]
+    },
+    "Design": {
+      "sub_sectors": {
+        "Product & Industrial Design": [
+          "Design Thinking",
+          "Prototyping",
+          "Industrial Systems"
+        ],
+        "Architecture & Urban Planning": [
+          "Construction Design",
+          "Urban Planning",
+          "Sustainability"
+        ],
+        "Fashion & Lifestyle Design": [
+          "Apparel Design",
+          "Merchandising",
+          "Textile Innovation"
+        ]
+      },
+      "keywords": ["Design", "Architecture", "Fashion", "Product Design", "Sustainability"]
+    },
+    "Education": {
+      "sub_sectors": {
+        "Academic Institutions": [
+          "Teaching",
+          "Curriculum Development",
+          "Assessment"
+        ],
+        "EdTech": [
+          "Learning Management Systems",
+          "Adaptive Learning",
+          "AI in Education"
+        ],
+        "Research & Policy": [
+          "STEM Research",
+          "Public Policy Research",
+          "Educational Analytics"
+        ]
+      },
+      "keywords": ["Education", "Research", "Academia", "EdTech"]
+    },
+    "Law": {
+      "sub_sectors": {
+        "Corporate Law": [
+          "Mergers & Acquisitions",
+          "Compliance",
+          "Arbitration"
+        ],
+        "Criminal & Civil Law": [
+          "Litigation",
+          "Human Rights",
+          "Public Interest"
+        ],
+        "Public Policy & Governance": [
+          "Policy Research",
+          "Think Tanks",
+          "Government Advisory"
+        ],
+        "Intellectual Property Law": [
+          "Patent Filing",
+          "Trademark Law",
+          "Copyright Management"
+        ]
+      },
+      "keywords": ["Law", "Policy", "Legal", "Governance", "Compliance"]
+    },
+    "Environment": {
+      "sub_sectors": {
+        "Sustainability & Climate": [
+          "Carbon Management",
+          "ESG Reporting",
+          "Sustainable Finance"
+        ],
+        "Agriculture & Rural": [
+          "AgriTech",
+          "Farm Management",
+          "Agri Supply Chains"
+        ],
+        "Environmental Engineering": [
+          "Waste Management",
+          "Water Treatment",
+          "Pollution Control"
+        ]
+      },
+      "keywords": ["Environment", "Sustainability", "Agriculture", "Climate", "Rural Development"]
+    }
+  },
+  "notes": "Normalized sector taxonomy for Admit55 generation pipeline. Names now align with academics, roles, and company tiers for consistent cross-feature referencing."
+}

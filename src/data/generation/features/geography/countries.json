@@ -1,0 +1,26 @@
+{
+  "countries": {
+    "India": { "region": "India", "cities": ["Mumbai", "Bangalore", "Hyderabad", "Delhi", "Pune"], "currency": "INR" },
+    "United States": { "region": "North_America", "cities": ["New York", "San Francisco", "Seattle", "Boston"], "currency": "USD" },
+    "Canada": { "region": "North_America", "cities": ["Toronto", "Vancouver", "Montreal"], "currency": "CAD" },
+    "United Kingdom": { "region": "Europe", "cities": ["London", "Manchester"], "currency": "GBP" },
+    "Germany": { "region": "Europe", "cities": ["Berlin", "Munich", "Frankfurt"], "currency": "EUR" },
+    "France": { "region": "Europe", "cities": ["Paris", "Lyon"], "currency": "EUR" },
+    "Netherlands": { "region": "Europe", "cities": ["Amsterdam", "Rotterdam"], "currency": "EUR" },
+    "Switzerland": { "region": "Europe", "cities": ["Zurich", "Geneva"], "currency": "CHF" },
+    "Singapore": { "region": "Asia_Pacific", "cities": ["Singapore"], "currency": "SGD" },
+    "Hong Kong": { "region": "Asia_Pacific", "cities": ["Hong Kong"], "currency": "HKD" },
+    "Japan": { "region": "Asia_Pacific", "cities": ["Tokyo", "Osaka"], "currency": "JPY" },
+    "Australia": { "region": "Asia_Pacific", "cities": ["Sydney", "Melbourne"], "currency": "AUD" },
+    "UAE": { "region": "Middle_East", "cities": ["Dubai", "Abu Dhabi"], "currency": "AED" },
+    "Qatar": { "region": "Middle_East", "cities": ["Doha"], "currency": "QAR" },
+    "Saudi Arabia": { "region": "Middle_East", "cities": ["Riyadh", "Jeddah"], "currency": "SAR" },
+    "South Africa": { "region": "Africa", "cities": ["Johannesburg", "Cape Town"], "currency": "ZAR" },
+    "Kenya": { "region": "Africa", "cities": ["Nairobi"], "currency": "KES" },
+    "Nigeria": { "region": "Africa", "cities": ["Lagos"], "currency": "NGN" },
+    "Brazil": { "region": "Latin_America", "cities": ["São Paulo", "Rio de Janeiro"], "currency": "BRL" },
+    "Mexico": { "region": "Latin_America", "cities": ["Mexico City"], "currency": "MXN" },
+    "Chile": { "region": "Latin_America", "cities": ["Santiago"], "currency": "CLP" }
+  },
+  "notes": "Country-level mapping for geography synthesis, including cities and currencies. Used to create realistic global work/resume profiles."
+}

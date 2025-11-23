@@ -1,0 +1,69 @@
+{
+  "tier_id": "role_categories_v2",
+  "tier_label": "Role Categories and Focus Weights",
+
+  "role_categories": {
+    "Product": {
+      "examples": ["Product Manager", "Product Owner", "Associate PM", "Head of Product"],
+      "skills_focus": ["Strategy", "PRD Writing", "Roadmapping", "User Research"],
+      "weight": 1.0,
+      "aliases": ["PM", "Product Management"]
+    },
+    "Consulting": {
+      "examples": ["Consultant", "Strategy Analyst", "Engagement Manager", "Principal"],
+      "skills_focus": ["Problem Solving", "Market Sizing", "Client Management"],
+      "weight": 0.95,
+      "aliases": ["Strategy Consulting", "Management Consulting"]
+    },
+    "Operations": {
+      "examples": ["Operations Manager", "Supply Chain Analyst", "Plant Head", "Ops Lead"],
+      "skills_focus": ["Process Optimization", "Lean", "Throughput", "Logistics"],
+      "weight": 0.85,
+      "aliases": ["Supply Chain", "Ops"]
+    },
+    "Finance": {
+      "examples": ["Financial Analyst", "Investment Associate", "Controller", "CFO"],
+      "skills_focus": ["Modeling", "Valuation", "FP&A", "M&A"],
+      "weight": 0.9,
+      "aliases": ["Corporate Finance", "Investment"]
+    },
+    "Marketing": {
+      "examples": ["Brand Manager", "Marketing Analyst", "Growth Manager", "Head of Marketing"],
+      "skills_focus": ["GTM Strategy", "Digital Marketing", "Campaigns", "Analytics"],
+      "weight": 0.88,
+      "aliases": ["Growth", "Brand"]
+    },
+    "Analytics": {
+      "examples": ["Data Analyst", "Business Analyst", "Data Scientist", "Analytics Lead"],
+      "skills_focus": ["SQL", "Python", "Tableau", "Forecasting"],
+      "weight": 0.9,
+      "aliases": ["Data Analytics", "Data Science"]
+    },
+    "Technology": {
+      "examples": ["Software Engineer", "Tech Lead", "CTO", "Engineering Manager"],
+      "skills_focus": ["System Design", "Cloud", "AI/ML", "Architecture"],
+      "weight": 0.9,
+      "aliases": ["Software", "Engineering", "Tech"]
+    },
+    "Entrepreneurial": {
+      "examples": ["Founder", "Co-Founder", "Startup CEO", "Entrepreneur-in-Residence"],
+      "skills_focus": ["Fundraising", "Scaling", "Hiring", "Product-Market Fit"],
+      "weight": 0.95,
+      "aliases": ["Entrepreneurship", "Startup"]
+    },
+    "Human Resources": {
+      "examples": ["HR Manager", "People Partner", "Talent Lead", "CHRO"],
+      "skills_focus": ["Recruitment", "Performance", "L&D", "Culture"],
+      "weight": 0.82,
+      "aliases": ["HR", "People Ops", "Human_Resources"]
+    },
+    "Public Sector": {
+      "examples": ["Policy Analyst", "Program Officer", "Civil Servant", "NGO Lead"],
+      "skills_focus": ["Policy Design", "Impact Measurement", "Stakeholder Mgmt"],
+      "weight": 0.75,
+      "aliases": ["Government", "Policy", "Public_Sector"]
+    }
+  },
+
+  "notes": "Standardized role keys to align with role_signal_weights; aliases prevent lookup misses across datasets."
+}

@@ -1,0 +1,272 @@
+{
+  "tier_id": "international_universities",
+  "tier_label": "International Universities (Global UG/PG Backgrounds)",
+  "tier_score": 0.9,
+  "frequency": 0.07,
+
+  "global_weight": 0.9,
+  "academic_weight": 0.85,
+  "foreign_subgroup_weight": 1.1,
+  "impact_weight_bonus": 1.0,
+
+  "colleges": {
+    "North_America": [
+      {
+        "name": "Stanford University",
+        "aliases": [],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "Harvard University",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "North America"
+      },
+      {
+        "name": "MIT",
+        "aliases": ["Massachusetts Institute of Technology"],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "University of California, Berkeley",
+        "aliases": ["UC Berkeley"],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "Carnegie Mellon University",
+        "aliases": ["CMU"],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "University of Michigan, Ann Arbor",
+        "aliases": ["UMich Ann Arbor"],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "University of Illinois Urbana-Champaign",
+        "aliases": ["UIUC"],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "New York University",
+        "aliases": ["NYU"],
+        "domain": "Management/Business",
+        "region": "North America"
+      },
+      {
+        "name": "University of Toronto",
+        "aliases": [],
+        "domain": "Engineering/Tech",
+        "region": "North America"
+      },
+      {
+        "name": "McGill University",
+        "aliases": [],
+        "domain": "Science/Research",
+        "region": "North America"
+      },
+      {
+        "name": "University of British Columbia",
+        "aliases": ["UBC"],
+        "domain": "Science/Research",
+        "region": "North America"
+      }
+    ],
+
+    "Europe": [
+      {
+        "name": "University of Oxford",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "University of Cambridge",
+        "aliases": [],
+        "domain": "Science/Research",
+        "region": "Europe"
+      },
+      {
+        "name": "London School of Economics (LSE)",
+        "aliases": ["LSE"],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "Imperial College London",
+        "aliases": [],
+        "domain": "Engineering/Tech",
+        "region": "Europe"
+      },
+      {
+        "name": "University of Warwick",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "HEC Paris",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "INSEAD",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "ESSEC Business School",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "IE Business School",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "Bocconi University",
+        "aliases": ["Università Bocconi Milan"],
+        "domain": "Management/Business",
+        "region": "Europe"
+      },
+      {
+        "name": "University of Amsterdam",
+        "aliases": [],
+        "domain": "Science/Research",
+        "region": "Europe"
+      }
+    ],
+
+    "Asia_Pacific": [
+      {
+        "name": "National University of Singapore (NUS)",
+        "aliases": ["NUS Singapore"],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "Nanyang Technological University (NTU)",
+        "aliases": ["NTU Singapore"],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "Singapore Management University (SMU)",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "University of Melbourne",
+        "aliases": [],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "University of Sydney",
+        "aliases": [],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "Monash University",
+        "aliases": [],
+        "domain": "Science/Research",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "University of New South Wales (UNSW)",
+        "aliases": ["UNSW Sydney"],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "University of Hong Kong",
+        "aliases": ["HKU"],
+        "domain": "Science/Research",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "Hong Kong University of Science & Technology (HKUST)",
+        "aliases": ["HKUST"],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      },
+      {
+        "name": "KAIST South Korea",
+        "aliases": ["Korea Advanced Institute of Science and Technology"],
+        "domain": "Engineering/Tech",
+        "region": "Asia-Pacific"
+      }
+    ],
+
+    "Middle_East": [
+      {
+        "name": "American University of Sharjah",
+        "aliases": ["AUS Sharjah"],
+        "domain": "Management/Business",
+        "region": "Middle East"
+      },
+      {
+        "name": "New York University Abu Dhabi",
+        "aliases": ["NYU Abu Dhabi"],
+        "domain": "Management/Business",
+        "region": "Middle East"
+      },
+      {
+        "name": "INSEAD Abu Dhabi Campus",
+        "aliases": [],
+        "domain": "Management/Business",
+        "region": "Middle East"
+      },
+      {
+        "name": "American University in Dubai",
+        "aliases": ["AUD Dubai"],
+        "domain": "Management/Business",
+        "region": "Middle East"
+      }
+    ],
+
+    "Engineering_Tech": [],
+    "Management_Business": [],
+    "Design_Architecture": [],
+    "Social_Impact_NGO": [],
+    "Law/Policy": [],
+    "Distance_Open": [],
+    "Foreign_Elite": []
+  },
+
+  "domain_distribution": {
+    "Engineering/Tech": 0.45,
+    "Management/Business": 0.25,
+    "Science/Research": 0.15,
+    "Arts/Humanities": 0.1,
+    "Law/Policy": 0.05
+  },
+
+  "avg_scores": {
+    "GMAT": [700, 760],
+    "GRE": [320, 335]
+  },
+
+  "currency_context": ["USD", "GBP", "SGD", "EUR", "CAD", "AUD"],
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "source": "Admit55 Synthetic Academic Hierarchy v2.1",
+    "author": "Mayur Dhavale"
+  },
+
+  "notes": "Represents 5–7% of ISB/IIM admits with foreign undergraduate or postgraduate degrees. Typically top global universities in North America, UK, Singapore, and Australia. GMAT/GRE scores are higher; strong global exposure and MNC pedigree."
+}

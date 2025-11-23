@@ -1,0 +1,14 @@
+{
+  "title_synonyms": {
+    "Product Manager": ["PM", "Associate PM", "Senior PM", "Head of Product", "Product Lead"],
+    "Consultant": ["Analyst", "Strategy Analyst", "Engagement Manager", "Associate Consultant"],
+    "Operations Manager": ["Ops Lead", "City Manager", "Operations Executive", "Supply Chain Lead"],
+    "Financial Analyst": ["Finance Executive", "Investment Analyst", "FP&A Analyst", "Treasury Associate"],
+    "Marketing Manager": ["Growth Manager", "Brand Lead", "Performance Marketer", "Digital Strategist"],
+    "Data Analyst": ["Analytics Associate", "Business Analyst", "BI Engineer", "Insight Analyst"],
+    "Software Engineer": ["Developer", "Backend Engineer", "Frontend Engineer", "Tech Associate"],
+    "Founder": ["Co-Founder", "CEO", "Managing Partner", "Startup Founder"],
+    "HR Manager": ["Talent Manager", "People Partner", "Recruitment Lead", "L&D Manager"],
+    "Policy Analyst": ["Program Officer", "Public Policy Associate", "Impact Analyst", "Development Consultant"]
+  }
+}

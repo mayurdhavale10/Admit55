@@ -1,0 +1,211 @@
+{
+  "tier_id": "tier1_elite",
+  "tier_label": "Tier 1 - Elite Institutes (Comprehensive)",
+  "tier_score": 1.0,
+  "frequency": 0.12,
+
+  "global_weight": 1.0,
+  "academic_weight": 1.0,
+  "foreign_subgroup_weight": 1.05,
+
+  "colleges": {
+    "Engineering_Tech": [
+      {
+        "name": "IIT Bombay",
+        "aliases": ["Indian Institute of Technology Bombay"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "IIT Delhi",
+        "aliases": ["Indian Institute of Technology Delhi"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "IIT Madras",
+        "aliases": ["Indian Institute of Technology Madras"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "IIT Kharagpur",
+        "aliases": ["Indian Institute of Technology Kharagpur"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "BITS Pilani",
+        "aliases": ["Birla Institute of Technology and Science Pilani"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "NIT Trichy",
+        "aliases": ["National Institute of Technology Trichy"],
+        "domain": "Engineering/Tech"
+      }
+    ],
+
+    "Management_Integrated": [
+      {
+        "name": "IIM Indore (IPM)",
+        "aliases": ["Indian Institute of Management Indore IPM"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "IIM Rohtak (IPM)",
+        "aliases": ["Indian Institute of Management Rohtak IPM"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "XLRI Jamshedpur",
+        "aliases": ["Xavier Labour Relations Institute Jamshedpur"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "SP Jain Mumbai",
+        "aliases": ["SPJIMR", "S.P. Jain Institute of Management and Research"],
+        "domain": "Management/Business"
+      }
+    ],
+
+    "Medical_LifeSciences": [
+      {
+        "name": "AIIMS New Delhi",
+        "aliases": ["All India Institute of Medical Sciences Delhi"],
+        "domain": "Medicine/Life Sciences"
+      },
+      {
+        "name": "JIPMER Pondicherry",
+        "aliases": ["Jawaharlal Institute of Postgraduate Medical Education and Research"],
+        "domain": "Medicine/Life Sciences"
+      },
+      {
+        "name": "PGIMER Chandigarh",
+        "aliases": ["Postgraduate Institute of Medical Education and Research Chandigarh"],
+        "domain": "Medicine/Life Sciences"
+      }
+    ],
+
+    "Law_Policy": [
+      {
+        "name": "NLSIU Bangalore",
+        "aliases": ["National Law School of India University Bangalore"],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "NLU Delhi",
+        "aliases": ["National Law University Delhi"],
+        "domain": "Law/Policy"
+      }
+    ],
+
+    "Science_Research": [
+      {
+        "name": "ISI Kolkata",
+        "aliases": ["Indian Statistical Institute Kolkata"],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "IISER Pune",
+        "aliases": ["Indian Institute of Science Education and Research Pune"],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "TIFR Mumbai",
+        "aliases": ["Tata Institute of Fundamental Research"],
+        "domain": "Science/Research"
+      }
+    ],
+
+    "Design_Architecture": [
+      {
+        "name": "NID Ahmedabad",
+        "aliases": ["National Institute of Design Ahmedabad"],
+        "domain": "Design/Architecture"
+      },
+      {
+        "name": "IDC School of Design (IIT Bombay)",
+        "aliases": ["IDC IIT Bombay"],
+        "domain": "Design/Architecture"
+      },
+      {
+        "name": "NIFT Delhi",
+        "aliases": ["National Institute of Fashion Technology Delhi"],
+        "domain": "Design/Architecture"
+      }
+    ],
+
+    "Liberal_Arts_Social": [
+      {
+        "name": "Ashoka University",
+        "aliases": ["Ashoka University Sonipat"],
+        "domain": "Liberal Arts/Social Sciences"
+      },
+      {
+        "name": "O.P. Jindal Global University",
+        "aliases": ["Jindal Global University", "JGU Sonipat"],
+        "domain": "Liberal Arts/Social Sciences"
+      }
+    ],
+
+    "Special_Elite": [
+      {
+        "name": "TISS Mumbai (HRM & OD)",
+        "aliases": ["Tata Institute of Social Sciences Mumbai"],
+        "domain": "Social Sciences/HRM"
+      },
+      {
+        "name": "IRMA Anand",
+        "aliases": ["Institute of Rural Management Anand"],
+        "domain": "Rural/Development"
+      }
+    ],
+
+    "Foreign_Elite": [
+      {
+        "name": "Stanford University",
+        "aliases": [],
+        "domain": "Foreign/Global"
+      },
+      {
+        "name": "Massachusetts Institute of Technology (MIT)",
+        "aliases": ["MIT", "MIT Cambridge"],
+        "domain": "Foreign/Global"
+      },
+      {
+        "name": "Harvard University",
+        "aliases": [],
+        "domain": "Foreign/Global"
+      },
+      {
+        "name": "University of Oxford",
+        "aliases": [],
+        "domain": "Foreign/Global"
+      },
+      {
+        "name": "London School of Economics (LSE)",
+        "aliases": ["LSE", "London School of Economics and Political Science"],
+        "domain": "Foreign/Global"
+      }
+    ]
+  },
+
+  "domain_distribution": {
+    "Engineering/Tech": 0.5,
+    "Management/Business": 0.15,
+    "Science/Research": 0.1,
+    "Medicine/Law": 0.1,
+    "Design/Arts/Social": 0.1,
+    "Foreign/Global": 0.05
+  },
+
+  "avg_scores": {
+    "GMAT": [710, 760],
+    "CAT_percentile": [98, 99.9]
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "source": "Admit55 Synthetic Academic Hierarchy v2.1",
+    "author": "Mayur Dhavale"
+  },
+
+  "notes": "Represents the top 1–2% of academic pedigrees across India and abroad. Includes IITs, IIMs, BITS, NITs, top NLUs, and leading international universities. Used as Tier-1 reference for MBA/ISB/IIM candidate simulation."
+}

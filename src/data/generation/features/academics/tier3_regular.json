@@ -1,0 +1,199 @@
+{
+  "tier_id": "tier3_regular",
+  "tier_label": "Tier 3 - Regular Indian Universities & State Colleges",
+  "tier_score": 0.65,
+  "frequency": 0.45,
+
+  "global_weight": 0.65,
+  "academic_weight": 0.7,
+  "foreign_subgroup_weight": 1.0,
+
+  "colleges": {
+    "Engineering_Tech": [
+      {
+        "name": "College of Engineering Pune (CoEP)",
+        "aliases": ["CoEP Pune", "Government College of Engineering Pune"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Savitribai Phule Pune University",
+        "aliases": ["SPPU", "University of Pune"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Visvesvaraya Technological University (VTU)",
+        "aliases": ["VTU Belgaum", "VTU Karnataka"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Gujarat Technological University",
+        "aliases": ["GTU Ahmedabad"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Anna University (Affiliated Colleges)",
+        "aliases": ["Anna University Regional Campus", "Anna Univ Affiliated"],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Osmania University Hyderabad",
+        "aliases": [],
+        "domain": "Engineering/Tech"
+      },
+      {
+        "name": "Chandigarh University",
+        "aliases": ["CU Punjab"],
+        "domain": "Engineering/Tech"
+      }
+    ],
+
+    "Commerce_Management": [
+      {
+        "name": "University of Mumbai",
+        "aliases": ["Mumbai University"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "Gujarat University Ahmedabad",
+        "aliases": [],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "Lucknow University",
+        "aliases": [],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "Amity Business School Noida",
+        "aliases": ["Amity University Noida - Business School"],
+        "domain": "Management/Business"
+      },
+      {
+        "name": "Symbiosis Centre for Distance Learning (SCDL)",
+        "aliases": ["Symbiosis Distance Learning"],
+        "domain": "Management/Business"
+      }
+    ],
+
+    "Science_Research": [
+      {
+        "name": "Banaras Hindu University (Science Faculty)",
+        "aliases": ["BHU Science Faculty"],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "Andhra University",
+        "aliases": [],
+        "domain": "Science/Research"
+      },
+      {
+        "name": "Bangalore University (Science Department)",
+        "aliases": [],
+        "domain": "Science/Research"
+      }
+    ],
+
+    "Arts_Humanities": [
+      {
+        "name": "University of Rajasthan",
+        "aliases": ["Rajasthan University"],
+        "domain": "Arts/Humanities"
+      },
+      {
+        "name": "Patna University",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      },
+      {
+        "name": "Loyola College Chennai",
+        "aliases": [],
+        "domain": "Arts/Humanities"
+      },
+      {
+        "name": "St. Xavier’s Kolkata",
+        "aliases": ["St Xaviers College Kolkata"],
+        "domain": "Arts/Humanities"
+      }
+    ],
+
+    "Law/Policy": [
+      {
+        "name": "ILS Law College Pune",
+        "aliases": ["ILS Pune"],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "Government Law College Mumbai",
+        "aliases": ["GLC Mumbai"],
+        "domain": "Law/Policy"
+      },
+      {
+        "name": "Bharati Vidyapeeth New Law College Pune",
+        "aliases": ["BV Law College Pune"],
+        "domain": "Law/Policy"
+      }
+    ],
+
+    "Medicine_LifeSciences": [
+      {
+        "name": "Government Medical College Nagpur",
+        "aliases": ["GMC Nagpur"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "Dr. D.Y. Patil Medical College Pune",
+        "aliases": ["DY Patil Pune Medical"],
+        "domain": "Medicine/LifeSciences"
+      },
+      {
+        "name": "Kasturba Medical College Mangalore",
+        "aliases": ["KMC Mangalore"],
+        "domain": "Medicine/LifeSciences"
+      }
+    ],
+
+    "Design_Architecture": [],
+    "Foreign_Elite": [],
+
+    "Distance/Open": [
+      {
+        "name": "Indira Gandhi National Open University (IGNOU)",
+        "aliases": ["IGNOU Delhi"],
+        "domain": "Distance/Open"
+      },
+      {
+        "name": "Sikkim Manipal University",
+        "aliases": ["SMU Distance Education"],
+        "domain": "Distance/Open"
+      },
+      {
+        "name": "ICFAI University",
+        "aliases": ["ICFAI Online"],
+        "domain": "Distance/Open"
+      }
+    ]
+  },
+
+  "domain_distribution": {
+    "Engineering/Tech": 0.45,
+    "Management/Business": 0.20,
+    "Science/Research": 0.10,
+    "Arts/Humanities": 0.15,
+    "Law/Policy": 0.05,
+    "Medicine/LifeSciences": 0.03,
+    "Distance/Open": 0.02
+  },
+
+  "avg_scores": {
+    "GMAT": [580, 650],
+    "CAT_percentile": [70, 85]
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "source": "Admit55 Synthetic Academic Hierarchy v2.1",
+    "author": "Mayur Dhavale"
+  },
+
+  "notes": "Represents mainstream Indian universities contributing ~40–50% of MBA applicant pool. Strong diversity in academic streams; forms the general baseline for realistic candidate profiles."
+}

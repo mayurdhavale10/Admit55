@@ -1,0 +1,69 @@
+{
+  "tier_id": "role_hierarchy_levels",
+  "tier_label": "Professional Job Level and Leadership Hierarchy",
+  "global_weight": 0.8,
+
+  "levels": {
+    "Level_1": {
+      "label": "Entry / Analyst / Junior",
+      "keywords": ["Intern", "Analyst", "Assistant", "Trainee", "Junior Engineer"],
+      "tier_score": 0.25,
+      "impact_multiplier": 0.8,
+      "aliases": ["Analyst I", "Associate Analyst"],
+      "notes": "Early-career professionals or fresh graduates. Learning-focused roles."
+    },
+    "Level_2": {
+      "label": "Mid / Associate / IC",
+      "keywords": ["Associate", "Consultant", "Engineer", "Designer", "Coordinator"],
+      "tier_score": 0.45,
+      "impact_multiplier": 0.9,
+      "aliases": ["Analyst II", "Business Associate"],
+      "notes": "Hands-on individual contributors. Start of independent work and responsibility."
+    },
+    "Level_3": {
+      "label": "Senior Mid / Manager",
+      "keywords": ["Manager", "Lead", "Supervisor", "Delivery Manager", "Engagement Manager"],
+      "tier_score": 0.65,
+      "impact_multiplier": 1.0,
+      "aliases": ["Team Lead", "Project Manager"],
+      "notes": "Manages small teams or projects. Transitioning to leadership."
+    },
+    "Level_4": {
+      "label": "Senior / Director",
+      "keywords": ["Director", "Principal", "General Manager", "Head of", "Country Head"],
+      "tier_score": 0.82,
+      "impact_multiplier": 1.1,
+      "aliases": ["AVP", "Associate Director"],
+      "notes": "Strategic leaders managing large departments or regional operations."
+    },
+    "Level_5": {
+      "label": "Executive / CXO / Founder",
+      "keywords": ["Founder", "Co-Founder", "CEO", "CTO", "CPO", "Partner", "Vice President"],
+      "tier_score": 1.0,
+      "impact_multiplier": 1.25,
+      "aliases": ["C-Suite", "Managing Partner"],
+      "notes": "Top-level executives or founders. High leadership and business ownership signal."
+    }
+  },
+
+  "edge_case_adjustments": {
+    "Senior Analyst": { "maps_to": "Level_2", "bonus": 0.05 },
+    "Associate Director": { "maps_to": "Level_4", "bonus": 0.08 },
+    "AVP": { "maps_to": "Level_4", "bonus": 0.1 },
+    "Consultant_MBB": { "maps_to": "Level_3", "bonus": 0.15 },
+    "Founder_SmallStartup": { "maps_to": "Level_5", "bonus": 0.2 }
+  },
+
+  "evaluation_weights": {
+    "leadership_bonus": 0.12,
+    "tenure_alignment_bonus": 0.08
+  },
+
+  "meta": {
+    "last_updated": "2025-11-11",
+    "author": "Mayur Dhavale",
+    "version": "v2.1"
+  },
+
+  "notes": "Defines cross-functional job hierarchy and leadership progression levels. Fully aligned with academics, company tiers, and region weights schema to ensure consistency during resume scoring and model fine-tuning."
+}

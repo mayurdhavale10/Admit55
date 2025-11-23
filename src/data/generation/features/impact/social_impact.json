@@ -1,0 +1,81 @@
+{
+  "tier_id": "social_impact",
+  "tier_label": "Social/NGO/Policy Impact Signals",
+  "global_weight": 0.85,
+
+  "metrics": {
+    "beneficiaries_impacted": {
+      "description": "Unique people directly impacted",
+      "thresholds": {
+        "100k_plus": 1.00,
+        "10k_to_100k": 0.90,
+        "1k_to_10k": 0.80,
+        "200_to_1k": 0.70
+      }
+    },
+    "funds_raised_in_inr_lakh": {
+      "description": "Money raised or deployed for social programs (INR lakh)",
+      "thresholds": {
+        "1000_plus": 0.90,
+        "200_to_1000": 0.80,
+        "50_to_200": 0.70,
+        "lt_50": 0.60
+      }
+    },
+    "volunteer_hours": {
+      "description": "Total hours led or contributed",
+      "thresholds": {
+        "1000_plus": 0.85,
+        "300_to_1000": 0.75,
+        "100_to_300": 0.65
+      }
+    },
+    "programs_led": {
+      "description": "Count of initiatives owned end-to-end",
+      "thresholds": {
+        "10_plus": 0.85,
+        "5_to_10": 0.75,
+        "2_to_5": 0.65
+      }
+    },
+    "policy_change_or_govt_partnership": {
+      "description": "Demonstrable govt policy input or MoU",
+      "boolean_bonus": 0.10
+    },
+    "recognitions": {
+      "description": "Prestige signals",
+      "bonuses": {
+        "yif_or_global_shapers": 0.10,
+        "un_affiliated_recognition": 0.08,
+        "national_award": 0.07
+      }
+    }
+  },
+
+  "org_type_weights": {
+    "NGO": 1.00,
+    "CSR": 0.95,
+    "Govt_Partnership": 1.05,
+    "Grassroots_Community": 0.98
+  },
+
+  "evaluation_weights": {
+    "beneficiaries_impacted": 0.40,
+    "funds_raised_in_inr_lakh": 0.20,
+    "volunteer_hours": 0.10,
+    "programs_led": 0.15,
+    "policy_change_or_govt_partnership": 0.10,
+    "recognitions": 0.05
+  },
+
+  "text_patterns": {
+    "keywords": ["CSR", "volunteered", "NGO", "beneficiaries", "impact", "policy", "MoU", "fellowship", "awareness", "tree plantation", "education program"],
+    "synonyms": {
+      "beneficiaries": ["lives impacted", "people reached"],
+      "funds_raised": ["grants", "donations mobilized"]
+    }
+  },
+
+  "notes": "Balances scale (beneficiaries/funds) with leadership (programs led, policy influence).",
+  "meta": { "last_updated": "2025-11-11", "author": "Mayur Dhavale", "version": "v2.1" }
+}

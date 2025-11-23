@@ -1,0 +1,60 @@
+{
+  "programs": {
+    "ISB": {
+      "campuses": ["Hyderabad", "Mohali"],
+      "program": "PGP (1-yr)",
+      "avg_gmat": 718,
+      "gmat_mid80": [640, 780],
+      "international_share_pct": 20,
+      "domestic_engineering_share_pct": 55,
+      "non_engineering_share_pct": 45,
+      "notes": "ISB has high international and mid-career applicants; GMAT median ~718"
+    },
+    "IIM_A": {
+      "program": "PGP (2-yr)",
+      "avg_cat_percentile_shortlist": 95,
+      "shortlist_range_percentile": [93, 99],
+      "avg_gmat_exec": 700,
+      "domestic_engineering_share_pct": 60,
+      "non_engineering_share_pct": 40,
+      "notes": "IIM-A selects highly on composite metrics; CAT section-wise matters"
+    },
+    "IIM_B": {
+      "program": "PGP (2-yr)",
+      "shortlist_percentile": 92,
+      "avg_gmat_exec": 690
+    }
+  },
+  "school_tier_mapping": {
+    "tier1": {
+      "description": "IITs, IIMs, AIIMS, ISB, top foreign UG",
+      "batch_share_pct": 22,
+      "admit_signal_weight": 1.0
+    },
+    "tier2": {
+      "description": "Top private/tech institutes (NMIMS, BITS, top state colleges)",
+      "batch_share_pct": 15,
+      "admit_signal_weight": 0.82
+    },
+    "tier3": {
+      "description": "Regular universities and regional engineering colleges",
+      "batch_share_pct": 40,
+      "admit_signal_weight": 0.55
+    },
+    "nontraditional": {
+      "description": "Doctors, lawyers, artists — high impact but low frequency",
+      "batch_share_pct": 5,
+      "admit_signal_weight": 0.9
+    },
+    "international": {
+      "description": "Foreign UG (USA/UK/SG), expat NRIs",
+      "batch_share_pct": 5,
+      "admit_signal_weight": 1.0
+    }
+  },
+  "admit_signals": {
+    "high": ["Tier1 school", "Tier1 company", "Strong upward pay trajectory", "Founder with traction", "Large quantifiable impact (₹ or $)"],
+    "medium": ["Tier2 school", "Tier2 company", "consistent promotions", "international exposure (short-term)"],
+    "low": ["no promotions", "stagnant pay", "small family business w/out scale"]
+  }
+}

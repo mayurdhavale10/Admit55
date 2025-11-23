@@ -1,0 +1,25 @@
+{
+  "role_transitions": {
+    "Consulting": ["Product", "Operations", "Finance", "Entrepreneurship"],
+    "Product": ["Entrepreneurship", "Consulting", "Strategy"],
+    "Operations": ["Product", "Supply Chain", "Consulting"],
+    "Finance": ["Consulting", "Strategy", "Entrepreneurship"],
+    "Marketing": ["Product", "Strategy", "Entrepreneurship"],
+    "Analytics": ["Product", "Consulting", "Finance"],
+    "Technology": ["Product", "Analytics", "Entrepreneurship"],
+    "Entrepreneurship": ["Consulting", "Product", "Strategy"],
+    "Public_Sector": ["Policy", "Consulting", "Social Impact"],
+    "Human_Resources": ["Operations", "Strategy"]
+  },
+  "transition_weights": {
+    "Consulting_to_Product": 0.9,
+    "Tech_to_Product": 0.8,
+    "Finance_to_Consulting": 0.7,
+    "Operations_to_Product": 0.75,
+    "Marketing_to_Product": 0.7,
+    "Entrepreneurship_to_Consulting": 0.8,
+    "Analytics_to_Product": 0.85,
+    "Public_to_Private": 0.6
+  },
+  "notes": "Maps realistic career transitions for ISB/IIM candidates. Used to simulate career arcs and to train the model on switcher semantics."
+}

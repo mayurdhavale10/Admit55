@@ -1,0 +1,26 @@
+{
+  "currency_weights": {
+    "INR": { "symbol": "₹", "base_weight": 0.6, "median_income_lpa": 25, "high_end_lpa": 80 },
+    "USD": { "symbol": "$", "base_weight": 1.0, "median_income_k": 100, "high_end_k": 250 },
+    "GBP": { "symbol": "£", "base_weight": 0.92, "median_income_k": 80, "high_end_k": 150 },
+    "EUR": { "symbol": "€", "base_weight": 0.88, "median_income_k": 85, "high_end_k": 140 },
+    "SGD": { "symbol": "S$", "base_weight": 0.9, "median_income_k": 100, "high_end_k": 180 },
+    "HKD": { "symbol": "HK$", "base_weight": 0.87, "median_income_k": 85, "high_end_k": 150 },
+    "AUD": { "symbol": "A$", "base_weight": 0.85, "median_income_k": 90, "high_end_k": 160 },
+    "AED": { "symbol": "د.إ", "base_weight": 0.75, "median_income_k": 70, "high_end_k": 130 },
+    "CAD": { "symbol": "C$", "base_weight": 0.9, "median_income_k": 85, "high_end_k": 140 },
+    "JPY": { "symbol": "¥", "base_weight": 0.8, "median_income_m": 8, "high_end_m": 18 },
+    "ZAR": { "symbol": "R", "base_weight": 0.78, "median_income_k": 60, "high_end_k": 120 },
+    "BRL": { "symbol": "R$", "base_weight": 0.72, "median_income_k": 50, "high_end_k": 100 },
+    "MXN": { "symbol": "$", "base_weight": 0.7, "median_income_k": 45, "high_end_k": 95 }
+  },
+  "conversion_factors": {
+    "USD_to_INR": 83,
+    "GBP_to_INR": 104,
+    "EUR_to_INR": 90,
+    "SGD_to_INR": 62,
+    "AUD_to_INR": 55,
+    "AED_to_INR": 22
+  },
+  "notes": "Currency hierarchy for compensation normalization in evaluator pipeline. Used for realistic income signals and cross-country comparability."
+}

@@ -1,0 +1,82 @@
+{
+  "tier_id": "research_impact",
+  "tier_label": "Publications, Citations, Patents & Grants",
+  "global_weight": 0.88,
+
+  "metrics": {
+    "publications_count": {
+      "description": "Peer-reviewed papers",
+      "thresholds": {
+        "20_plus": 0.95,
+        "10_to_20": 0.85,
+        "5_to_10": 0.75,
+        "1_to_5": 0.65
+      }
+    },
+    "citations_count": {
+      "description": "Google Scholar / Scopus",
+      "thresholds": {
+        "2000_plus": 1.00,
+        "500_to_2000": 0.90,
+        "100_to_500": 0.80,
+        "20_to_100": 0.70
+      }
+    },
+    "h_index": {
+      "description": "h-index at evaluation time",
+      "thresholds": {
+        "25_plus": 0.95,
+        "15_to_25": 0.85,
+        "8_to_15": 0.75
+      }
+    },
+    "patents_granted": {
+      "description": "Granted patents",
+      "thresholds": {
+        "10_plus": 0.95,
+        "5_to_10": 0.85,
+        "1_to_5": 0.75
+      },
+      "filed_bonus_per_patent": 0.02
+    },
+    "grants_amount_usd": {
+      "description": "Cumulative competitive research grant funding (USD)",
+      "thresholds": {
+        "2m_plus": 0.90,
+        "500k_to_2m": 0.80,
+        "100k_to_500k": 0.70
+      }
+    },
+    "top_venue_bonus": {
+      "description": "Publications at elite venues",
+      "venues": {
+        "CS": ["NeurIPS", "ICML", "CVPR", "ACL", "KDD"],
+        "EE": ["ISSCC", "VLSI", "JSSC"],
+        "Bio": ["Nature", "Science", "Cell"],
+        "Mgmt": ["SMJ", "AMJ", "ASQ", "HBR"]
+      },
+      "per_hit_bonus": 0.03,
+      "cap": 0.12
+    }
+  },
+
+  "evaluation_weights": {
+    "publications_count": 0.25,
+    "citations_count": 0.25,
+    "h_index": 0.15,
+    "patents_granted": 0.15,
+    "grants_amount_usd": 0.15,
+    "top_venue_bonus": 0.05
+  },
+
+  "text_patterns": {
+    "keywords": ["published", "peer-reviewed", "journal", "conference", "citations", "h-index", "grant", "patent"],
+    "synonyms": {
+      "publications": ["papers", "articles"],
+      "grants": ["funding", "research grant"]
+    }
+  },
+
+  "notes": "Optimized for fairness across disciplines: citations + venue quality + patents.",
+  "meta": { "last_updated": "2025-11-11", "author": "Mayur Dhavale", "version": "v2.1" }
+}

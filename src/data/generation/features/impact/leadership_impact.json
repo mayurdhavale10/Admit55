@@ -1,0 +1,83 @@
+{
+  "tier_id": "leadership_impact",
+  "tier_label": "Leadership Scale & Scope Signals",
+  "global_weight": 0.90,
+
+  "metrics": {
+    "team_size_direct": {
+      "description": "Direct reports managed",
+      "thresholds": {
+        "100_plus": 1.00,
+        "30_to_100": 0.90,
+        "10_to_30": 0.80,
+        "3_to_10": 0.70
+      }
+    },
+    "org_scope": {
+      "description": "Geographical scope of responsibility",
+      "weights": {
+        "global": 1.00,
+        "multi_country": 0.90,
+        "national": 0.80,
+        "regional_state": 0.70,
+        "single_site": 0.60
+      }
+    },
+    "pnl_ownership": {
+      "description": "Owned P&L for a unit/product",
+      "boolean_bonus": 0.10
+    },
+    "budget_managed_usd_m": {
+      "description": "Annual budget (USD millions)",
+      "thresholds": {
+        "100_plus": 0.95,
+        "20_to_100": 0.85,
+        "5_to_20": 0.75,
+        "1_to_5": 0.65
+      }
+    },
+    "product_or_program_launches": {
+      "description": "Count of major launches led",
+      "thresholds": {
+        "10_plus": 0.85,
+        "5_to_10": 0.75,
+        "2_to_5": 0.65
+      }
+    },
+    "reporting_layers": {
+      "description": "Depth of hierarchy managed (levels)",
+      "thresholds": {
+        "4_plus_layers": 0.90,
+        "3_layers": 0.80,
+        "2_layers": 0.70
+      }
+    }
+  },
+
+  "evaluation_weights": {
+    "team_size_direct": 0.30,
+    "org_scope": 0.20,
+    "pnl_ownership": 0.10,
+    "budget_managed_usd_m": 0.20,
+    "product_or_program_launches": 0.10,
+    "reporting_layers": 0.10
+  },
+
+  "role_alignment": {
+    "Level_3": 0.75,
+    "Level_4": 0.90,
+    "Level_5": 1.00,
+    "notes": "Uses role_hierarchy_levels mapping; apply min(score, mapped cap) to avoid inflating junior roles."
+  },
+
+  "text_patterns": {
+    "keywords": ["managed", "led", "built team of", "direct reports", "P&L", "budget", "launched", "across regions", "global mandate"],
+    "synonyms": {
+      "team_size": ["headcount", "FTEs"],
+      "budget": ["AOP", "annual spend"]
+    }
+  },
+
+  "notes": "Leadership impact normalizes scale vs. title — e.g., a Manager with 80 directs scores high.",
+  "meta": { "last_updated": "2025-11-11", "author": "Mayur Dhavale", "version": "v2.1" }
+}

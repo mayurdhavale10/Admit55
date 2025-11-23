@@ -1,0 +1,333 @@
+{
+  "version": "1.0",
+  "dataset": "Career Path Progressions",
+  "last_updated": "2025-11-07",
+  "schema": {
+    "industry": "Primary domain",
+    "core_path": "Standard career ladder (common progression)",
+    "alternate_paths": "Parallel or hybrid career routes",
+    "edge_cases": "Unusual but realistic variations (founders, freelancers, etc.)"
+  },
+  "industries": {
+    "Technology": {
+      "core_path": [
+        "Intern",
+        "Software Engineer",
+        "Senior Software Engineer",
+        "Tech Lead",
+        "Engineering Manager",
+        "Director of Engineering",
+        "VP of Technology",
+        "CTO"
+      ],
+      "alternate_paths": {
+        "Product": [
+          "Product Analyst",
+          "Associate Product Manager",
+          "Product Manager",
+          "Senior PM",
+          "Head of Product"
+        ],
+        "Data/AI": [
+          "Data Analyst",
+          "Data Scientist",
+          "ML Engineer",
+          "AI Architect",
+          "Head of Data Science"
+        ]
+      },
+      "edge_cases": [
+        "Startup Founder or CTO directly after 2–3 years of experience",
+        "Freelance Developer to Entrepreneur",
+        "Technical Writer / Evangelist Track"
+      ]
+    },
+    "Finance": {
+      "core_path": [
+        "Analyst",
+        "Associate",
+        "Manager / Assistant VP",
+        "Vice President",
+        "Director",
+        "Managing Director / CFO"
+      ],
+      "alternate_paths": {
+        "Quantitative": [
+          "Quant Analyst",
+          "Quant Trader",
+          "Quant Research Lead",
+          "Portfolio Manager"
+        ],
+        "Fintech": [
+          "Financial Analyst",
+          "Business Analyst (Fintech)",
+          "Product Manager (Finance)",
+          "Head of Fintech Strategy"
+        ]
+      },
+      "edge_cases": [
+        "Transition to Consulting or MBA within 2 years",
+        "Startup founder in Fintech after 4–6 years",
+        "Switch to Academia / Policy research after mid-career"
+      ]
+    },
+    "Consulting_Management": {
+      "core_path": [
+        "Business Analyst",
+        "Consultant",
+        "Senior Consultant",
+        "Engagement Manager",
+        "Associate Partner",
+        "Partner / Managing Partner"
+      ],
+      "alternate_paths": {
+        "Corporate_Strategy": [
+          "Strategy Analyst",
+          "Corporate Planner",
+          "Strategy Manager",
+          "Chief Strategy Officer"
+        ],
+        "Operations": [
+          "Operations Analyst",
+          "Process Consultant",
+          "Operations Lead",
+          "Director of Operations"
+        ]
+      },
+      "edge_cases": [
+        "Founder of boutique consulting firm",
+        "Switch to corporate roles after 3 years",
+        "Freelance consultant / independent advisor"
+      ]
+    },
+    "Healthcare_LifeSciences": {
+      "core_path": [
+        "Medical Intern",
+        "Resident Doctor",
+        "Consultant / Specialist",
+        "Senior Consultant",
+        "Department Head",
+        "Medical Director"
+      ],
+      "alternate_paths": {
+        "Pharma_Research": [
+          "Research Associate",
+          "Clinical Research Scientist",
+          "Regulatory Affairs Manager",
+          "Director of R&D"
+        ],
+        "Healthcare_Management": [
+          "Operations Coordinator",
+          "Hospital Administrator",
+          "Director of Operations",
+          "CEO / Hospital Chain Lead"
+        ]
+      },
+      "edge_cases": [
+        "Doctor turns Public Health Advisor",
+        "Pharma professional moves to Consulting",
+        "HealthTech founder with medical background"
+      ]
+    },
+    "Manufacturing_Operations": {
+      "core_path": [
+        "Graduate Engineer Trainee",
+        "Production Engineer",
+        "Senior Engineer",
+        "Assistant Manager",
+        "Plant Manager",
+        "General Manager",
+        "VP / COO"
+      ],
+      "alternate_paths": {
+        "Quality_Supply": [
+          "Quality Engineer",
+          "QA/QC Manager",
+          "Supply Chain Head"
+        ],
+        "Automation": [
+          "Robotics Engineer",
+          "Automation Specialist",
+          "Industrial Automation Manager"
+        ]
+      },
+      "edge_cases": [
+        "Entrepreneur building manufacturing MSME",
+        "Government PSU long-tenure (Engineer → GM in same org)",
+        "Consultant shift to process improvement firms"
+      ]
+    },
+    "Marketing_Media": {
+      "core_path": [
+        "Marketing Executive",
+        "Assistant Brand Manager",
+        "Brand Manager",
+        "Marketing Manager",
+        "Senior Manager",
+        "Marketing Director",
+        "Chief Marketing Officer"
+      ],
+      "alternate_paths": {
+        "Digital_Media": [
+          "Content Creator",
+          "Digital Marketing Specialist",
+          "Performance Marketing Manager",
+          "Head of Digital Marketing"
+        ],
+        "Advertising_Agency": [
+          "Account Executive",
+          "Creative Strategist",
+          "Account Director",
+          "Agency Partner"
+        ]
+      },
+      "edge_cases": [
+        "Freelance Marketing Consultant",
+        "Startup founder in media or influencer domain",
+        "Transition to Product Growth or Business Development"
+      ]
+    },
+    "Design_Architecture": {
+      "core_path": [
+        "Design Intern",
+        "Junior Designer",
+        "Designer",
+        "Senior Designer",
+        "Design Lead",
+        "Creative Director"
+      ],
+      "alternate_paths": {
+        "Architecture": [
+          "Architect Trainee",
+          "Project Architect",
+          "Senior Architect",
+          "Principal Architect"
+        ],
+        "UI_UX": [
+          "UX Designer",
+          "UI/UX Specialist",
+          "Design System Lead",
+          "Head of Design"
+        ]
+      },
+      "edge_cases": [
+        "Freelance Designer / Independent Studio Founder",
+        "Transition to Product or Brand Design",
+        "Teaching Design / Mentoring Roles"
+      ]
+    },
+    "Education_Research": {
+      "core_path": [
+        "Teaching Assistant",
+        "Lecturer",
+        "Assistant Professor",
+        "Associate Professor",
+        "Professor",
+        "Dean / Director"
+      ],
+      "alternate_paths": {
+        "EdTech": [
+          "Curriculum Designer",
+          "Learning Experience Designer",
+          "EdTech Product Manager",
+          "Head of Academic Innovation"
+        ],
+        "Research": [
+          "Research Associate",
+          "Research Scientist",
+          "Principal Investigator",
+          "Research Director"
+        ]
+      },
+      "edge_cases": [
+        "Independent Research Consultant",
+        "Transition to Policy Advisory or Think Tanks",
+        "Founder of EdTech startup"
+      ]
+    },
+    "Law_Policy": {
+      "core_path": [
+        "Junior Associate",
+        "Associate",
+        "Senior Associate",
+        "Partner",
+        "Managing Partner"
+      ],
+      "alternate_paths": {
+        "In_House_Counsel": [
+          "Legal Analyst",
+          "Corporate Counsel",
+          "Senior Legal Manager",
+          "General Counsel"
+        ],
+        "Policy": [
+          "Policy Researcher",
+          "Program Manager",
+          "Policy Advisor",
+          "Director / Fellow"
+        ]
+      },
+      "edge_cases": [
+        "NGO / Public Policy leadership roles",
+        "Switch to Corporate Law from Litigation",
+        "Founder of LegalTech platform"
+      ]
+    },
+    "Environment_Agriculture": {
+      "core_path": [
+        "Field Officer",
+        "Project Coordinator",
+        "Program Manager",
+        "Regional Lead",
+        "Head of Sustainability",
+        "Director / Policy Head"
+      ],
+      "alternate_paths": {
+        "AgriBusiness": [
+          "Supply Chain Officer",
+          "Agri Operations Manager",
+          "AgriTech Product Lead"
+        ],
+        "Environment_Consulting": [
+          "EIA Analyst",
+          "Sustainability Consultant",
+          "Carbon Strategy Lead"
+        ]
+      },
+      "edge_cases": [
+        "Founder of AgriTech / CleanTech startup",
+        "Government Scientist with long-tenure progression",
+        "NGO leadership (grassroots → policy level)"
+      ]
+    },
+    "Public_Sector_Government": {
+      "core_path": [
+        "Trainee Officer",
+        "Assistant Manager / Section Officer",
+        "Deputy Manager / Deputy Director",
+        "Joint Director",
+        "Additional Director / GM",
+        "Director / Secretary"
+      ],
+      "alternate_paths": {
+        "Policy_Admin": [
+          "Analyst",
+          "Policy Officer",
+          "Deputy Secretary",
+          "Joint Secretary"
+        ],
+        "Technical": [
+          "Engineer",
+          "Project Lead",
+          "Chief Engineer"
+        ]
+      },
+      "edge_cases": [
+        "IAS/IPS/IFS officer tracks with cross-department movement",
+        "Public Sector lateral entry consultants (2–3 years)",
+        "Public Policy Fellowship followed by civil service entry"
+      ]
+    }
+  },
+  "notes": "Each industry includes standard progression (core_path), alternate tracks (technical, managerial, or domain-specific), and rare edge cases for founder, freelance, or policy transitions. Used in Admit55 for dynamic career-timeline generation."
+}

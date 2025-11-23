@@ -1,0 +1,54 @@
+{
+  "region_variants": {
+    "India": {
+      "Product Manager": ["Product Manager", "Product Head", "Associate PM"],
+      "Consultant": ["Consultant", "Strategy Analyst", "Engagement Manager"],
+      "Operations Manager": ["Ops Lead", "City Manager", "Process Manager"],
+      "Marketing Manager": ["Brand Manager", "Marketing Lead", "Campaign Strategist"],
+      "Finance Manager": ["Finance Lead", "Accounts Manager", "FP&A Analyst"]
+    },
+    "North_America": {
+      "Product Manager": ["PM II", "Product Owner", "Senior PM"],
+      "Consultant": ["Associate", "Senior Consultant", "Engagement Manager"],
+      "Operations Manager": ["Ops Program Manager", "Supply Chain Lead", "Business Operations Lead"],
+      "Marketing Manager": ["Growth Manager", "Demand Gen Lead", "Brand Strategist"],
+      "Finance Manager": ["Finance Business Partner", "FP&A Lead", "Senior Analyst"]
+    },
+    "Europe": {
+      "Product Manager": ["Product Owner", "Delivery Lead"],
+      "Consultant": ["Strategy Associate", "Consultant", "Manager Consulting"],
+      "Operations Manager": ["Process Lead", "Supply Chain Supervisor"],
+      "Marketing Manager": ["Marketing Executive", "Campaign Manager"],
+      "Finance Manager": ["Financial Controller", "Finance Analyst"]
+    },
+    "Middle_East": {
+      "Product Manager": ["Regional Product Lead", "Product Specialist"],
+      "Consultant": ["Project Consultant", "Advisor", "Engagement Lead"],
+      "Operations Manager": ["Operations Supervisor", "Project Engineer", "Program Manager"],
+      "Marketing Manager": ["Marketing Executive", "Regional Brand Lead"],
+      "Finance Manager": ["Finance Controller", "Accounts Head"]
+    },
+    "Asia_Pacific": {
+      "Product Manager": ["APAC Product Manager", "Program Lead"],
+      "Consultant": ["Regional Consultant", "Senior Analyst"],
+      "Operations Manager": ["Operations Lead", "Site Head"],
+      "Marketing Manager": ["Campaign Lead", "Regional Marketing Manager"],
+      "Finance Manager": ["Finance Analyst", "Treasury Lead"]
+    },
+    "Africa": {
+      "Consultant": ["Business Consultant", "Regional Advisor"],
+      "Operations Manager": ["Ops Head", "Supply Chain Director"],
+      "Finance Manager": ["Finance Head", "Accounts Lead"]
+    },
+    "Latin_America": {
+      "Operations Manager": ["Operations Supervisor", "Regional Operations Head"],
+      "Marketing Manager": ["Brand Coordinator", "Sales & Marketing Executive"]
+    },
+    "Others": {
+      "Product Manager": ["Technical Product Manager", "Innovation Lead"],
+      "Consultant": ["Business Advisor", "Senior Consultant"],
+      "Operations Manager": ["Logistics Lead", "Ops Coordinator"]
+    }
+  },
+  "notes": "Defines regional job title variations for multi-country synthesis. Integrated with region_weights.json and title_synonyms.json."
+}

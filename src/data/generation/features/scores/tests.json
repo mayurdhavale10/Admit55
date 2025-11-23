@@ -1,0 +1,99 @@
+{
+  "test_scores": {
+    "GMAT": {
+      "mean": 710,
+      "std_dev": 35,
+      "range": [640, 780],
+      "weights": {
+        "ISB": 1.0,
+        "IIM_PGPX": 0.9,
+        "Global_MBAs": 1.0,
+        "Others": 0.6
+      },
+      "notes": "GMAT is the most common test for ISB and 1-year IIM executive MBAs. Strong indicator of analytical ability."
+    },
+    "GRE": {
+      "mean": 325,
+      "std_dev": 5,
+      "range": [310, 340],
+      "weights": {
+        "ISB": 0.8,
+        "IIM_PGPX": 0.7,
+        "Global_MBAs": 1.0,
+        "Others": 0.6
+      },
+      "notes": "Accepted by ISB and global MBAs. 160+ Quant or 325+ overall often equivalent to GMAT 710–720."
+    },
+    "CAT": {
+      "mean": 92,
+      "std_dev": 5,
+      "range": [80, 99],
+      "weights": {
+        "IIM_2yr": 1.0,
+        "ISB": 0.2,
+        "Others": 0.5
+      },
+      "notes": "Used for 2-year IIM programs. Percentile-based; top 95+ percentile aligns with top-tier admits."
+    },
+    "TOEFL": {
+      "mean": 107,
+      "std_dev": 4,
+      "range": [95, 115],
+      "weights": {
+        "ISB_Intl": 1.0,
+        "Global_MBAs": 1.0,
+        "Others": 0.7
+      },
+      "notes": "Language proficiency; required for international applicants or global MBAs."
+    },
+    "IELTS": {
+      "mean": 7.5,
+      "std_dev": 0.3,
+      "range": [7, 8.5],
+      "weights": {
+        "ISB_Intl": 1.0,
+        "Global_MBAs": 1.0,
+        "Others": 0.8
+      },
+      "notes": "Alternative to TOEFL; used by UK, Canada, and Australia applicants."
+    },
+    "SAT": {
+      "mean": 1450,
+      "std_dev": 70,
+      "range": [1300, 1580],
+      "weights": {
+        "IIM_IPM": 1.0,
+        "Undergrad": 1.0,
+        "Others": 0.2
+      },
+      "notes": "Used mainly for integrated management programs (IPM) at IIM Indore, Rohtak, etc."
+    },
+    "GPA": {
+      "scale": 10,
+      "mean": 8.2,
+      "std_dev": 0.7,
+      "range": [6.5, 9.8],
+      "weights": {
+        "Engineering": 0.8,
+        "Commerce": 0.9,
+        "Humanities": 0.7,
+        "Medicine": 1.0,
+        "Law": 1.0
+      },
+      "notes": "Used for academic calibration. Converted from CGPA or percentage as normalized academic strength signal."
+    },
+    "CGPA_to_GPA_Conversion": {
+      "10_point": { "formula": "GPA = CGPA", "example": "8.5 CGPA → 8.5 GPA" },
+      "Percentage": { "formula": "GPA = (Percentage / 100) * 10", "example": "75% → 7.5 GPA" },
+      "4_point": { "formula": "GPA = (CGPA / 4) * 10", "example": "3.6/4 → 9.0 GPA" }
+    }
+  },
+  "distribution_tiers": {
+    "Tier_1": { "GMAT": [710, 770], "CAT": [96, 99], "GRE": [325, 335], "GPA": [8.5, 9.8] },
+    "Tier_2": { "GMAT": [670, 720], "CAT": [90, 96], "GRE": [315, 325], "GPA": [8.0, 9.0] },
+    "Tier_3": { "GMAT": [630, 680], "CAT": [85, 92], "GRE": [305, 320], "GPA": [7.5, 8.5] },
+    "Non_Traditional": { "GMAT": [640, 720], "GRE": [310, 330], "GPA": [7.0, 8.8] },
+    "International": { "GMAT": [680, 740], "GRE": [320, 335], "GPA": [8.0, 9.5], "TOEFL": [100, 115], "IELTS": [7, 8.5] }
+  },
+  "notes": "Includes GMAT, GRE, CAT, TOEFL, IELTS, and GPA normalization ranges per tier. Used for score synthesis and applicant signal weighting."
+}
