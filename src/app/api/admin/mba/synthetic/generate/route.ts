@@ -3,29 +3,13 @@ import { NextResponse } from "next/server";
 // ⭐ FIX: Force Node.js runtime so fs/path/crypto can run
 export const runtime = "nodejs";
 
-// Explicitly import all generators - FIXED PATHS
-import generateTier1Raw from "@/src/data/generation/generators/tier1EliteGenerator";
-import generateTier2Raw from "@/src/data/generation/generators/tier2MidGenerator";
-import generateTier3Raw from "@/src/data/generation/generators/tier3RegularGenerator";
-import generateNonTraditionalRaw from "@/src/data/generation/generators/nontraditionalGenerator";
-import generateInternationalRaw from "@/src/data/generation/generators/internationalGenerator";
-import generateEdgeNoiseRaw from "@/src/data/generation/generators/edgeNoiseGenerator";
-
-type GeneratorFn = (
-  count: number,
-  seed?: number
-) => Promise<{
-  count: number;
-  outDir?: string;
-  labelsDir?: string;
-}>;
-
-const generateTier1 = generateTier1Raw as GeneratorFn;
-const generateTier2 = generateTier2Raw as GeneratorFn;
-const generateTier3 = generateTier3Raw as GeneratorFn;
-const generateNonTraditional = generateNonTraditionalRaw as GeneratorFn;
-const generateInternational = generateInternationalRaw as GeneratorFn;
-const generateEdgeNoise = generateEdgeNoiseRaw as GeneratorFn;
+// Import default exports from generators
+import generateTier1Elite from "@/src/data/generation/generators/tier1EliteGenerator";
+import generateTier2Mid from "@/src/data/generation/generators/tier2MidGenerator";
+import generateTier3Regular from "@/src/data/generation/generators/tier3RegularGenerator";
+import generateNonTraditional from "@/src/data/generation/generators/nontraditionalGenerator";
+import generateInternational from "@/src/data/generation/generators/internationalGenerator";
+import generateEdgeNoise from "@/src/data/generation/generators/edgeNoiseGenerator";
 
 export const dynamic = "force-dynamic";
 
@@ -92,17 +76,17 @@ export async function POST(req: Request) {
       `[API] Generating ${n} resumes for tier=${tier} (seed=${seed})`
     );
 
-    let result: Awaited<ReturnType<GeneratorFn>>;
+    let result: { count: number; outDir?: string; outJsonl?: string };
 
     switch (tier) {
       case "tier1_elite":
-        result = await generateTier1(n, seed);
+        result = await generateTier1Elite(n, seed);
         break;
       case "tier2_mid":
-        result = await generateTier2(n, seed);
+        result = await generateTier2Mid(n, seed);
         break;
       case "tier3_regular":
-        result = await generateTier3(n, seed);
+        result = await generateTier3Regular(n, seed);
         break;
       case "nontraditional":
         result = await generateNonTraditional(n, seed);
@@ -113,14 +97,15 @@ export async function POST(req: Request) {
       case "edge_noise":
         result = await generateEdgeNoise(n, seed);
         break;
+      default:
+        throw new Error(`Unhandled tier: ${tier}`);
     }
 
     return NextResponse.json({
       ok: true,
       tier,
-      count: result?.count ?? n,
-      output: result?.outDir ?? null,
-      labels: result?.labelsDir ?? null,
+      count: result.count,
+      output: result.outJsonl ?? result.outDir ?? null,
     });
   } catch (err: any) {
     console.error("[synthetic/generate] ERROR", err);
