@@ -50,24 +50,22 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
     value: normalizeScoreTo100(scores[k]),
   }));
 
-  // If backend provided rich strengths use them, otherwise infer from radarInput.
+  // Strengths
   const backendStrengths = Array.isArray(data?.strengths) ? data.strengths : null;
   const strengths = (backendStrengths
     ? backendStrengths.map((s: any, i: number) => ({
-        // ensure child component required fields exist and types match
         title: s?.title || `Strength ${i + 1}`,
-        summary: typeof s?.summary === "string" ? s.summary : (s?.summary_text || ""),
+        summary: typeof s?.summary === "string" ? s.summary : s?.summary_text || "",
         score: typeof s?.score === "number" ? Math.round(s.score) : null,
       }))
-    : // fallback: derive from radarInput
-      radarInput
+    : radarInput
         .filter((s) => s.value >= 70)
         .map((s) => ({
           title: s.label,
           summary: `Strong in ${s.label}.`,
           score: Math.round(s.value),
         }))
-  ) as any[]; // cast to any[] so TS child prop shapes are satisfied
+  ) as any[];
 
   // Improvements: prefer backend improvements -> gaps -> infer from radarInput
   const backendImprovements = Array.isArray(data?.improvements) ? data.improvements : null;
@@ -76,34 +74,37 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   const improvements = (backendImprovements && backendImprovements.length > 0
     ? backendImprovements.map((g: any, i: number) => ({
         area: g?.area || `Area ${i + 1}`,
-        // backend improvements expected 0-100; if backend gives 0-10 convert
         score:
           typeof g?.score === "number"
-            ? (g.score > 10 ? Math.round(Math.max(0, Math.min(100, g.score))) : Math.round(g.score * 10))
+            ? g.score > 10
+              ? Math.round(Math.max(0, Math.min(100, g.score)))
+              : Math.round(g.score * 10)
             : null,
         suggestion: g?.suggestion || g?.recommendation || "Consider strengthening this area.",
       }))
-    : // use gaps from API if present
-    (gapsFromAPI.length > 0
-      ? gapsFromAPI.map((g: any, i: number) => ({
-          area: g?.area || `Gap ${i + 1}`,
-          score:
-            typeof g?.score === "number"
-              ? (g.score > 10 ? Math.round(Math.max(0, Math.min(100, g.score))) : Math.round(g.score * 10))
-              : null,
-          suggestion: g?.suggestion || "Consider improving this area.",
+    : gapsFromAPI.length > 0
+    ? gapsFromAPI.map((g: any, i: number) => ({
+        area: g?.area || `Gap ${i + 1}`,
+        score:
+          typeof g?.score === "number"
+            ? g.score > 10
+              ? Math.round(Math.max(0, Math.min(100, g.score)))
+              : Math.round(g.score * 10)
+            : null,
+        suggestion: g?.suggestion || "Consider improving this area.",
+      }))
+    : radarInput
+        .filter((s) => s.value < 70)
+        .map((s) => ({
+          area: s.label,
+          score: Math.round(s.value),
+          suggestion: `Consider improving ${s.label.toLowerCase()} (current ${Math.round(
+            s.value
+          )}/100).`,
         }))
-      : // fallback: infer from radarInput (values < 70)
-        radarInput
-          .filter((s) => s.value < 70)
-          .map((s) => ({
-            area: s.label,
-            score: Math.round(s.value),
-            suggestion: `Consider improving ${s.label.toLowerCase()} (current ${Math.round(s.value)}/100).`,
-          })))
   ) as any[];
 
-  // Recommendations: prefer backend recommendations, otherwise generate from improvements
+  // Recommendations
   const backendRecs = Array.isArray(data?.recommendations) ? data.recommendations : null;
   const recommendations = (backendRecs && backendRecs.length > 0
     ? backendRecs.map((r: any, i: number) => ({
@@ -115,11 +116,12 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         estimated_impact: r?.estimated_impact || r?.impact || "",
         current_score:
           typeof r?.score === "number"
-            ? (r.score > 10 ? Math.round(Math.max(0, Math.min(100, r.score))) : Math.round(r.score * 10))
+            ? r.score > 10
+              ? Math.round(Math.max(0, Math.min(100, r.score)))
+              : Math.round(r.score * 10)
             : null,
       }))
-    : // generate fallback recommendations from improvements
-      (improvements || []).slice(0, 6).map((imp: any, i: number) => ({
+    : (improvements || []).slice(0, 6).map((imp: any, i: number) => ({
         id: `rec_fallback_${i + 1}`,
         type: "improvement",
         area: imp.area,
@@ -180,8 +182,8 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
-      {/* LEFT - Changed from lg:col-span-8 to lg:col-span-10 */}
-      <div className="lg:col-span-10 space-y-6">
+      {/* ROW 1: Left main + right sidebar */}
+      <div className="lg:col-span-9 space-y-6">
         <div className="rounded-2xl bg-white p-6 shadow-sm border">
           <div className="flex items-start justify-between gap-6">
             <div>
@@ -196,7 +198,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
             <div className="rounded-xl bg-gradient-to-br from-white to-green-50 p-6">
               <RadarGraph
                 scores={radarInput.reduce(
-                  (acc: Record<string, number>, r) => ((acc[r.label] = r.value), acc),
+                  (acc: Record<string, number>, r) => {
+                    acc[r.label] = r.value;
+                    return acc;
+                  },
                   {}
                 )}
               />
@@ -216,7 +221,9 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div
                           style={{ width: `${r.value}%` }}
-                          className={`h-2 rounded-full ${r.value >= 70 ? "bg-emerald-500" : "bg-sky-500"}`}
+                          className={`h-2 rounded-full ${
+                            r.value >= 70 ? "bg-emerald-500" : "bg-sky-500"
+                          }`}
                         />
                       </div>
                     </div>
@@ -226,84 +233,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
             </div>
           </div>
         </div>
-
-        {/* Strengths + Improvements - Added items-stretch for equal heights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-          <StrengthsCard strengths={strengths} />
-          <ImprovementCard improvements={improvements} />
-        </div>
-
-        {/* Recommendations */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm border">
-          <h3 className="text-xl font-semibold mb-3">Actionable Recommendations</h3>
-          <div className="space-y-4">
-            {recommendations.map((rec: any, idx: number) => (
-              <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
-            ))}
-          </div>
-        </div>
-
-        {/* Improved Resume */}
-        <div className="rounded-2xl bg-white border p-6 shadow-sm">
-          <h3 className="text-xl font-semibold mb-3">Improved Resume</h3>
-          {improvedResume ? (
-            <pre className="whitespace-pre-wrap text-gray-800 text-sm">{improvedResume}</pre>
-          ) : (
-            <div className="text-sm text-gray-500">No improved resume generated.</div>
-          )}
-        </div>
       </div>
 
-      {/* RIGHT SIDEBAR - Changed from lg:col-span-4 to lg:col-span-2 */}
-      <aside className="lg:col-span-2 space-y-6">
-        <div className="rounded-2xl bg-sky-900 text-white p-6 shadow-sm">
-          <h4 className="font-semibold mb-3">Next Steps</h4>
-
-          <div className="space-y-3">
-            <button
-              onClick={downloadReport}
-              className="w-full text-sm rounded-lg bg-white text-sky-900 py-2 font-medium"
-            >
-              ⤓ Download Report
-            </button>
-
-            <button
-              onClick={emailReport}
-              className="w-full text-sm rounded-lg bg-white/90 text-sky-900 py-2 font-medium"
-            >
-              ✉ Email Me This
-            </button>
-
-            <button
-              onClick={startOver}
-              className="w-full text-sm rounded-lg bg-transparent border border-white/30 text-white py-2"
-            >
-              ↺ Start Over
-            </button>
-          </div>
-        </div>
-
-        {/* Book a Session */}
-        <div className="rounded-2xl bg-emerald-50 p-4 shadow-sm border">
-          <h5 className="font-semibold text-sm">Book a Session</h5>
-          <p className="text-xs text-gray-600 mt-1">
-            Get personalised guidance from alumni. (Integration pending)
-          </p>
-
-          <div className="mt-3">
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                alert("Booking flow will be added later.");
-              }}
-              className="inline-block w-full text-center rounded-md bg-emerald-600 text-white px-4 py-2 text-sm"
-            >
-              Schedule Now
-            </a>
-          </div>
-        </div>
-
+      {/* Sidebar (Quick summary + buttons) */}
+      <aside className="lg:col-span-3 space-y-5">
         {/* Quick Summary */}
         <div className="rounded-2xl bg-white p-4 shadow-sm border text-sm">
           <div className="font-semibold mb-2">Quick Summary</div>
@@ -317,14 +250,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 return `${avg}/100`;
               })()}
             </div>
-
-            <div>
-              <strong>Scoring system:</strong> 8-key
-            </div>
-
-            <div>
-              <strong>Generated:</strong> {data?.generated_at ? new Date(data.generated_at).toLocaleString() : "—"}
-            </div>
           </div>
 
           {onNewAnalysis && (
@@ -336,7 +261,84 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
             </button>
           )}
         </div>
+
+        {/* Next Steps */}
+        <div className="rounded-2xl bg-sky-900 text-white p-5 shadow-sm">
+          <h4 className="font-semibold text-base mb-3">Next Steps</h4>
+
+          <div className="space-y-3">
+            <button
+              onClick={downloadReport}
+              className="w-full text-sm rounded-lg bg-white text-sky-900 py-2.5 font-medium"
+            >
+              ⤓ Download Report
+            </button>
+
+            <button
+              onClick={emailReport}
+              className="w-full text-sm rounded-lg bg-white/90 text-sky-900 py-2.5 font-medium"
+            >
+              ✉ Email Me This
+            </button>
+
+            <button
+              onClick={startOver}
+              className="w-full text-sm rounded-lg bg-transparent border border-white/40 text-white py-2.5"
+            >
+              ↺ Start Over
+            </button>
+          </div>
+        </div>
+
+        {/* Book a Session - compact */}
+        <div className="rounded-2xl bg-emerald-50 p-3 shadow-sm border">
+          <h5 className="font-semibold text-sm">Book a Session</h5>
+          <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+            Get personalised guidance from alumni{" "}
+            <span className="text-gray-500">(integration pending)</span>.
+          </p>
+
+          <div className="mt-2">
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                alert("Booking flow will be added later.");
+              }}
+              className="inline-block w-full text-center rounded-md bg-emerald-600 hover:bg-emerald-700 transition-colors text-white px-3 py-2 text-xs font-medium"
+            >
+              Schedule Now
+            </a>
+          </div>
+        </div>
       </aside>
+
+      {/* ROW 2: Strengths + Improvements spanning FULL width (12 cols) */}
+      <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        <StrengthsCard strengths={strengths} />
+        <ImprovementCard improvements={improvements} />
+      </div>
+
+      {/* ROW 3: Recommendations + Improved Resume, full width */}
+      <div className="lg:col-span-12 space-y-6">
+        <div className="rounded-2xl bg-white p-6 shadow-sm border">
+          <h3 className="text-xl font-semibold mb-3">Actionable Recommendations</h3>
+          <div className="space-y-4">
+            {recommendations.map((rec: any, idx: number) => (
+              <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white border p-6 shadow-sm">
+          <h3 className="text-xl font-semibold mb-3">Improved Resume</h3>
+          {improvedResume ? (
+            <pre className="whitespace-pre-wrap text-gray-800 text-sm">{improvedResume}</pre>
+          ) : (
+            <div className="text-sm text-gray-500">No improved resume generated.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

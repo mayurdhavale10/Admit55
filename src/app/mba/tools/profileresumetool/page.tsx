@@ -71,26 +71,26 @@ GMAT/GRE: ${formData.gmatScore}
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-teal-500 py-16 px-4">
+      {/* Header Section - IMPROVED with more top spacing */}
+      <div className="bg-gradient-to-br from-slate-800 to-blue-900 py-24 px-4 pt-32">
         <div className="max-w-4xl mx-auto">
-          {/* Title - MOVED DOWN AND MADE THICKER */}
-          <h1 className="text-3xl md:text-5xl font-black text-black text-center mb-4 mt-8">
+          {/* Title - Professional and High Contrast */}
+          <h1 className="text-4xl md:text-6xl font-bold text-white text-center mb-6">
             Review Your MBA Profile
           </h1>
-          <p className="text-center text-blue-50 text-base md:text-xl mb-8">
+          <p className="text-center text-blue-100 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
             Get an AI-powered analysis of your MBA readiness in minutes. Upload your
             resume or answer a few questions.
           </p>
 
-          {/* Tabs */}
-          <div className="flex justify-center gap-2">
+          {/* Tabs - Improved styling */}
+          <div className="flex justify-center gap-3 mb-6">
             <button
               onClick={() => setActiveTab("form")}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+              className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
                 activeTab === "form"
-                  ? "bg-white text-blue-600 shadow-lg"
-                  : "bg-blue-700 text-white hover:bg-blue-600"
+                  ? "bg-white text-blue-900 shadow-xl scale-105"
+                  : "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30"
               }`}
             >
               <svg
@@ -111,10 +111,10 @@ GMAT/GRE: ${formData.gmatScore}
 
             <button
               onClick={() => setActiveTab("upload")}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+              className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
                 activeTab === "upload"
-                  ? "bg-white text-blue-600 shadow-lg"
-                  : "bg-blue-700 text-white hover:bg-blue-600"
+                  ? "bg-white text-blue-900 shadow-xl scale-105"
+                  : "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30"
               }`}
             >
               <svg
@@ -134,9 +134,9 @@ GMAT/GRE: ${formData.gmatScore}
             </button>
           </div>
 
-          {/* AI Badge */}
-          <div className="flex justify-end mt-4">
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium">
+          {/* AI Badge - Updated text and styling */}
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/15 backdrop-blur-md rounded-full text-white text-sm font-medium border border-white/20">
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -147,10 +147,10 @@ GMAT/GRE: ${formData.gmatScore}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
                 />
               </svg>
-              AI-Powered Analysis
+              AI-Curated with Human Intelligence
             </span>
           </div>
         </div>
