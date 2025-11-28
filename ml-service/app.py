@@ -13,7 +13,12 @@ from typing import Optional
 # Add pipeline to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from pipeline.mba_hybrid_pipeline import run_pipeline, extract_text_from_pdf, PDF_SUPPORT
+from pipeline.mba_hybrid_pipeline import (
+    run_pipeline, 
+    extract_text_from_pdf, 
+    improve_resume,  # ← Import the improve_resume function
+    PDF_SUPPORT
+)
 
 app = FastAPI(
     title="MBA Resume Analyzer API",
@@ -38,6 +43,7 @@ async def root():
         "version": "3.2.0",
         "endpoints": {
             "analyze": "POST /analyze",
+            "rewrite": "POST /rewrite",  # ← Added
             "health": "GET /health"
         }
     }
@@ -69,6 +75,7 @@ async def analyze_resume(
     
     Returns:
         Complete analysis with scores, strengths, improvements, recommendations
+        NOTE: Does NOT include improved_resume (use /rewrite for that)
     """
     
     # Validate input
@@ -133,6 +140,12 @@ async def analyze_resume(
     try:
         print(f"[API] Starting analysis for {len(resume_text)} character resume", file=sys.stderr)
         result = run_pipeline(resume_text)
+        
+        # ✅ IMPORTANT: Remove improved_resume from analysis response
+        # This saves Groq API calls and resources
+        if "improved_resume" in result:
+            del result["improved_resume"]
+        
         print(f"[API] Analysis complete", file=sys.stderr)
         return result
         
@@ -142,6 +155,70 @@ async def analyze_resume(
             status_code=500,
             detail=f"Analysis pipeline failed: {str(e)}"
         )
+
+
+# ============================================================
+# NEW: /rewrite ENDPOINT - On-Demand Resume Improvement
+# ============================================================
+@app.post("/rewrite")
+async def rewrite_resume(
+    resume_text: str = Form(...)
+):
+    """
+    Improve resume text (on-demand, separate from analysis)
+    
+    Args:
+        resume_text: Original resume text to improve (required)
+    
+    Returns:
+        {
+            "improved_resume": "...",
+            "meta": { ... }
+        }
+    """
+    
+    # Validate input
+    if not resume_text or not isinstance(resume_text, str):
+        raise HTTPException(
+            status_code=400,
+            detail="resume_text is required and must be a string"
+        )
+    
+    trimmed = resume_text.strip()
+    
+    if len(trimmed) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Resume text too short. Minimum 50 characters required. Received: {len(trimmed)}"
+        )
+    
+    if len(trimmed) > 50000:
+        print(f"[Rewrite API] Truncating from {len(trimmed)} to 50000 chars", file=sys.stderr)
+        trimmed = trimmed[:50000]
+    
+    # Call improve_resume function
+    try:
+        print(f"[Rewrite API] Starting improvement for {len(trimmed)} character resume", file=sys.stderr)
+        improved = improve_resume(trimmed)
+        print(f"[Rewrite API] Improvement complete: {len(improved)} characters", file=sys.stderr)
+        
+        return {
+            "improved_resume": improved,
+            "meta": {
+                "source": "mba_hybrid_pipeline.improve_resume",
+                "original_length": len(trimmed),
+                "improved_length": len(improved),
+                "pipeline_version": "3.2.0"
+            }
+        }
+        
+    except Exception as e:
+        print(f"[Rewrite API] Improvement failed: {e}", file=sys.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Resume improvement failed: {str(e)}"
+        )
+
 
 @app.post("/test")
 async def test_endpoint(text: str = Form(...)):

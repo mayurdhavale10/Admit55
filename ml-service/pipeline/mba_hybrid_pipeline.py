@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v3.2
+mba_hybrid_pipeline.py v3.2 - FIXED
 Hybrid pipeline: HuggingFace Inference API (primary) + Groq verifier/re-writer + Local LoRA (optional)
-UPDATED: Added HuggingFace Inference API support with fallback chain
+FIXED: Made resume improvement optional (on-demand via /rewrite endpoint)
 """
 import os
 import json
@@ -82,7 +82,7 @@ _local_tokenizer = None
 HF_AVAILABLE = False
 if USE_HUGGINGFACE:
     try:
-        from .hf_inference import call_hf_inference, test_hf_connection, HuggingFaceInferenceError
+        from hf_inference import call_hf_inference, test_hf_connection, HuggingFaceInferenceError
         HF_AVAILABLE = True
         print("[HF] ✓ HuggingFace inference module loaded", file=sys.stderr)
         print(f"[HF] Model: {HF_MODEL}", file=sys.stderr)
@@ -740,7 +740,6 @@ def improve_resume(resume_text: str) -> str:
             improved = improved.strip()
             improved = re.sub(r'^```.*?\n', '', improved)
             improved = re.sub(r'\n```$', '', improved)
-    
             
             print(f"[improve] ✓ HuggingFace succeeded ({len(improved)} chars)", file=sys.stderr)
             return improved
@@ -778,10 +777,21 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
     }
 
 # -------------------------------------------------------
-# Main Runner
+# Main Runner - FIXED: Made improvement optional
 # -------------------------------------------------------
-def run_pipeline(resume_text: str) -> dict:
-    """Execute full pipeline."""
+def run_pipeline(resume_text: str, include_improvement: bool = False) -> dict:
+    """
+    Execute full pipeline.
+    
+    Args:
+        resume_text: Resume text to analyze
+        include_improvement: Whether to generate improved resume (default: False)
+                           Set to False to skip improvement and save resources.
+                           Use /rewrite endpoint for on-demand improvement.
+    
+    Returns:
+        Complete analysis report dictionary
+    """
     print("\n" + "="*60, file=sys.stderr)
     print("MBA RESUME ANALYSIS PIPELINE v3.2", file=sys.stderr)
     print("HuggingFace Inference (Primary) + Groq + Local LoRA", file=sys.stderr)
@@ -795,6 +805,7 @@ def run_pipeline(resume_text: str) -> dict:
         print(f"  Model: {HF_MODEL}", file=sys.stderr)
     print(f"  Local LoRA: {'✓ Enabled' if USE_LOCAL_LORA and _local_model else '✗ Disabled'}", file=sys.stderr)
     print(f"  Groq API: {'✓ Enabled' if GROQ_API_KEY else '✗ Disabled'}", file=sys.stderr)
+    print(f"  Resume Improvement: {'✓ Included' if include_improvement else '✗ Skipped (use /rewrite endpoint)'}", file=sys.stderr)
     print("", file=sys.stderr)
     
     print("Step 1: Scoring resume (8 dimensions, 0-10 scale)...", file=sys.stderr)
@@ -833,8 +844,13 @@ def run_pipeline(resume_text: str) -> dict:
     print("\nStep 4: Verifying scores...", file=sys.stderr)
     verification = verify_scores(resume_text, scores)
     
-    print("\nStep 5: Improving resume...", file=sys.stderr)
-    improved = improve_resume(resume_text)
+    # ✅ CRITICAL FIX: Make improvement optional
+    if include_improvement:
+        print("\nStep 5: Improving resume...", file=sys.stderr)
+        improved = improve_resume(resume_text)
+    else:
+        print("\nStep 5: Skipping resume improvement (use /rewrite endpoint for on-demand improvement)...", file=sys.stderr)
+        improved = ""  # Empty string - will be generated on-demand via /rewrite endpoint
     
     print("\n" + "="*60, file=sys.stderr)
     print("PIPELINE COMPLETE", file=sys.stderr)
@@ -853,6 +869,8 @@ def main():
                        help="Only improve resume, skip analysis")
     parser.add_argument("--test-hf", action="store_true",
                        help="Test HuggingFace connection and exit")
+    parser.add_argument("--include-improvement", action="store_true",
+                       help="Include improved resume in analysis (default: False, use /rewrite endpoint instead)")
     args = parser.parse_args()
     
     # Test HuggingFace connection if requested
@@ -886,12 +904,14 @@ def main():
         print('Usage: python mba_hybrid_pipeline.py "resume text or file path"', file=sys.stderr)
         print('       python mba_hybrid_pipeline.py --rewrite-only "resume text or file path"', file=sys.stderr)
         print('       python mba_hybrid_pipeline.py --test-hf', file=sys.stderr)
+        print('       python mba_hybrid_pipeline.py --include-improvement "resume text"', file=sys.stderr)
         print("\nExamples:", file=sys.stderr)
         print('  python mba_hybrid_pipeline.py "Software Engineer with 5 years experience..."', file=sys.stderr)
         print('  python mba_hybrid_pipeline.py resume.txt', file=sys.stderr)
         print('  python mba_hybrid_pipeline.py resume.pdf', file=sys.stderr)
         print('  python mba_hybrid_pipeline.py --rewrite-only resume.pdf', file=sys.stderr)
         print('  python mba_hybrid_pipeline.py --test-hf', file=sys.stderr)
+        print('  python mba_hybrid_pipeline.py --include-improvement resume.txt', file=sys.stderr)
         return
     
     # Check if input is a file path
@@ -926,7 +946,8 @@ def main():
         return
     
     # ---- FULL ANALYSIS MODE ----
-    result = run_pipeline(resume_text)
+    # ✅ CRITICAL FIX: Pass include_improvement parameter
+    result = run_pipeline(resume_text, include_improvement=args.include_improvement)
     
     # Output ONLY JSON to stdout (compact)
     sys.stdout.write(json.dumps(result, ensure_ascii=False))

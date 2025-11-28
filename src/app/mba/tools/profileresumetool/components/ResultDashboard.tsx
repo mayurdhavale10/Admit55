@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import RadarGraph from "./RadarGraph";
 import StrengthsCard from "./StrengthsCard";
 import ImprovementCard from "./ImprovementCard";
@@ -132,7 +132,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
       }))
   ) as any[];
 
-  const improvedResume = data?.improved_resume || data?.improvedResume || "";
+  // ON-DEMAND improved resume (NOT from data, only when user clicks)
+  const [improvedResume, setImprovedResume] = useState<string | null>(null);
+  const [improving, setImproving] = useState(false);
+  const improvedRef = useRef<HTMLDivElement | null>(null);
 
   const downloadReport = useCallback(() => {
     try {
@@ -179,6 +182,112 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   const startOver = useCallback(() => {
     window.location.href = "/mba/tools/profileresumetool";
   }, []);
+
+  // ============================================================================
+  // FIXED: Generate improved resume handler
+  // ============================================================================
+  const handleGenerateImprovedResume = useCallback(async () => {
+    if (improving) return;
+
+    // Try to pull the best raw text from analysis payload
+    const candidates = [
+      data?.original_resume,
+      data?.raw_resume_text,
+      data?.resume_text,
+      data?.cleaned_text,
+      data?.extracted_text,
+    ];
+
+    let sourceText = "";
+    for (const t of candidates) {
+      if (typeof t === "string" && t.trim().length > 0) {
+        sourceText = t;
+        break;
+      }
+    }
+
+    if (!sourceText) {
+      alert(
+        "Could not find resume text in analysis response. Please make sure you analyzed a resume first."
+      );
+      return;
+    }
+
+    setImproving(true);
+    try {
+      console.log("[Rewrite] Starting improved resume generation…", {
+        sourceLength: sourceText.length,
+        endpoint: "/api/mba/profileresumetool/rewrite",
+      });
+
+      const res = await fetch("/api/mba/profileresumetool/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume_text: sourceText }),
+      });
+
+      console.log("[Rewrite] Response status:", res.status, res.statusText);
+
+      // Read and parse response once
+      let json: any = null;
+      try {
+        json = await res.json();
+        console.log("[Rewrite] Parsed response:", json);
+      } catch (parseErr) {
+        console.error("[Rewrite] Failed to parse JSON response:", parseErr);
+        alert("Server returned invalid response. Check console for details.");
+        return;
+      }
+
+      // Check for errors
+      if (!res.ok) {
+        const message = json?.error || json?.detail || `HTTP ${res.status}: ${res.statusText}`;
+        console.error("[Rewrite] API returned error:", {
+          status: res.status,
+          message,
+          fullResponse: json,
+        });
+        alert(
+          `Failed to improve resume: ${message}\n\nCheck the browser console for more details.`
+        );
+        return;
+      }
+
+      // Extract improved resume
+      const improved =
+        json?.improved_resume ||
+        json?.improvedResume ||
+        json?.data?.improved_resume ||
+        "";
+
+      if (!improved || typeof improved !== "string") {
+        console.warn("[Rewrite] No improved_resume field in response:", json);
+        alert(
+          "Server responded successfully but didn't return an improved resume. Check console for details."
+        );
+        return;
+      }
+
+      console.log("[Rewrite] ✓ Success! Improved resume received");
+      setImprovedResume(improved);
+
+      // Smooth scroll to improved resume section
+      setTimeout(() => {
+        improvedRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 100);
+
+    } catch (err: any) {
+      console.error("[Rewrite] Unexpected error:", err);
+      alert(
+        `Network error: ${err?.message || "Unknown error"}\n\nMake sure the server is running and accessible.`
+      );
+    } finally {
+      setImproving(false);
+    }
+  }, [data, improving]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
@@ -316,11 +425,38 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
       {/* ROW 2: Strengths + Improvements spanning FULL width (12 cols) */}
       <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         <StrengthsCard strengths={strengths} />
-        <ImprovementCard improvements={improvements} />
+
+        {/* Improvement card + button stacked so width matches your design */}
+        <div className="flex flex-col gap-3">
+          <ImprovementCard improvements={improvements} />
+
+          {/* Button directly under Improvement Areas card */}
+          <button
+            type="button"
+            onClick={handleGenerateImprovedResume}
+            disabled={improving}
+            className={`inline-flex items-center justify-center rounded-lg border text-xs md:text-sm font-medium px-4 py-2.5
+              ${
+                improving
+                  ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+                  : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+              }`}
+          >
+            {improving ? (
+              <>
+                <span className="inline-block w-3 h-3 mr-2 rounded-full border-2 border-rose-500 border-t-transparent animate-spin" />
+                Generating Improved Resume…
+              </>
+            ) : (
+              <>✨ Get Improved Resume (based on these gaps)</>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ROW 3: Recommendations + Improved Resume, full width */}
       <div className="lg:col-span-12 space-y-6">
+        {/* Recommendations */}
         <div className="rounded-2xl bg-white p-6 shadow-sm border">
           <h3 className="text-xl font-semibold mb-3">Actionable Recommendations</h3>
           <div className="space-y-4">
@@ -328,14 +464,56 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
             ))}
           </div>
+
+          {/* Extra Improve button under Recommendations */}
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleGenerateImprovedResume}
+              disabled={improving}
+              className={`inline-flex items-center rounded-lg text-xs md:text-sm font-medium px-4 py-2.5
+                ${
+                  improving
+                    ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                    : "bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100"
+                }`}
+            >
+              {improving ? (
+                <>
+                  <span className="inline-block w-3 h-3 mr-2 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>✨ Improve Resume from Recommendations</>
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="rounded-2xl bg-white border p-6 shadow-sm">
-          <h3 className="text-xl font-semibold mb-3">Improved Resume</h3>
-          {improvedResume ? (
-            <pre className="whitespace-pre-wrap text-gray-800 text-sm">{improvedResume}</pre>
-          ) : (
-            <div className="text-sm text-gray-500">No improved resume generated.</div>
+        {/* Improved Resume */}
+        <div ref={improvedRef} className="rounded-2xl bg-white border p-6 shadow-sm">
+          <h3 className="text-xl font-semibold mb-2">Improved Resume</h3>
+          {!improvedResume && !improving && (
+            <p className="text-sm text-gray-600">
+              No improved resume generated yet. Use{" "}
+              <span className="font-semibold">"Get Improved Resume"</span> from the Improvement
+              Areas card or from the Recommendations section to generate a refined draft.
+            </p>
+          )}
+
+          {improving && (
+            <p className="mt-2 text-sm text-sky-700 flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+              Improving your resume with advanced prompts…
+            </p>
+          )}
+
+          {improvedResume && (
+            <div className="mt-4 rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 max-h-[480px] overflow-y-auto shadow-inner">
+              <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono text-gray-800">
+                {improvedResume}
+              </pre>
+            </div>
           )}
         </div>
       </div>
