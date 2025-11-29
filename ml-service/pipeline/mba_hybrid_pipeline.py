@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v4.0
+mba_hybrid_pipeline.py v4.1
 Multi-provider pipeline: Gemini (primary) + OpenAI (fallback)
-UPDATED: Removed HuggingFace & Local LoRA, added provider fallback chain
+UPDATED: Fixed MAX_TOKENS handling, free-tier defaults, increased token limits
 """
 import os
 import json
@@ -59,9 +59,12 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 # -------------------------------------------------------
 # Gemini Configuration (primary provider with fallback models)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_PRIMARY_MODEL = os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash-exp")
-GEMINI_SECONDARY_MODEL = os.environ.get("GEMINI_SECONDARYFALLBACK_MODEL", "gemini-1.5-pro")
-GEMINI_TERTIARY_MODEL = os.environ.get("GEMINI_THIRDFALLBACK_MODEL", "gemini-1.5-flash")
+
+# ✅ FREE-TIER DEFAULTS - Models that work without paid subscription
+GEMINI_PRIMARY_MODEL  = os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")
+GEMINI_SECONDARY_MODEL = os.environ.get("GEMINI_SECONDARYFALLBACK_MODEL", "gemini-2.5-flash")
+GEMINI_TERTIARY_MODEL  = os.environ.get("GEMINI_THIRDFALLBACK_MODEL", "gemini-2.5-pro")
+
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 # OpenAI Configuration (final fallback)
@@ -154,7 +157,28 @@ class OpenAIError(LLMProviderError):
     pass
 
 # -------------------------------------------------------
-# GEMINI API FUNCTIONS
+# SCORE NORMALIZATION UTILITY
+# -------------------------------------------------------
+def normalize_scores_to_0_10(scores_dict: dict) -> dict:
+    """Normalize scores to 0-10 range. If score > 10, assume it's 0-100 and scale down."""
+    out = {}
+    for k, v in scores_dict.items():
+        try:
+            n = float(v)
+        except:
+            n = 5.0
+        
+        # If model returned 0-100, convert to 0-10
+        if n > 10:
+            n = max(0, min(10, n / 10.0))
+        else:
+            n = max(0, min(10, n))
+        
+        out[k] = round(n, 2)
+    return out
+
+# -------------------------------------------------------
+# GEMINI API FUNCTIONS (FIXED FOR MAX_TOKENS)
 # -------------------------------------------------------
 def call_gemini(
     model: str,
@@ -165,9 +189,10 @@ def call_gemini(
 ) -> str:
     """
     Call Gemini API with specified model.
+    FIXED: Now handles MAX_TOKENS finish reason and missing text field properly.
     
     Args:
-        model: Gemini model ID (e.g., "gemini-2.0-flash-exp")
+        model: Gemini model ID (e.g., "gemini-1.5-flash-latest")
         prompt: Text prompt
         max_tokens: max output tokens
         temperature: sampling temperature
@@ -215,17 +240,45 @@ def call_gemini(
         
         data = r.json()
         
-        # Expected structure: candidates[0].content.parts[0].text
+        # Check for candidates
+        if "candidates" not in data or not data["candidates"]:
+            raise GeminiError(f"No candidates in response: {data}")
+        
+        candidate = data["candidates"][0]
+        finish_reason = candidate.get("finishReason", "UNKNOWN")
+        
+        # ✅ FIX: Extract text from content.parts with proper error handling
         try:
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError) as e:
-            raise GeminiError(f"Unexpected Gemini response: {data}") from e
+            content = candidate.get("content", {})
+            parts = content.get("parts", [])
+            
+            if not parts:
+                # No parts at all - check finish reason
+                if finish_reason == "MAX_TOKENS":
+                    raise GeminiError(f"Response truncated due to MAX_TOKENS with no text. Increase max_tokens from {max_tokens}.")
+                raise GeminiError(f"Empty parts in response (finishReason={finish_reason})")
+            
+            # Try to get text from first part
+            text = parts[0].get("text", "")
+            
+        except (KeyError, IndexError, AttributeError) as e:
+            # If no text field, check if it's a MAX_TOKENS issue
+            if finish_reason == "MAX_TOKENS":
+                raise GeminiError(f"Response truncated due to MAX_TOKENS. Increase max_tokens from {max_tokens}.")
+            raise GeminiError(f"Cannot extract text from response: {candidate}") from e
         
         text = (text or "").strip()
-        if not text:
-            raise GeminiError("Empty text from Gemini")
         
-        print(f"[gemini] ✓ Response length={len(text)} chars", file=sys.stderr)
+        # ✅ FIX: Warn if truncated but allow if we got some text
+        if finish_reason == "MAX_TOKENS":
+            print(f"[gemini] ⚠ Response truncated (MAX_TOKENS), got {len(text)} chars", file=sys.stderr)
+            if len(text) < 50:  # Too short to be useful
+                raise GeminiError(f"Response too short after MAX_TOKENS truncation: {len(text)} chars. Increase max_tokens from {max_tokens}.")
+        
+        if not text:
+            raise GeminiError(f"Empty text from Gemini (finishReason={finish_reason})")
+        
+        print(f"[gemini] ✓ Response length={len(text)} chars (finishReason={finish_reason})", file=sys.stderr)
         return text
         
     except requests.exceptions.Timeout:
@@ -323,10 +376,10 @@ def call_llm_with_fallback(
 ) -> str:
     """
     Call LLM with automatic fallback chain:
-    1. Gemini Primary (gemini-2.0-flash-exp)
-    2. Gemini Secondary (gemini-1.5-pro)
-    3. Gemini Tertiary (gemini-1.5-flash)
-    4. OpenAI Fallback (gpt-4o-mini)
+    1. Gemini Primary (gemini-1.5-flash-latest)
+    2. Gemini Secondary (gemini-1.5-flash)
+    3. Gemini Tertiary (gemini-1.5-pro-latest)
+    4. OpenAI Fallback (gpt-4o-mini) - if API key available
     
     Args:
         prompt: Text prompt
@@ -346,8 +399,15 @@ def call_llm_with_fallback(
         ("Gemini Primary", lambda: call_gemini(GEMINI_PRIMARY_MODEL, prompt, max_tokens, temperature, timeout)),
         ("Gemini Secondary", lambda: call_gemini(GEMINI_SECONDARY_MODEL, prompt, max_tokens, temperature, timeout)),
         ("Gemini Tertiary", lambda: call_gemini(GEMINI_TERTIARY_MODEL, prompt, max_tokens, temperature, timeout)),
-        ("OpenAI Fallback", lambda: call_openai(OPENAI_FALLBACK_MODEL, prompt, max_tokens, temperature, timeout))
     ]
+    
+    # Only add OpenAI if API key is available
+    if OPENAI_API_KEY:
+        providers.append(
+            ("OpenAI Fallback", lambda: call_openai(OPENAI_FALLBACK_MODEL, prompt, max_tokens, temperature, timeout))
+        )
+    else:
+        print("[llm-router] OpenAI API key not configured, skipping OpenAI fallback", file=sys.stderr)
     
     errors = []
     
@@ -368,7 +428,10 @@ def call_llm_with_fallback(
                 # Check if error is transient (rate limit or 5xx)
                 is_transient = "rate limit" in error_str.lower() or "server error" in error_str.lower()
                 
-                if is_transient and attempt < max_attempts - 1:
+                # ✅ FIX: Don't retry MAX_TOKENS errors - they need higher limits
+                is_max_tokens = "MAX_TOKENS" in error_str or "truncated" in error_str.lower()
+                
+                if is_transient and not is_max_tokens and attempt < max_attempts - 1:
                     wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
                     print(f"[llm-router] Transient error, retrying in {wait_time}s: {error_str[:100]}", file=sys.stderr)
                     time.sleep(wait_time)
@@ -399,27 +462,6 @@ def call_groq(prompt: str, max_tokens: int = 300, retry_count: int = 2, timeout:
 class GroqError(LLMProviderError):
     """Legacy exception name for backward compatibility."""
     pass
-
-# -------------------------------------------------------
-# SCORE NORMALIZATION UTILITY
-# -------------------------------------------------------
-def normalize_scores_to_0_10(scores_dict: dict) -> dict:
-    """Normalize scores to 0-10 range. If score > 10, assume it's 0-100 and scale down."""
-    out = {}
-    for k, v in scores_dict.items():
-        try:
-            n = float(v)
-        except:
-            n = 5.0
-        
-        # If model returned 0-100, convert to 0-10
-        if n > 10:
-            n = max(0, min(10, n / 10.0))
-        else:
-            n = max(0, min(10, n))
-        
-        out[k] = round(n, 2)
-    return out
 
 # -------------------------------------------------------
 # PROMPTS (UPDATED WITH RICH STRENGTHS/IMPROVEMENTS)
@@ -542,7 +584,7 @@ Original Resume:
 Return ONLY the improved resume text based strictly on the original content. No explanations, no preamble, just the improved resume."""
 
 # -------------------------------------------------------
-# Pipeline Steps (ALL LOGS TO STDERR)
+# Pipeline Steps (ALL LOGS TO STDERR) - ✅ INCREASED TOKEN LIMITS
 # -------------------------------------------------------
 def score_resume(resume_text: str) -> dict:
     """Score resume using multi-provider LLM with fallback."""
@@ -550,7 +592,8 @@ def score_resume(resume_text: str) -> dict:
     
     try:
         print("[score] Scoring resume using multi-provider LLM...", file=sys.stderr)
-        raw = call_llm_with_fallback(prompt, max_tokens=250, temperature=0.1)
+        # ✅ INCREASED: max_tokens from 250 to 500
+        raw = call_llm_with_fallback(prompt, max_tokens=500, temperature=0.1)
         print(f"[score] Raw output: {raw[:200]}...", file=sys.stderr)
         
         scores = extract_first_json(raw)
@@ -606,7 +649,8 @@ def extract_strengths_and_improvements(resume_text: str) -> dict:
     
     try:
         print("[strengths] Extracting strengths/improvements/recommendations...", file=sys.stderr)
-        out = call_llm_with_fallback(prompt, max_tokens=1000, temperature=0.1, timeout=60)
+        # ✅ INCREASED: max_tokens from 1000 to 2500
+        out = call_llm_with_fallback(prompt, max_tokens=2500, temperature=0.1, timeout=60)
         print(f"[strengths] Raw output: {out[:400]}...", file=sys.stderr)
         
         result = extract_first_json(out)
@@ -684,7 +728,8 @@ def verify_scores(resume_text: str, scores: dict) -> dict:
     
     try:
         print("[verify] Verifying scores...", file=sys.stderr)
-        out = call_llm_with_fallback(prompt, max_tokens=200, temperature=0.1, timeout=40)
+        # ✅ INCREASED: max_tokens from 200 to 600
+        out = call_llm_with_fallback(prompt, max_tokens=600, temperature=0.1, timeout=40)
         print(f"[verify] Raw output: {out[:200]}...", file=sys.stderr)
         
         verification = extract_first_json(out)
@@ -768,7 +813,8 @@ def improve_resume(resume_text: str) -> str:
     
     try:
         print("[improve] Improving resume...", file=sys.stderr)
-        improved = call_llm_with_fallback(prompt, max_tokens=800, temperature=0.2, timeout=60)
+        # ✅ INCREASED: max_tokens from 800 to 2000
+        improved = call_llm_with_fallback(prompt, max_tokens=2000, temperature=0.2, timeout=60)
         
         # Clean up any markdown or preamble
         improved = improved.strip()
@@ -807,7 +853,7 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
         "recommendations": recs,
         "improved_resume": improved,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "4.0.0"
+        "pipeline_version": "4.1.0"
     }
 
 # -------------------------------------------------------
@@ -816,8 +862,8 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
 def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
     """Execute full pipeline with optional resume improvement."""
     print("\n" + "="*60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v4.0", file=sys.stderr)
-    print("Multi-Provider: Gemini (Primary) + OpenAI (Fallback)", file=sys.stderr)
+    print("MBA RESUME ANALYSIS PIPELINE v4.1", file=sys.stderr)
+    print("Multi-Provider: Gemini Free Tier + OpenAI Fallback", file=sys.stderr)
     print("8-Key Scoring (0-10) + Rich Strengths/Improvements (0-100)", file=sys.stderr)
     print("="*60 + "\n", file=sys.stderr)
     
@@ -884,7 +930,7 @@ def main():
     """Main entry point with file reading support including PDF."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v4.0")
+    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v4.1")
     parser.add_argument("resume_text", nargs="?", default="", 
                        help="Resume text or file path to analyze")
     parser.add_argument("--rewrite-only", action="store_true",
