@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v4.1
+mba_hybrid_pipeline.py v4.3 (backwards-compatible)
 Multi-provider pipeline: Gemini (primary) + OpenAI (fallback)
-UPDATED: Fixed MAX_TOKENS handling, free-tier defaults, increased token limits
+
+- Keeps v4.1 JSON shape (original_resume, gaps, generated_at, pipeline_version)
+- Adds GMAT/GRE/MBA detection + filtering of irrelevant test-prep advice
+- Uses stricter prompts to reduce generic strengths/improvements/recommendations
 """
+
 import os
 import json
 import sys
@@ -25,6 +29,7 @@ try:
 except ImportError:
     PDF_SUPPORT = False
     print("[PDF] PyPDF2 not installed. PDF support disabled. Run: pip install PyPDF2", file=sys.stderr)
+
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     """Extract text from PDF file using PyPDF2."""
@@ -53,6 +58,43 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     except Exception as e:
         print(f"[PDF] [FAIL] Extraction error: {e}", file=sys.stderr)
         raise RuntimeError(f"Failed to extract PDF: {e}")
+
+
+# -------------------------------------------------------
+# GMAT/GRE / MBA DETECTION
+# -------------------------------------------------------
+
+def has_strong_test_score(resume_text: str) -> bool:
+    """
+    Return True if the resume already shows a strong GMAT/GRE
+    OR clearly completed a serious MBA/PGP (e.g., ISB PGP).
+    In such cases, GMAT/GRE prep is NOT a relevant recommendation.
+    """
+    text = resume_text.lower()
+
+    patterns = [
+        # Strong GMAT
+        r"gmat\s*[:\-]?\s*(7[0-9]{2}|8[0-9]{2}|9[0-9]{2})",   # GMAT 700+
+        r"730\s*/\s*800",
+
+        # Strong GRE (roughly 325+)
+        r"gre\s*[:\-]?\s*(32[5-9]|33[0-9]|34[0-9])",
+
+        # Clear MBA/PGP indicators
+        r"\bpgp\s*\(mba\)",  # PGP (MBA)
+        r"post[- ]graduate programme in management",
+        r"\bindian school of business\b",
+        r"\bmba\b.*indian school of business",
+        r"\bindian school of business\b.*\bmba\b",
+    ]
+
+    for p in patterns:
+        if re.search(p, text, flags=re.IGNORECASE):
+            print(f"[has_strong_test_score] Matched pattern: {p}", file=sys.stderr)
+            return True
+
+    return False
+
 
 # -------------------------------------------------------
 # MULTI-PROVIDER CONFIGURATION
@@ -91,7 +133,6 @@ def extract_first_json(text: str):
     text = re.sub(r'```\s*', '', text)
     text = text.strip()
     
-    # Remove common text prefixes that might appear before JSON
     prefixes_to_remove = [
         "Here is the JSON:",
         "Here's the JSON:",
@@ -103,12 +144,10 @@ def extract_first_json(text: str):
         if text.lower().startswith(prefix.lower()):
             text = text[len(prefix):].strip()
     
-    # Try to find JSON object boundaries
     start = text.find("{")
     if start == -1:
         raise ValueError("No JSON object found in text")
     
-    # Find matching closing brace by counting braces
     brace_count = 0
     end = -1
     for i in range(start, len(text)):
@@ -121,25 +160,23 @@ def extract_first_json(text: str):
                 break
     
     if end == -1:
-        # Fallback: try rfind
         end = text.rfind("}")
         if end == -1 or end <= start:
             raise ValueError("No complete JSON object found")
     
-    # Extract potential JSON
     json_str = text[start:end+1]
     
     try:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
-        # Last resort: try to fix common JSON issues
-        json_str = json_str.replace("'", '"')  # Single to double quotes
-        json_str = re.sub(r',\s*}', '}', json_str)  # Trailing commas
-        json_str = re.sub(r',\s*]', ']', json_str)  # Trailing commas in arrays
+        json_str = json_str.replace("'", '"')
+        json_str = re.sub(r',\s*}', '}', json_str)
+        json_str = re.sub(r',\s*]', ']', json_str)
         try:
             return json.loads(json_str)
         except:
             raise ValueError(f"Failed to parse JSON after cleanup: {e}")
+
 
 # -------------------------------------------------------
 # EXCEPTION CLASSES
@@ -156,11 +193,19 @@ class OpenAIError(LLMProviderError):
     """OpenAI API specific errors."""
     pass
 
+class GroqError(LLMProviderError):
+    """Legacy exception name for backward compatibility."""
+    pass
+
+
 # -------------------------------------------------------
 # SCORE NORMALIZATION UTILITY
 # -------------------------------------------------------
 def normalize_scores_to_0_10(scores_dict: dict) -> dict:
-    """Normalize scores to 0-10 range. If score > 10, assume it's 0-100 and scale down."""
+    """
+    Normalize scores to 0-10 range.
+    v4.3 behavior: scores >10 are CLAMPED to 10 instead of scaled.
+    """
     out = {}
     for k, v in scores_dict.items():
         try:
@@ -168,14 +213,11 @@ def normalize_scores_to_0_10(scores_dict: dict) -> dict:
         except:
             n = 5.0
         
-        # If model returned 0-100, convert to 0-10
-        if n > 10:
-            n = max(0, min(10, n / 10.0))
-        else:
-            n = max(0, min(10, n))
-        
+        # Clamp to [0, 10]
+        n = max(0.0, min(10.0, n))
         out[k] = round(n, 2)
     return out
+
 
 # -------------------------------------------------------
 # GEMINI API FUNCTIONS (FIXED FOR MAX_TOKENS)
@@ -189,20 +231,7 @@ def call_gemini(
 ) -> str:
     """
     Call Gemini API with specified model.
-    FIXED: Now handles MAX_TOKENS finish reason and missing text field properly.
-    
-    Args:
-        model: Gemini model ID (e.g., "gemini-1.5-flash-latest")
-        prompt: Text prompt
-        max_tokens: max output tokens
-        temperature: sampling temperature
-        timeout: request timeout in seconds
-    
-    Returns:
-        Generated text from Gemini
-    
-    Raises:
-        GeminiError: On API errors or invalid responses
+    Handles MAX_TOKENS finish reason and missing text field.
     """
     if not GEMINI_API_KEY:
         raise GeminiError("Missing GEMINI_API_KEY")
@@ -228,7 +257,6 @@ def call_gemini(
         r = requests.post(url, json=payload, timeout=timeout)
         status = r.status_code
         
-        # Handle errors
         if status != 200:
             error_msg = f"HTTP {status}: {r.text[:500]}"
             if status == 429:
@@ -240,40 +268,39 @@ def call_gemini(
         
         data = r.json()
         
-        # Check for candidates
         if "candidates" not in data or not data["candidates"]:
             raise GeminiError(f"No candidates in response: {data}")
         
         candidate = data["candidates"][0]
         finish_reason = candidate.get("finishReason", "UNKNOWN")
         
-        # ✅ FIX: Extract text from content.parts with proper error handling
         try:
             content = candidate.get("content", {})
             parts = content.get("parts", [])
             
             if not parts:
-                # No parts at all - check finish reason
                 if finish_reason == "MAX_TOKENS":
-                    raise GeminiError(f"Response truncated due to MAX_TOKENS with no text. Increase max_tokens from {max_tokens}.")
+                    raise GeminiError(
+                        f"Response truncated due to MAX_TOKENS with no text. Increase max_tokens from {max_tokens}."
+                    )
                 raise GeminiError(f"Empty parts in response (finishReason={finish_reason})")
             
-            # Try to get text from first part
             text = parts[0].get("text", "")
-            
         except (KeyError, IndexError, AttributeError) as e:
-            # If no text field, check if it's a MAX_TOKENS issue
             if finish_reason == "MAX_TOKENS":
-                raise GeminiError(f"Response truncated due to MAX_TOKENS. Increase max_tokens from {max_tokens}.")
+                raise GeminiError(
+                    f"Response truncated due to MAX_TOKENS. Increase max_tokens from {max_tokens}."
+                )
             raise GeminiError(f"Cannot extract text from response: {candidate}") from e
         
         text = (text or "").strip()
         
-        # ✅ FIX: Warn if truncated but allow if we got some text
         if finish_reason == "MAX_TOKENS":
             print(f"[gemini] ⚠ Response truncated (MAX_TOKENS), got {len(text)} chars", file=sys.stderr)
-            if len(text) < 50:  # Too short to be useful
-                raise GeminiError(f"Response too short after MAX_TOKENS truncation: {len(text)} chars. Increase max_tokens from {max_tokens}.")
+            if len(text) < 50:
+                raise GeminiError(
+                    f"Response too short after MAX_TOKENS truncation: {len(text)} chars. Increase max_tokens from {max_tokens}."
+                )
         
         if not text:
             raise GeminiError(f"Empty text from Gemini (finishReason={finish_reason})")
@@ -286,6 +313,7 @@ def call_gemini(
     except requests.exceptions.RequestException as e:
         raise GeminiError(f"Request failed: {e}")
 
+
 # -------------------------------------------------------
 # OPENAI API FUNCTIONS
 # -------------------------------------------------------
@@ -296,22 +324,7 @@ def call_openai(
     temperature: float = 0.1,
     timeout: int = 40
 ) -> str:
-    """
-    Call OpenAI API with specified model.
-    
-    Args:
-        model: OpenAI model ID (e.g., "gpt-4o-mini")
-        prompt: Text prompt
-        max_tokens: max output tokens
-        temperature: sampling temperature
-        timeout: request timeout in seconds
-    
-    Returns:
-        Generated text from OpenAI
-    
-    Raises:
-        OpenAIError: On API errors or invalid responses
-    """
+    """Call OpenAI API with specified model."""
     if not OPENAI_API_KEY:
         raise OpenAIError("Missing OPENAI_API_KEY")
     
@@ -334,7 +347,6 @@ def call_openai(
         r = requests.post(OPENAI_API_URL, json=payload, headers=headers, timeout=timeout)
         status = r.status_code
         
-        # Handle errors
         if status != 200:
             error_msg = f"HTTP {status}: {r.text[:500]}"
             if status == 429:
@@ -346,7 +358,6 @@ def call_openai(
         
         data = r.json()
         
-        # Expected structure: choices[0].message.content
         try:
             text = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as e:
@@ -364,6 +375,7 @@ def call_openai(
     except requests.exceptions.RequestException as e:
         raise OpenAIError(f"Request failed: {e}")
 
+
 # -------------------------------------------------------
 # MULTI-PROVIDER LLM ROUTER WITH FALLBACK
 # -------------------------------------------------------
@@ -376,23 +388,10 @@ def call_llm_with_fallback(
 ) -> str:
     """
     Call LLM with automatic fallback chain:
-    1. Gemini Primary (gemini-1.5-flash-latest)
-    2. Gemini Secondary (gemini-1.5-flash)
-    3. Gemini Tertiary (gemini-1.5-pro-latest)
-    4. OpenAI Fallback (gpt-4o-mini) - if API key available
-    
-    Args:
-        prompt: Text prompt
-        max_tokens: Maximum output tokens
-        temperature: Sampling temperature
-        timeout: Request timeout per attempt
-        retry_transient: If True, retry transient errors (rate limits, 5xx)
-    
-    Returns:
-        Generated text from first successful provider
-    
-    Raises:
-        LLMProviderError: If all providers fail
+    1. Gemini Primary
+    2. Gemini Secondary
+    3. Gemini Tertiary
+    4. OpenAI Fallback (if API key available)
     """
     
     providers = [
@@ -401,7 +400,6 @@ def call_llm_with_fallback(
         ("Gemini Tertiary", lambda: call_gemini(GEMINI_TERTIARY_MODEL, prompt, max_tokens, temperature, timeout)),
     ]
     
-    # Only add OpenAI if API key is available
     if OPENAI_API_KEY:
         providers.append(
             ("OpenAI Fallback", lambda: call_openai(OPENAI_FALLBACK_MODEL, prompt, max_tokens, temperature, timeout))
@@ -412,7 +410,6 @@ def call_llm_with_fallback(
     errors = []
     
     for provider_name, provider_func in providers:
-        # Retry logic for transient errors
         max_attempts = 3 if retry_transient else 1
         
         for attempt in range(max_attempts):
@@ -425,31 +422,24 @@ def call_llm_with_fallback(
             except (GeminiError, OpenAIError) as e:
                 error_str = str(e)
                 
-                # Check if error is transient (rate limit or 5xx)
                 is_transient = "rate limit" in error_str.lower() or "server error" in error_str.lower()
-                
-                # ✅ FIX: Don't retry MAX_TOKENS errors - they need higher limits
                 is_max_tokens = "MAX_TOKENS" in error_str or "truncated" in error_str.lower()
                 
                 if is_transient and not is_max_tokens and attempt < max_attempts - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    wait_time = 2 ** attempt
                     print(f"[llm-router] Transient error, retrying in {wait_time}s: {error_str[:100]}", file=sys.stderr)
                     time.sleep(wait_time)
                     continue
                 
-                # Non-transient error or final attempt failed
                 error_msg = f"{provider_name}: {error_str}"
                 print(f"[llm-router] ✗ Failed: {error_msg[:200]}", file=sys.stderr)
                 errors.append(error_msg)
-                break  # Move to next provider
+                break
     
-    # All providers failed
     error_summary = "; ".join(errors)
     raise LLMProviderError(f"All LLM providers failed. Errors: {error_summary}")
 
-# -------------------------------------------------------
-# BACKWARD COMPATIBILITY (for existing code)
-# -------------------------------------------------------
+
 def call_groq(prompt: str, max_tokens: int = 300, retry_count: int = 2, timeout: int = 40) -> str:
     """
     Backward-compatible wrapper. Now routes through multi-provider fallback.
@@ -458,10 +448,6 @@ def call_groq(prompt: str, max_tokens: int = 300, retry_count: int = 2, timeout:
     print("[call_groq] Using multi-provider fallback (legacy function)", file=sys.stderr)
     return call_llm_with_fallback(prompt, max_tokens=max_tokens, timeout=timeout)
 
-# Keep GroqError for backward compatibility
-class GroqError(LLMProviderError):
-    """Legacy exception name for backward compatibility."""
-    pass
 
 # -------------------------------------------------------
 # PROMPTS (UPDATED WITH RICH STRENGTHS/IMPROVEMENTS)
@@ -514,6 +500,16 @@ STRENGTHS_PROMPT = """You are an MBA admissions expert. Analyze this resume and 
    - action: Clear, actionable step(s) the candidate should take
    - estimated_impact: One sentence explaining the benefit
    - score: 0-100 (optional, represents current state if applicable)
+
+CRITICAL REQUIREMENTS:
+- If the resume already shows a strong GMAT/GRE score (e.g., GMAT ≥ 700 or GRE ≥ 325)
+  OR the candidate has already completed an MBA/PGP from a strong school (e.g., ISB),
+  DO NOT recommend GMAT/GRE preparation or retaking the test.
+- EVERY strength, improvement, and recommendation MUST reference at least ONE concrete detail
+  from the resume (role title, company/organization, function, project name, industry, geography,
+  or a number such as years, % impact, revenue, or team size).
+- Avoid generic advice that could apply to anyone (e.g., "improve your leadership",
+  "work on networking") unless it explicitly cites context from this resume.
 
 Return ONLY valid JSON in this EXACT format:
 {
@@ -583,8 +579,9 @@ Original Resume:
 
 Return ONLY the improved resume text based strictly on the original content. No explanations, no preamble, just the improved resume."""
 
+
 # -------------------------------------------------------
-# Pipeline Steps (ALL LOGS TO STDERR) - ✅ INCREASED TOKEN LIMITS
+# Pipeline Steps (ALL LOGS TO STDERR)
 # -------------------------------------------------------
 def score_resume(resume_text: str) -> dict:
     """Score resume using multi-provider LLM with fallback."""
@@ -592,7 +589,6 @@ def score_resume(resume_text: str) -> dict:
     
     try:
         print("[score] Scoring resume using multi-provider LLM...", file=sys.stderr)
-        # ✅ INCREASED: max_tokens from 250 to 500
         raw = call_llm_with_fallback(prompt, max_tokens=500, temperature=0.1)
         print(f"[score] Raw output: {raw[:200]}...", file=sys.stderr)
         
@@ -600,14 +596,13 @@ def score_resume(resume_text: str) -> dict:
         scores = normalize_scores_to_0_10(scores)
         
         if validate_scores(scores):
-            print(f"[score] ✓ Scoring succeeded", file=sys.stderr)
+            print("[score] ✓ Scoring succeeded", file=sys.stderr)
             return scores
         else:
-            print(f"[score] ⚠ Invalid scores, using defaults", file=sys.stderr)
+            print("[score] ⚠ Invalid scores, using defaults", file=sys.stderr)
     except Exception as e:
         print(f"[score] ✗ Scoring failed: {e}", file=sys.stderr)
     
-    # Return default scores if all methods fail
     print("[score] ⚠ Returning default scores", file=sys.stderr)
     return {
         "academics": 5.0,
@@ -619,6 +614,7 @@ def score_resume(resume_text: str) -> dict:
         "impact": 5.0,
         "industry": 5.0
     }
+
 
 def validate_scores(scores: dict) -> bool:
     """Validate that scores are in expected format and range with 8-key system."""
@@ -643,29 +639,58 @@ def validate_scores(scores: dict) -> bool:
     
     return True
 
+
 def extract_strengths_and_improvements(resume_text: str) -> dict:
-    """Extract rich strengths, improvements and explicit recommendations using LLM."""
+    """Extract strengths, improvements, and explicit recommendations using LLM."""
     prompt = STRENGTHS_PROMPT.replace("{resume}", resume_text)
     
     try:
         print("[strengths] Extracting strengths/improvements/recommendations...", file=sys.stderr)
-        # ✅ INCREASED: max_tokens from 1000 to 2500
         out = call_llm_with_fallback(prompt, max_tokens=2500, temperature=0.1, timeout=60)
         print(f"[strengths] Raw output: {out[:400]}...", file=sys.stderr)
         
         result = extract_first_json(out)
         
-        # Ensure keys exist
         strengths = result.get("strengths", [])
         improvements = result.get("improvements", [])
         recommendations = result.get("recommendations", [])
+
+        # 🔐 GMAT/GRE/MBA filter at this stage
+        if has_strong_test_score(resume_text):
+            print("[strengths] Strong test score / MBA detected – filtering GMAT/GRE items", file=sys.stderr)
+
+            def is_test_related(text: str) -> bool:
+                return bool(re.search(
+                    r"\b(gmat|gre|test score|standardized test|exam preparation|test prep|retake)\b",
+                    (text or ""),
+                    re.IGNORECASE,
+                ))
+
+            improvements = [
+                imp for imp in improvements
+                if not is_test_related(
+                    f"{imp.get('area','')} {imp.get('suggestion','')} {imp.get('recommendation','')}"
+                )
+            ]
+
+            recommendations = [
+                rec for rec in recommendations
+                if not is_test_related(
+                    f"{rec.get('area','')} {rec.get('action','')} "
+                    f"{rec.get('estimated_impact','')} {rec.get('title','')}"
+                )
+            ]
+
+            print(
+                f"[strengths] After filter: {len(improvements)} improvements, "
+                f"{len(recommendations)} recommendations",
+                file=sys.stderr,
+            )
         
-        # Normalize strengths: ensure title, summary, score (0-100)
+        # Normalize strengths
         for s in strengths:
             s["title"] = s.get("title", "Strength")
             s["summary"] = s.get("summary", "") or "Notable achievement identified."
-            
-            # Normalize score to 0-100
             sc = s.get("score", 70)
             try:
                 sc = float(sc)
@@ -677,7 +702,6 @@ def extract_strengths_and_improvements(resume_text: str) -> dict:
         for imp in improvements:
             imp["area"] = imp.get("area", "Area")
             imp["suggestion"] = imp.get("suggestion", imp.get("recommendation", "Consider strengthening this area"))
-            
             sc = imp.get("score", 50)
             try:
                 sc = float(sc)
@@ -685,7 +709,7 @@ def extract_strengths_and_improvements(resume_text: str) -> dict:
                 sc = 50.0
             imp["score"] = int(max(0, min(100, round(sc))))
         
-        # Normalize recommendations (ensure full shape)
+        # Normalize recommendations
         normalized_recs = []
         for i, rec in enumerate(recommendations or []):
             nr = {
@@ -704,7 +728,11 @@ def extract_strengths_and_improvements(resume_text: str) -> dict:
                     nr["score"] = None
             normalized_recs.append(nr)
         
-        print(f"[strengths] ✓ Extracted {len(strengths)} strengths, {len(improvements)} improvements, {len(normalized_recs)} recommendations", file=sys.stderr)
+        print(
+            f"[strengths] ✓ Extracted {len(strengths)} strengths, "
+            f"{len(improvements)} improvements, {len(normalized_recs)} recommendations",
+            file=sys.stderr,
+        )
         return {
             "strengths": strengths,
             "improvements": improvements,
@@ -718,6 +746,7 @@ def extract_strengths_and_improvements(resume_text: str) -> dict:
             "recommendations": []
         }
 
+
 def verify_scores(resume_text: str, scores: dict) -> dict:
     """Verify scores using LLM with robust error handling."""
     prompt = (
@@ -728,19 +757,16 @@ def verify_scores(resume_text: str, scores: dict) -> dict:
     
     try:
         print("[verify] Verifying scores...", file=sys.stderr)
-        # ✅ INCREASED: max_tokens from 200 to 600
         out = call_llm_with_fallback(prompt, max_tokens=600, temperature=0.1, timeout=40)
         print(f"[verify] Raw output: {out[:200]}...", file=sys.stderr)
         
         verification = extract_first_json(out)
         
-        # Ensure required keys exist
         if "ok" not in verification:
             verification["ok"] = True
         if "explanation" not in verification:
             verification["explanation"] = "Scores verified"
         
-        # Ensure "ok" is boolean
         if isinstance(verification["ok"], str):
             verification["ok"] = verification["ok"].lower() in ["true", "yes", "1"]
         
@@ -748,12 +774,12 @@ def verify_scores(resume_text: str, scores: dict) -> dict:
         return verification
     except Exception as e:
         print(f"[verify] ✗ Failed: {e}", file=sys.stderr)
-        # Return safe default that won't break pipeline
         return {
             "ok": True,
             "explanation": f"Verification completed with fallback (error: {str(e)[:100]})"
         }
-    
+
+
 def analyze_gaps(scores: dict) -> list:
     """Analyze score gaps and identify improvement areas with 8-key system."""
     gaps = []
@@ -788,12 +814,12 @@ def analyze_gaps(scores: dict) -> list:
     
     return gaps
 
+
 def recommend_actions(gaps: list) -> list:
     """Convert gaps into actionable recommendations with rich shape."""
     recs = []
     for i, g in enumerate(gaps):
         score = g.get("score", 0)
-        # Convert 0-10 score to 0-100 for consistency
         score_100 = int(max(0, min(100, round(float(score) * 10))))
         
         recs.append({
@@ -807,42 +833,35 @@ def recommend_actions(gaps: list) -> list:
         })
     return recs
 
+
 def improve_resume(resume_text: str) -> str:
     """Generate improved version of resume using multi-provider LLM."""
     prompt = IMPROVE_PROMPT.replace("{resume}", resume_text)
     
     try:
         print("[improve] Improving resume...", file=sys.stderr)
-        # ✅ INCREASED: max_tokens from 800 to 2000
         improved = call_llm_with_fallback(prompt, max_tokens=2000, temperature=0.2, timeout=60)
-        
-        # Clean up any markdown or preamble
         improved = improved.strip()
         
-        # Remove common unwanted prefixes
-        unwanted_prefixes = [
-            "Here is the improved resume:",
-            "Here's the improved resume:",
-            "Improved Resume:",
-            "**Improved Resume**",
-        ]
-        for prefix in unwanted_prefixes:
-            if improved.startswith(prefix):
-                improved = improved[len(prefix):].strip()
-        
-        # Remove markdown code blocks if present
-        improved = re.sub(r'^```.*?\n', '', improved)
-        improved = re.sub(r'\n```$', '', improved)
-        
+        # Keep it simple here; frontend just needs text
         print(f"[improve] ✓ Improvement succeeded ({len(improved)} chars)", file=sys.stderr)
         return improved
     except Exception as e:
         print(f"[improve] ✗ Improvement failed: {e}", file=sys.stderr)
         return f"[Unable to generate improved resume - error: {str(e)[:100]}]\n\nOriginal:\n{resume_text}"
 
-def build_report(resume_text: str, scores: dict, verification: dict, gaps: list, 
-                recs: list, improved: str, strengths: list, improvements: list) -> dict:
-    """Build final report dictionary."""
+
+def build_report(
+    resume_text: str,
+    scores: dict,
+    verification: dict,
+    gaps: list,
+    recs: list,
+    improved: str,
+    strengths: list,
+    improvements: list
+) -> dict:
+    """Build final report dictionary (backwards-compatible shape)."""
     return {
         "original_resume": resume_text,
         "scores": scores,
@@ -853,8 +872,9 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
         "recommendations": recs,
         "improved_resume": improved,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "4.1.0"
+        "pipeline_version": "4.3.0"
     }
+
 
 # -------------------------------------------------------
 # Main Runner
@@ -862,12 +882,11 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
 def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
     """Execute full pipeline with optional resume improvement."""
     print("\n" + "="*60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v4.1", file=sys.stderr)
+    print("MBA RESUME ANALYSIS PIPELINE v4.3 (compat)", file=sys.stderr)
     print("Multi-Provider: Gemini Free Tier + OpenAI Fallback", file=sys.stderr)
     print("8-Key Scoring (0-10) + Rich Strengths/Improvements (0-100)", file=sys.stderr)
     print("="*60 + "\n", file=sys.stderr)
     
-    # Display inference configuration
     print("Inference Configuration:", file=sys.stderr)
     print(f"  Gemini Primary: {GEMINI_PRIMARY_MODEL} {'✓' if GEMINI_API_KEY else '✗'}", file=sys.stderr)
     print(f"  Gemini Secondary: {GEMINI_SECONDARY_MODEL}", file=sys.stderr)
@@ -885,34 +904,42 @@ def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
     improvements = strength_data.get("improvements", [])
     recs = strength_data.get("recommendations", [])
     
-    # If recommendations missing, convert gaps into recommended objects (rich shape)
+    print("\nStep 3: Analyzing gaps...", file=sys.stderr)
+    gaps = analyze_gaps(scores)
+
+    # If LLM gave no recommendations, generate from gaps
     if not recs:
-        print("\nStep 2b: No recommendations from model, generating from gaps...", file=sys.stderr)
-        print("\nStep 3: Analyzing gaps...", file=sys.stderr)
-        gaps = analyze_gaps(scores)
+        print("[pipeline] No model recommendations; building from gaps...", file=sys.stderr)
+        recs = recommend_actions(gaps)
+
+    # 🔐 Final safety net GMAT/GRE filter (just in case)
+    if has_strong_test_score(resume_text):
+        print("[pipeline] Strong test/MBA detected – final GMAT/GRE filter on recs/improvements", file=sys.stderr)
+
+        def is_test_related_text(t: str) -> bool:
+            return bool(re.search(
+                r"\b(gmat|gre|test score|standardized test|exam preparation|test prep|retake)\b",
+                (t or ""),
+                re.IGNORECASE,
+            ))
         
-        recs = []
-        for idx, g in enumerate(gaps[:5]):
-            score = g.get("score", 0)
-            score_100 = int(max(0, min(100, round(float(score) * 10))))
-            
-            recs.append({
-                "id": f"rec_gap_{idx+1}",
-                "type": "improvement",
-                "area": g.get("area", "Overall Profile"),
-                "priority": "high" if score < 4 else "medium",
-                "action": g.get("suggestion", ""),
-                "estimated_impact": "Moderate — should improve your competitiveness",
-                "score": score_100
-            })
-    else:
-        print("\nStep 3: Analyzing gaps (optional)...", file=sys.stderr)
-        gaps = analyze_gaps(scores)
+        improvements = [
+            imp for imp in improvements
+            if not is_test_related_text(
+                f"{imp.get('area','')} {imp.get('suggestion','')} {imp.get('recommendation','')}"
+            )
+        ]
+        recs = [
+            rec for rec in recs
+            if not is_test_related_text(
+                f"{rec.get('area','')} {rec.get('action','')} "
+                f"{rec.get('estimated_impact','')} {rec.get('title','')}"
+            )
+        ]
     
     print("\nStep 4: Verifying scores...", file=sys.stderr)
     verification = verify_scores(resume_text, scores)
     
-    # Only improve resume if requested
     if include_improvement:
         print("\nStep 5: Improving resume...", file=sys.stderr)
         improved = improve_resume(resume_text)
@@ -926,11 +953,12 @@ def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
     
     return build_report(resume_text, scores, verification, gaps, recs, improved, strengths, improvements)
 
+
 def main():
     """Main entry point with file reading support including PDF."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v4.1")
+    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v4.3 (compat)")
     parser.add_argument("resume_text", nargs="?", default="", 
                        help="Resume text or file path to analyze")
     parser.add_argument("--rewrite-only", action="store_true",
@@ -939,7 +967,6 @@ def main():
                        help="Skip resume improvement step")
     args = parser.parse_args()
     
-    # ---- Read file if path is provided ----
     resume_input = args.resume_text
     
     if not resume_input:
@@ -954,16 +981,13 @@ def main():
         print("  python mba_hybrid_pipeline.py --no-improvement resume.txt", file=sys.stderr)
         return
     
-    # Check if input is a file path
     if os.path.isfile(resume_input):
         print(f"[main] Reading resume from file: {resume_input}", file=sys.stderr)
         try:
-            # Handle PDF files
             if resume_input.lower().endswith('.pdf'):
                 resume_text = extract_text_from_pdf(resume_input)
                 print(f"[main] ✓ Loaded {len(resume_text)} characters from PDF", file=sys.stderr)
             else:
-                # Handle text/docx files (read as text)
                 with open(resume_input, "r", encoding="utf-8") as f:
                     resume_text = f.read()
                 print(f"[main] ✓ Loaded {len(resume_text)} characters from file", file=sys.stderr)
@@ -971,27 +995,22 @@ def main():
             print(f"[main] ✗ Could not read file: {e}", file=sys.stderr)
             sys.exit(1)
     else:
-        # Input is direct text
         resume_text = resume_input
         print(f"[main] Using direct text input ({len(resume_text)} characters)", file=sys.stderr)
     
-    # ---- REWRITE-ONLY MODE ----
     if args.rewrite_only:
         print("[rewrite] Starting resume improvement...", file=sys.stderr)
         improved = improve_resume(resume_text)
-        
-        # Output ONLY to stdout
         sys.stdout.write(improved)
         sys.stdout.flush()
         return
     
-    # ---- FULL ANALYSIS MODE ----
     include_improvement = not args.no_improvement
     result = run_pipeline(resume_text, include_improvement=include_improvement)
     
-    # Output ONLY JSON to stdout (compact)
     sys.stdout.write(json.dumps(result, ensure_ascii=False))
     sys.stdout.flush()
+
 
 if __name__ == "__main__":
     main()
