@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v3.2
-Hybrid pipeline: HuggingFace Inference API (primary) + Groq verifier/re-writer + Local LoRA (optional)
-UPDATED: Added HuggingFace Inference API support with fallback chain
+mba_hybrid_pipeline.py v3.3
+Hybrid pipeline: HuggingFace Inference API (primary) + Gemini verifier/re-writer + Local LoRA (optional)
+UPDATED: Migrated from Groq to Google Gemini API
 """
 import os
 import json
@@ -68,10 +68,10 @@ HF_MODEL = os.environ.get("HF_MODEL", "Mayururur/admit55-llama32-3b-lora")
 LORA_ADAPTER_DIR = os.environ.get("LORA_ADAPTER_DIR", "lora-llama3")
 LORA_BASE_MODEL = os.environ.get("LORA_BASE_MODEL", "meta-llama/Llama-3.2-3B-Instruct")
 
-# Groq Configuration (for verification and improvement)
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GROQ_API_URL = os.environ.get("GROQ_API_URL", "https://api.groq.com/openai/v1")
-GROQ_MODEL = "llama-3.1-8b-instant"
+# Gemini Configuration (for verification and improvement)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-exp")
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 _local_model = None
 _local_tokenizer = None
@@ -157,56 +157,103 @@ def extract_first_json(text: str):
             raise ValueError(f"Failed to parse JSON after cleanup: {e}")
 
 # -------------------------------------------------------
-# GROQ CHAT API (ENHANCED ERROR HANDLING)
+# GEMINI API (REPLACES GROQ)
 # -------------------------------------------------------
 class GroqError(Exception):
+    """
+    Kept for backward-compatibility. 
+    Internally we now call Gemini, but the rest of the code 
+    still uses the name GroqError / call_groq.
+    """
     pass
 
-def call_groq(prompt: str, max_tokens: int = 300, retry_count: int = 2, timeout: int = 40) -> str:
-    """Call Groq API with error handling and retry logic."""
-    if not GROQ_API_KEY:
-        raise GroqError("Missing GROQ_API_KEY")
+def call_groq(
+    prompt: str, 
+    max_tokens: int = 300, 
+    retry_count: int = 2, 
+    timeout: int = 40
+) -> str:
+    """
+    Backwards-compatible LLM call. Uses Gemini models via the REST API.
     
-    url = f"{GROQ_API_URL}/chat/completions"
+    Args:
+        prompt: Text prompt
+        max_tokens: max output tokens for Gemini
+        retry_count: how many times to retry on transient errors
+        timeout: per-request timeout in seconds
+    
+    Returns:
+        Generated text from Gemini
+    
+    Raises:
+        GroqError: On API errors or invalid responses
+    """
+    if not GEMINI_API_KEY:
+        raise GroqError("Missing GEMINI_API_KEY")
+    
+    url = f"{GEMINI_API_URL}/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    
     payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "temperature": 0.1
-    }
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": int(max_tokens),
+        },
     }
     
     last_error = None
     for attempt in range(retry_count):
         try:
-            r = requests.post(url, json=payload, headers=headers, timeout=timeout)
-            if r.status_code != 200:
-                last_error = f"HTTP {r.status_code}: {r.text}"
+            print(f"[llm] Calling Gemini model={GEMINI_MODEL}, attempt {attempt+1}/{retry_count}", file=sys.stderr)
+            r = requests.post(url, json=payload, timeout=timeout)
+            status = r.status_code
+            
+            # Transient errors: rate limit or 5xx → retry
+            if status == 429 or 500 <= status < 600:
+                last_error = f"HTTP {status}: {r.text[:200]}"
                 if attempt < retry_count - 1:
-                    time.sleep(1)
+                    wait = 2 ** attempt
+                    print(f"[llm] Transient error ({last_error}), retrying in {wait}s...", file=sys.stderr)
+                    time.sleep(wait)
                     continue
                 raise GroqError(last_error)
+            
+            # Other non-OK
+            if status != 200:
+                raise GroqError(f"HTTP {status}: {r.text[:500]}")
             
             data = r.json()
-            if "choices" not in data or len(data["choices"]) == 0:
-                last_error = f"Invalid response format: {data}"
-                if attempt < retry_count - 1:
-                    time.sleep(1)
-                    continue
-                raise GroqError(last_error)
             
-            return data["choices"][0]["message"]["content"]
+            # Expected structure: candidates[0].content.parts[0].text
+            try:
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError) as e:
+                raise GroqError(f"Unexpected Gemini response: {data}") from e
+            
+            text = (text or "").strip()
+            if not text:
+                raise GroqError("Empty text from Gemini")
+            
+            print(f"[llm] ✓ Gemini response length={len(text)} chars", file=sys.stderr)
+            return text
             
         except requests.exceptions.Timeout:
             last_error = "Request timed out"
+            print(f"[llm] Timeout: {last_error}", file=sys.stderr)
             if attempt < retry_count - 1:
-                time.sleep(2)
+                wait = 2 ** attempt
+                print(f"[llm] Retrying in {wait}s...", file=sys.stderr)
+                time.sleep(wait)
                 continue
         except requests.exceptions.RequestException as e:
             last_error = f"Request failed: {e}"
+            print(f"[llm] RequestException: {last_error}", file=sys.stderr)
             if attempt < retry_count - 1:
                 time.sleep(1)
                 continue
@@ -265,7 +312,7 @@ def try_load_local_lora():
         _local_model = None
         _local_tokenizer = None
         return False
-
+    
 def predict_local(prompt: str, max_new_tokens=250) -> str:
     """Generate prediction using local LoRA model."""
     global _local_model, _local_tokenizer
@@ -442,7 +489,7 @@ Return ONLY the improved resume text based strictly on the original content. No 
 # Pipeline Steps (ALL LOGS TO STDERR) - UPDATED WITH HF
 # -------------------------------------------------------
 def score_resume(resume_text: str) -> dict:
-    """Score resume using HuggingFace (primary), local LoRA (secondary), or Groq (fallback)."""
+    """Score resume using HuggingFace (primary), local LoRA (secondary), or Gemini (fallback)."""
     prompt = SCORER_PROMPT.replace("{resume}", resume_text)
     
     # PRIORITY 1: Try HuggingFace Inference API first
@@ -460,10 +507,8 @@ def score_resume(resume_text: str) -> dict:
                 return scores
             else:
                 print(f"[score] ✗ Invalid scores from HuggingFace, trying next method", file=sys.stderr)
-        except HuggingFaceInferenceError as e:
-            print(f"[score] ✗ HuggingFace failed: {e}", file=sys.stderr)
         except Exception as e:
-            print(f"[score] ✗ HuggingFace unexpected error: {e}", file=sys.stderr)
+            print(f"[score] ✗ HuggingFace failed: {e}", file=sys.stderr)
     
     # PRIORITY 2: Try local LoRA second
     if USE_LOCAL_LORA and _local_model is not None:
@@ -479,13 +524,13 @@ def score_resume(resume_text: str) -> dict:
                 print(f"[score] ✓ Local LoRA succeeded", file=sys.stderr)
                 return scores
             else:
-                print(f"[score] ✗ Invalid scores from local model, falling back to Groq", file=sys.stderr)
+                print(f"[score] ✗ Invalid scores from local model, falling back to Gemini", file=sys.stderr)
         except Exception as e:
             print(f"[score] ✗ Local LoRA failed: {e}", file=sys.stderr)
     
-    # PRIORITY 3: Fallback to Groq
+    # PRIORITY 3: Fallback to Gemini
     try:
-        print("[score] Using Groq API (fallback)...", file=sys.stderr)
+        print("[score] Using Gemini API (fallback)...", file=sys.stderr)
         out = call_groq(prompt, max_tokens=250, timeout=40)
         print(f"[score] Raw output: {out[:200]}...", file=sys.stderr)
         
@@ -493,12 +538,12 @@ def score_resume(resume_text: str) -> dict:
         scores = normalize_scores_to_0_10(scores)
         
         if validate_scores(scores):
-            print(f"[score] ✓ Groq succeeded", file=sys.stderr)
+            print(f"[score] ✓ Gemini succeeded", file=sys.stderr)
             return scores
         else:
-            print(f"[score] ⚠ Invalid scores from Groq, using defaults", file=sys.stderr)
+            print(f"[score] ⚠ Invalid scores from Gemini, using defaults", file=sys.stderr)
     except Exception as e:
-        print(f"[score] ✗ Groq failed: {e}", file=sys.stderr)
+        print(f"[score] ✗ Gemini failed: {e}", file=sys.stderr)
     
     # Return default scores if all methods fail
     print("[score] ⚠ All methods failed, returning default scores", file=sys.stderr)
@@ -537,11 +582,11 @@ def validate_scores(scores: dict) -> bool:
     return True
 
 def extract_strengths_and_improvements(resume_text: str) -> dict:
-    """Extract rich strengths, improvements and explicit recommendations using Groq."""
+    """Extract rich strengths, improvements and explicit recommendations using Gemini."""
     prompt = STRENGTHS_PROMPT.replace("{resume}", resume_text)
     
     try:
-        print("[strengths] Using Groq API to extract strengths/improvements/recommendations...", file=sys.stderr)
+        print("[strengths] Using Gemini API to extract strengths/improvements/recommendations...", file=sys.stderr)
         out = call_groq(prompt, max_tokens=1000, retry_count=3, timeout=60)
         print(f"[strengths] Raw output: {out[:400]}...", file=sys.stderr)
         
@@ -611,7 +656,7 @@ def extract_strengths_and_improvements(resume_text: str) -> dict:
         }
 
 def verify_scores(resume_text: str, scores: dict) -> dict:
-    """Verify scores using Groq with robust error handling."""
+    """Verify scores using Gemini with robust error handling."""
     prompt = (
         VERIFY_PROMPT
         .replace("{resume}", resume_text)
@@ -619,7 +664,7 @@ def verify_scores(resume_text: str, scores: dict) -> dict:
     )
     
     try:
-        print("[verify] Using Groq API...", file=sys.stderr)
+        print("[verify] Using Gemini API...", file=sys.stderr)
         out = call_groq(prompt, max_tokens=200, retry_count=3, timeout=40)
         print(f"[verify] Raw output: {out[:200]}...", file=sys.stderr)
         
@@ -644,7 +689,7 @@ def verify_scores(resume_text: str, scores: dict) -> dict:
             "ok": True,
             "explanation": f"Verification completed with fallback (error: {str(e)[:100]})"
         }
-
+    
 def analyze_gaps(scores: dict) -> list:
     """Analyze score gaps and identify improvement areas with 8-key system."""
     gaps = []
@@ -699,12 +744,12 @@ def recommend_actions(gaps: list) -> list:
     return recs
 
 def improve_resume(resume_text: str) -> str:
-    """Generate improved version of resume - try Groq first, then HF, then local."""
+    """Generate improved version of resume - try Gemini first, then HF, then local."""
     prompt = IMPROVE_PROMPT.replace("{resume}", resume_text)
     
-    # PRIORITY 1: Try Groq first (best for creative writing)
+    # PRIORITY 1: Try Gemini first (best for creative writing)
     try:
-        print("[improve] Using Groq API (primary)...", file=sys.stderr)
+        print("[improve] Using Gemini API (primary)...", file=sys.stderr)
         improved = call_groq(prompt, max_tokens=800, retry_count=3, timeout=60)
         
         # Clean up any markdown or preamble
@@ -725,10 +770,10 @@ def improve_resume(resume_text: str) -> str:
         improved = re.sub(r'^```.*?\n', '', improved)
         improved = re.sub(r'\n```$', '', improved)
         
-        print(f"[improve] ✓ Groq succeeded ({len(improved)} chars)", file=sys.stderr)
+        print(f"[improve] ✓ Gemini succeeded ({len(improved)} chars)", file=sys.stderr)
         return improved
     except Exception as e:
-        print(f"[improve] ✗ Groq failed: {e}", file=sys.stderr)
+        print(f"[improve] ✗ Gemini failed: {e}", file=sys.stderr)
     
     # PRIORITY 2: Try HuggingFace if available
     if USE_HUGGINGFACE and HF_AVAILABLE:
@@ -740,7 +785,6 @@ def improve_resume(resume_text: str) -> str:
             improved = improved.strip()
             improved = re.sub(r'^```.*?\n', '', improved)
             improved = re.sub(r'\n```$', '', improved)
-    
             
             print(f"[improve] ✓ HuggingFace succeeded ({len(improved)} chars)", file=sys.stderr)
             return improved
@@ -774,7 +818,7 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
         "recommendations": recs,
         "improved_resume": improved,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "3.2.0"
+        "pipeline_version": "3.3.0"
     }
 
 # -------------------------------------------------------
@@ -783,8 +827,8 @@ def build_report(resume_text: str, scores: dict, verification: dict, gaps: list,
 def run_pipeline(resume_text: str) -> dict:
     """Execute full pipeline."""
     print("\n" + "="*60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v3.2", file=sys.stderr)
-    print("HuggingFace Inference (Primary) + Groq + Local LoRA", file=sys.stderr)
+    print("MBA RESUME ANALYSIS PIPELINE v3.3", file=sys.stderr)
+    print("HuggingFace Inference (Primary) + Gemini + Local LoRA", file=sys.stderr)
     print("8-Key Scoring (0-10) + Rich Strengths/Improvements (0-100)", file=sys.stderr)
     print("="*60 + "\n", file=sys.stderr)
     
@@ -794,7 +838,9 @@ def run_pipeline(resume_text: str) -> dict:
     if USE_HUGGINGFACE and HF_AVAILABLE:
         print(f"  Model: {HF_MODEL}", file=sys.stderr)
     print(f"  Local LoRA: {'✓ Enabled' if USE_LOCAL_LORA and _local_model else '✗ Disabled'}", file=sys.stderr)
-    print(f"  Groq API: {'✓ Enabled' if GROQ_API_KEY else '✗ Disabled'}", file=sys.stderr)
+    print(f"  Gemini API: {'✓ Enabled' if GEMINI_API_KEY else '✗ Disabled'}", file=sys.stderr)
+    if GEMINI_API_KEY:
+        print(f"  Model: {GEMINI_MODEL}", file=sys.stderr)
     print("", file=sys.stderr)
     
     print("Step 1: Scoring resume (8 dimensions, 0-10 scale)...", file=sys.stderr)
@@ -846,7 +892,7 @@ def main():
     """Main entry point with file reading support including PDF."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v3.2")
+    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v3.3")
     parser.add_argument("resume_text", nargs="?", default="", 
                        help="Resume text or file path to analyze")
     parser.add_argument("--rewrite-only", action="store_true",
@@ -868,11 +914,15 @@ def main():
             sys.exit(1)
         
         print("Testing HuggingFace connection...", file=sys.stderr)
-        if test_hf_connection():
-            print("\n✓ HuggingFace API is working!", file=sys.stderr)
-            sys.exit(0)
-        else:
-            print("\n✗ HuggingFace API test failed", file=sys.stderr)
+        try:
+            if test_hf_connection():
+                print("\n✓ HuggingFace API is working!", file=sys.stderr)
+                sys.exit(0)
+            else:
+                print("\n✗ HuggingFace API test failed", file=sys.stderr)
+                sys.exit(1)
+        except Exception as e:
+            print(f"\n✗ HuggingFace API test failed: {e}", file=sys.stderr)
             sys.exit(1)
     
     # Load local model if enabled
@@ -883,15 +933,15 @@ def main():
     resume_input = args.resume_text
     
     if not resume_input:
-        print('Usage: python mba_hybrid_pipeline.py "resume text or file path"', file=sys.stderr)
-        print('       python mba_hybrid_pipeline.py --rewrite-only "resume text or file path"', file=sys.stderr)
-        print('       python mba_hybrid_pipeline.py --test-hf', file=sys.stderr)
+        print("Usage: python mba_hybrid_pipeline.py \"resume text or file path\"", file=sys.stderr)
+        print("       python mba_hybrid_pipeline.py --rewrite-only \"resume text or file path\"", file=sys.stderr)
+        print("       python mba_hybrid_pipeline.py --test-hf", file=sys.stderr)
         print("\nExamples:", file=sys.stderr)
-        print('  python mba_hybrid_pipeline.py "Software Engineer with 5 years experience..."', file=sys.stderr)
-        print('  python mba_hybrid_pipeline.py resume.txt', file=sys.stderr)
-        print('  python mba_hybrid_pipeline.py resume.pdf', file=sys.stderr)
-        print('  python mba_hybrid_pipeline.py --rewrite-only resume.pdf', file=sys.stderr)
-        print('  python mba_hybrid_pipeline.py --test-hf', file=sys.stderr)
+        print("  python mba_hybrid_pipeline.py \"Software Engineer with 5 years experience...\"", file=sys.stderr)
+        print("  python mba_hybrid_pipeline.py resume.txt", file=sys.stderr)
+        print("  python mba_hybrid_pipeline.py resume.pdf", file=sys.stderr)
+        print("  python mba_hybrid_pipeline.py --rewrite-only resume.pdf", file=sys.stderr)
+        print("  python mba_hybrid_pipeline.py --test-hf", file=sys.stderr)
         return
     
     # Check if input is a file path
