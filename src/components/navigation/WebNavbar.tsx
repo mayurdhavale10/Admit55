@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import Navbar, { type LinkItem, type LinkComp } from "./Navbar";
 
-// Base menu items (no auth items here)
+// Base menu items
 const BASE_ITEMS: LinkItem[] = [
   { href: "/", label: "Home" },
   { href: "/your-tools", label: "YourTools" },
@@ -27,21 +27,34 @@ export default function WebNavbar() {
 
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
-  // Start with base items
   const items: LinkItem[] = [...BASE_ITEMS];
 
   if (!session) {
     // Not logged in → show Login chip
-    items.push({ href: "/api/auth/signin", label: "Login" });
+    items.push({
+      href: "#login",
+      label: "Login",
+      onClick: () => {
+        // Google login (or whatever provider you configured)
+        signIn("google");
+      },
+    });
   } else {
     // Logged in
     if (session.user?.email && session.user.email === adminEmail) {
-      // Admin email → show Admin Access chip
-      items.push({ href: "/admin/dashboard", label: "Admin Access" });
-    } else {
-      // Normal logged-in user – optional:
-      // items.push({ href: "/profile", label: "My Account" });
+      items.push({
+        href: "/admin/dashboard",
+        label: "Admin Access",
+      });
     }
+
+    items.push({
+      href: "#logout",
+      label: "Logout",
+      onClick: () => {
+        signOut({ callbackUrl: "/" });
+      },
+    });
   }
 
   return (

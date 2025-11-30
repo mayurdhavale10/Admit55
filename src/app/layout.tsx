@@ -1,3 +1,4 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./Providers";
@@ -17,7 +18,6 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
-          {/* Navbar is now wrapped in SessionProvider */}
           <WebNavbar />
           {children}
         </Providers>

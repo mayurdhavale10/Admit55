@@ -8,7 +8,12 @@ import React, {
   type ReactElement,
 } from "react";
 
-export type LinkItem = { href: string; label: string };
+export type LinkItem = {
+  href: string;
+  label: string;
+  onClick?: () => void; // 👈 NEW
+};
+
 export type LinkComp = (props: {
   href: string;
   children: ReactNode;
@@ -109,10 +114,7 @@ export default function Navbar({
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-colors",
         "pt-[max(0px,env(safe-area-inset-top))]",
-        // EXACT PATTERN FROM YOUR ORIGINAL: backdrop-blur ONLY when scrolled
-        scrolled
-          ? "backdrop-blur bg-white/70 border-b border-black/5"
-          : "bg-transparent",
+        scrolled ? "backdrop-blur bg-white/70 border-b border-black/5" : "bg-transparent",
       )}
       style={{ height: `${HEADER_HEIGHT}px` }}
     >
@@ -157,18 +159,24 @@ export default function Navbar({
 
         {/* CENTER — DESKTOP MENU */}
         <div className="hidden md:flex items-center gap-3 justify-center px-3 md:px-5 flex-nowrap">
-          {items.map(({ href, label }) => (
-            <LinkComponent
-              key={href}
-              href={href}
-              className={isActive(href) ? chipActive : chipGlassy}
-              onClick={closeMobile}
-            >
-              <span className="whitespace-nowrap" style={{ color: textColor }}>
-                {label}
-              </span>
-            </LinkComponent>
-          ))}
+          {items.map(({ href, label, onClick }) => {
+            const handleClick = () => {
+              onClick?.();
+              closeMobile();
+            };
+            return (
+              <LinkComponent
+                key={href + label}
+                href={href}
+                className={isActive(href) ? chipActive : chipGlassy}
+                onClick={handleClick}
+              >
+                <span className="whitespace-nowrap" style={{ color: textColor }}>
+                  {label}
+                </span>
+              </LinkComponent>
+            );
+          })}
         </div>
 
         {/* RIGHT — CTA + HAMBURGER */}
@@ -243,27 +251,31 @@ export default function Navbar({
         <div
           className={cn(
             "mx-4 mb-4 rounded-2xl border shadow-sm backdrop-blur",
-            scrolled
-              ? "bg-white/80 border-black/10"
-              : "bg-white/20 border-white/25",
+            scrolled ? "bg-white/80 border-black/10" : "bg-white/20 border-white/25",
           )}
         >
           <div className="p-3 flex flex-col gap-2">
-            {items.map(({ href, label }) => (
-              <LinkComponent
-                key={href}
-                href={href}
-                onClick={closeMobile}
-                className={cn(
-                  "w-full text-center",
-                  isActive(href) ? chipActive : chipGlassy,
-                )}
-              >
-                <span className="whitespace-nowrap" style={{ color: textColor }}>
-                  {label}
-                </span>
-              </LinkComponent>
-            ))}
+            {items.map(({ href, label, onClick }) => {
+              const handleClick = () => {
+                onClick?.();
+                closeMobile();
+              };
+              return (
+                <LinkComponent
+                  key={href + label}
+                  href={href}
+                  onClick={handleClick}
+                  className={cn(
+                    "w-full text-center",
+                    isActive(href) ? chipActive : chipGlassy,
+                  )}
+                >
+                  <span className="whitespace-nowrap" style={{ color: textColor }}>
+                    {label}
+                  </span>
+                </LinkComponent>
+              );
+            })}
 
             {/* MOBILE CTA */}
             <LinkComponent
