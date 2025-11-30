@@ -1,4 +1,3 @@
-// Navbar.tsx
 "use client";
 
 import React, {
@@ -7,7 +6,7 @@ import React, {
   useCallback,
   type ReactNode,
   type ReactElement,
-} from 'react';
+} from "react";
 
 export type LinkItem = { href: string; label: string };
 export type LinkComp = (props: {
@@ -27,7 +26,7 @@ type Brand = {
 };
 
 function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(' ');
+  return parts.filter(Boolean).join(" ");
 }
 
 const HEADER_HEIGHT = 84;
@@ -40,13 +39,13 @@ export default function Navbar({
   items,
   LinkComponent,
   activeHref,
-  navText = '#003366',
+  navText = "#003366",
   brand = {
-    name: '',
-    href: '/',
-    logoSrc: '/logo/admit55_final_logo.webp',
-    logoAlt: 'Admit55 logo',
-    nameColor: '#003366',
+    name: "",
+    href: "/",
+    logoSrc: "/logo/admit55_final_logo.webp",
+    logoAlt: "Admit55 logo",
+    nameColor: "#003366",
   },
 }: {
   items: LinkItem[];
@@ -61,62 +60,70 @@ export default function Navbar({
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > SCROLL_THRESHOLD);
     onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= MD_BREAKPOINT) setMobileOpen(false);
     };
-    window.addEventListener('resize', onResize);
-    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    window.addEventListener("resize", onResize);
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => {
-      window.removeEventListener('resize', onResize);
-      document.body.style.overflow = '';
+      window.removeEventListener("resize", onResize);
+      document.body.style.overflow = "";
     };
   }, [mobileOpen]);
 
-  const textColor = scrolled ? '#003366' : '#FFFFFF';
+  const textColor = scrolled ? "#003366" : "#FFFFFF";
 
   const chipBase =
-    'px-4 py-2 rounded-full border transition-colors text-sm font-medium inline-flex items-center whitespace-nowrap';
+    "px-4 py-2 rounded-full border transition-colors text-sm font-medium inline-flex items-center whitespace-nowrap";
   const chipGlassy = cn(
     chipBase,
     scrolled
-      ? 'border-black/15 bg-white/60 hover:bg-white/70'
-      : 'border-white/25 bg-white/10 hover:bg-white/15',
+      ? "border-black/15 bg-white/60 hover:bg-white/70"
+      : "border-white/25 bg-white/10 hover:bg-white/15",
   );
   const chipActive = cn(
     chipBase,
-    'bg-[#00C875]/15 border-[#00C875]/30 ring-1 ring-[#00C875]/50',
+    "bg-[#00C875]/15 border-[#00C875]/30 ring-1 ring-[#00C875]/50",
   );
 
   const isActive = useCallback(
-    (href: string) => activeHref === href || (href !== '/' && activeHref?.startsWith(href)),
+    (href: string) =>
+      activeHref === href || (href !== "/" && activeHref?.startsWith(href)),
     [activeHref],
   );
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
   const toggleMobile = useCallback(() => setMobileOpen((v) => !v), []);
 
-  const mobilePanelId = 'navbar-mobile-panel';
+  const mobilePanelId = "navbar-mobile-panel";
   const logoScale = brand.logoScale ?? LOGO_SCALE_DEFAULT;
-  const CTA_HREF = '/mba/tools/profileresumetool';
+  const CTA_HREF = "/mba/tools/profileresumetool";
 
   return (
     <header
       className={cn(
-        'fixed top-0 left-0 right-0 z-50 transition-colors',
-        'pt-[max(0px,env(safe-area-inset-top))]',
-        scrolled ? 'backdrop-blur bg-white/70 border-b border-black/5' : 'bg-transparent',
+        "fixed top-0 left-0 right-0 z-50 transition-colors",
+        "pt-[max(0px,env(safe-area-inset-top))]",
+        // EXACT PATTERN FROM YOUR ORIGINAL: backdrop-blur ONLY when scrolled
+        scrolled
+          ? "backdrop-blur bg-white/70 border-b border-black/5"
+          : "bg-transparent",
       )}
       style={{ height: `${HEADER_HEIGHT}px` }}
     >
       <nav className="w-full px-0 grid grid-cols-[auto_1fr_auto] items-center h-full">
         {/* LEFT — BRAND */}
         <div className="pl-5 md:pl-6 flex items-center gap-2">
-          <LinkComponent href={brand.href} className="flex items-center gap-2" onClick={closeMobile}>
+          <LinkComponent
+            href={brand.href}
+            className="flex items-center gap-2"
+            onClick={closeMobile}
+          >
             {brand.logoSrc && (
               <div
                 className="overflow-hidden flex items-center justify-center"
@@ -124,9 +131,13 @@ export default function Navbar({
               >
                 <img
                   src={brand.logoSrc}
-                  alt={brand.logoAlt ?? 'logo'}
+                  alt={brand.logoAlt ?? "logo"}
                   className="w-full h-full object-cover object-center"
-                  style={{ transform: `scale(${logoScale})`, transformOrigin: 'center', willChange: 'transform' }}
+                  style={{
+                    transform: `scale(${logoScale})`,
+                    transformOrigin: "center",
+                    willChange: "transform",
+                  }}
                 />
               </div>
             )}
@@ -134,7 +145,9 @@ export default function Navbar({
             {brand.name && (
               <span
                 className="whitespace-nowrap font-semibold leading-none text-[18px] md:text-[22px] transition-colors duration-200"
-                style={{ color: scrolled ? (brand.nameColor ?? '#003366') : '#FFFFFF' }}
+                style={{
+                  color: scrolled ? brand.nameColor ?? "#003366" : "#FFFFFF",
+                }}
               >
                 {brand.name}
               </span>
@@ -165,9 +178,9 @@ export default function Navbar({
             <LinkComponent
               href={CTA_HREF}
               className={cn(
-                'px-5 py-2 rounded-md border-transparent transition-colors font-medium',
-                'text-[18px] md:text-[22px] leading-none',
-                'bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap',
+                "px-5 py-2 rounded-md border-transparent transition-colors font-medium",
+                "text-[18px] md:text-[22px] leading-none",
+                "bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap",
               )}
               onClick={closeMobile}
             >
@@ -184,12 +197,22 @@ export default function Navbar({
               aria-controls={mobilePanelId}
               onClick={toggleMobile}
               className={cn(
-                'inline-flex items-center justify-center rounded-full p-2',
-                scrolled ? 'bg-white/70 border border-black/10' : 'bg-white/15 border border-white/20',
+                "inline-flex items-center justify-center rounded-full p-2",
+                scrolled
+                  ? "bg-white/70 border border-black/10"
+                  : "bg-white/15 border border-white/20",
               )}
               style={{ color: textColor }}
             >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 {mobileOpen ? (
                   <>
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -211,17 +234,30 @@ export default function Navbar({
       {/* MOBILE PANEL */}
       <div
         id={mobilePanelId}
-        className={cn('md:hidden transition-all duration-200 ease-out overflow-hidden', mobileOpen ? 'max-h-[600px]' : 'max-h-0')}
+        className={cn(
+          "md:hidden transition-all duration-200 ease-out overflow-hidden",
+          mobileOpen ? "max-h-[600px]" : "max-h-0",
+        )}
         aria-hidden={!mobileOpen}
       >
-        <div className={cn('mx-4 mb-4 rounded-2xl border shadow-sm backdrop-blur', scrolled ? 'bg-white/80 border-black/10' : 'bg-white/20 border-white/25')}>
+        <div
+          className={cn(
+            "mx-4 mb-4 rounded-2xl border shadow-sm backdrop-blur",
+            scrolled
+              ? "bg-white/80 border-black/10"
+              : "bg-white/20 border-white/25",
+          )}
+        >
           <div className="p-3 flex flex-col gap-2">
             {items.map(({ href, label }) => (
               <LinkComponent
                 key={href}
                 href={href}
                 onClick={closeMobile}
-                className={cn('w-full text-center', isActive(href) ? chipActive : chipGlassy)}
+                className={cn(
+                  "w-full text-center",
+                  isActive(href) ? chipActive : chipGlassy,
+                )}
               >
                 <span className="whitespace-nowrap" style={{ color: textColor }}>
                   {label}
@@ -234,8 +270,8 @@ export default function Navbar({
               href={CTA_HREF}
               onClick={closeMobile}
               className={cn(
-                'px-4 py-2 rounded-full border-transparent transition-colors text-sm font-semibold',
-                'w-full bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap',
+                "px-4 py-2 rounded-full border-transparent transition-colors text-sm font-semibold",
+                "w-full bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap",
               )}
             >
               <span>Get My Profile Snapshot</span>
