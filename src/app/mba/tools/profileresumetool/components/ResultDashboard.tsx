@@ -137,20 +137,37 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   const [improving, setImproving] = useState(false);
   const improvedRef = useRef<HTMLDivElement | null>(null);
 
-  const downloadReport = useCallback(() => {
+  // ============================================================================
+  // UPDATED: Download REPORT via PDF API
+  // ============================================================================
+  const downloadReport = useCallback(async () => {
     try {
-      const payload = {
-        ...data,
-        downloaded_at: new Date().toISOString(),
-        scoring_system: "8-key",
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {
-        type: "application/json",
+      const res = await fetch("/api/mba/profileresumetool/report-pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          report: {
+            ...data,
+            downloaded_at: new Date().toISOString(),
+            scoring_system: "8-key",
+          },
+        }),
       });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("PDF API error:", res.status, text);
+        alert("Failed to generate PDF report.");
+        return;
+      }
+
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "mba_profile_report.json";
+      a.download = "mba_profile_report.pdf";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -184,7 +201,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   }, []);
 
   // ============================================================================
-  // FIXED: Generate improved resume handler
+  // Generate improved resume handler
   // ============================================================================
   const handleGenerateImprovedResume = useCallback(async () => {
     if (improving) return;
@@ -278,7 +295,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           block: "start",
         });
       }, 100);
-
     } catch (err: any) {
       console.error("[Rewrite] Unexpected error:", err);
       alert(
