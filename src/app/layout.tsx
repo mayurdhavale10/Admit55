@@ -1,12 +1,26 @@
-import './globals.css';
-import WebNavbar from '@src/components/navigation/WebNavbar';
+import type { Metadata } from "next";
+import "./globals.css";
+import { Providers } from "./Providers";
+import WebNavbar from "@src/components/navigation/WebNavbar";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const metadata: Metadata = {
+  title: "Admit55",
+  description: "MBA profile tools",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
-        <WebNavbar />
-        {children}
+        <Providers>
+          {/* Navbar is now wrapped in SessionProvider */}
+          <WebNavbar />
+          {children}
+        </Providers>
       </body>
     </html>
   );
