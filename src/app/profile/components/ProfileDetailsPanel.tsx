@@ -1,193 +1,145 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
-interface DetailsPayload {
-  bio?: string;
-  workSummary?: string;
-  gmat?: string;
-  gre?: string;
-  achievements?: string;
-}
-
-export default function ProfileDetailsPanel() {
-  const { data: session } = useSession();
-
-  // ----------------------------------------------
-  // STATE
-  // ----------------------------------------------
-  const [loading, setLoading] = useState(true);
-
-  const [bio, setBio] = useState("");
-  const [workSummary, setWorkSummary] = useState("");
-  const [gmat, setGmat] = useState("");
-  const [gre, setGre] = useState("");
-  const [achievements, setAchievements] = useState("");
-
+export default function ProfileDetailsPanel({
+  profile,
+  onProfileUpdated,
+}: {
+  profile: {
+    name?: string;
+    headline?: string;
+    targetIntake?: string;
+    myGoal?: string;
+  };
+  onProfileUpdated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
-  // ----------------------------------------------
-  // LOAD EXISTING PROFILE
-  // ----------------------------------------------
-  const fetchDetails = useCallback(async () => {
-    if (!session?.user?.email) return;
+  // Form fields (default to DB values)
+  const [name, setName] = useState(profile?.name || "");
+  const [headline, setHeadline] = useState(profile?.headline || "");
+  const [targetIntake, setTargetIntake] = useState(
+    profile?.targetIntake || ""
+  );
+  const [myGoal, setMyGoal] = useState(profile?.myGoal || "");
 
+  async function saveProfile() {
     try {
-      const res = await fetch(`/api/admin/users/by-email?email=${session.user.email}`);
-      const json = await res.json();
+      setSaving(true);
 
-      const u = json?.user;
-      if (u) {
-        setBio(u.bio || "");
-        setWorkSummary(u.workSummary || "");
-        setGmat(u.gmat || "");
-        setGre(u.gre || "");
-        setAchievements(u.achievements || "");
-      }
-    } catch (err) {
-      console.error("Failed to fetch profile details:", err);
-    }
-
-    setLoading(false);
-  }, [session]);
-
-  useEffect(() => {
-    fetchDetails();
-  }, [fetchDetails]);
-
-  // ----------------------------------------------
-  // SAVE DETAILS
-  // ----------------------------------------------
-  async function handleSave() {
-    if (!session?.user?.email) return;
-
-    setSaving(true);
-    setMessage(null);
-
-    const payload: DetailsPayload = {
-      bio,
-      workSummary,
-      gmat,
-      gre,
-      achievements,
-    };
-
-    try {
       const res = await fetch("/api/profile/update", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name,
+          headline,
+          targetIntake,
+          myGoal,
+        }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Save failed");
+      const data = await res.json();
 
-      setMessage("Profile details updated successfully.");
-    } catch (err: any) {
-      console.error(err);
-      setMessage("Failed to update details.");
+      if (!data.success) {
+        alert("Failed to save profile.");
+        return;
+      }
+
+      // Refresh parent
+      onProfileUpdated();
+
+      setOpen(false);
+    } catch (error) {
+      alert("Error saving profile.");
+      console.error(error);
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-  }
-
-  // ----------------------------------------------
-  // UI
-  // ----------------------------------------------
-  if (loading) {
-    return (
-      <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
-        Loading details…
-      </div>
-    );
   }
 
   return (
     <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 sm:p-8">
-      <h2 className="text-xl font-semibold text-slate-900">MBA Profile Details</h2>
-      <p className="text-xs text-slate-600 mt-1">
-        This information helps coaches understand your background before a session.
-      </p>
 
-      {/* FORM */}
-      <div className="mt-6 grid gap-6 text-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg sm:text-xl font-semibold text-slate-900">
+          Profile Details
+        </h2>
 
-        {/* Bio */}
-        <div>
-          <label className="block text-slate-700 font-medium mb-1">Personal Bio</label>
-          <textarea
-            rows={3}
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white focus:ring-1 focus:ring-blue-600 focus:border-blue-600"
-            placeholder="Write a short bio…"
-          />
-        </div>
-
-        {/* Work Summary */}
-        <div>
-          <label className="block text-slate-700 font-medium mb-1">Work Experience Summary</label>
-          <textarea
-            rows={3}
-            value={workSummary}
-            onChange={(e) => setWorkSummary(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white focus:ring-1 focus:ring-blue-600 focus:border-blue-600"
-            placeholder="Your current role, years of experience…"
-          />
-        </div>
-
-        {/* GMAT */}
-        <div>
-          <label className="block text-slate-700 font-medium mb-1">GMAT Score (optional)</label>
-          <input
-            type="text"
-            value={gmat}
-            onChange={(e) => setGmat(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white focus:ring-1 focus:ring-blue-600 focus:border-blue-600"
-            placeholder="e.g. 720"
-          />
-        </div>
-
-        {/* GRE */}
-        <div>
-          <label className="block text-slate-700 font-medium mb-1">GRE Score (optional)</label>
-          <input
-            type="text"
-            value={gre}
-            onChange={(e) => setGre(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white focus:ring-1 focus:ring-blue-600 focus:border-blue-600"
-            placeholder="e.g. 325"
-          />
-        </div>
-
-        {/* Achievements */}
-        <div>
-          <label className="block text-slate-700 font-medium mb-1">Key Achievements</label>
-          <textarea
-            rows={3}
-            value={achievements}
-            onChange={(e) => setAchievements(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white focus:ring-1 focus:ring-blue-600 focus:border-blue-600"
-            placeholder="Awards, promotions, recognitions…"
-          />
-        </div>
-      </div>
-
-      {/* SAVE BUTTON */}
-      <div className="mt-6 flex justify-end">
         <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-5 py-2.5 rounded-xl bg-[#0A2540] text-white font-medium hover:bg-[#0D3D91] transition disabled:opacity-50"
+          onClick={() => setOpen((v) => !v)}
+          className="px-4 py-2 rounded-xl text-sm font-semibold bg-[#0A2540] text-white hover:bg-[#0D3D91] transition shadow-sm"
         >
-          {saving ? "Saving…" : "Save Details"}
+          {open ? "Close" : "Edit Profile"}
         </button>
       </div>
 
-      {message && (
-        <p className="mt-2 text-xs text-blue-700">{message}</p>
+      {/* Expandable section */}
+      {open && (
+        <div className="mt-6 space-y-4 text-sm">
+
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700">
+              Full Name
+            </label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter your full name"
+            />
+          </div>
+
+          {/* Headline */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700">
+              Headline
+            </label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={headline}
+              onChange={(e) => setHeadline(e.target.value)}
+              placeholder="e.g. Aspiring MBA Candidate"
+            />
+          </div>
+
+          {/* Target Intake */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700">
+              Target Intake
+            </label>
+            <input
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={targetIntake}
+              onChange={(e) => setTargetIntake(e.target.value)}
+              placeholder="e.g. 2027"
+            />
+          </div>
+
+          {/* My Goal */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700">
+              My Goal
+            </label>
+            <textarea
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={myGoal}
+              onChange={(e) => setMyGoal(e.target.value)}
+              placeholder="e.g. Move to consulting; join MBB; get into INSEAD"
+              rows={3}
+            />
+          </div>
+
+          <button
+            disabled={saving}
+            onClick={saveProfile}
+            className="mt-4 inline-flex items-center rounded-xl bg-[#0A2540] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0D3D91] transition shadow-sm disabled:opacity-70"
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
       )}
     </div>
   );
