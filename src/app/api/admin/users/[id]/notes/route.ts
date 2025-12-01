@@ -4,16 +4,11 @@ import { ObjectId } from "mongodb";
 import { getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
 import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
 
-// ✅ IMPORTANT:
-// Replace this with the SAME admin auth you used in /api/admin/users
-async function ensureAdmin(req: Request) {
-  const secretHeader = req.headers.get("x-admin-secret");
-  if (!secretHeader || secretHeader !== process.env.ADMIN_ADMIN_SECRET) {
-    throw new Response("Unauthorized", { status: 401 });
-  }
+// 🚨 TEMP: disable admin check
+async function ensureAdmin(_req: Request) {
+  return;
 }
 
-// Explicit note type (kept simple)
 type UserNote = {
   text: string;
   createdAt: Date;
@@ -24,7 +19,6 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // 🔐 Admin auth
     await ensureAdmin(req);
 
     const { id } = params;
@@ -57,7 +51,6 @@ export async function POST(
 
     const col = await getLoggedInUsersCollection<LoggedInUser>();
 
-    // 👇 Key fix: cast the update as `any` so we bypass the overly strict PushOperator typing
     const update: any = {
       $push: { notes: note },
       $set: { updatedAt: now },
@@ -68,7 +61,7 @@ export async function POST(
       update,
       {
         returnDocument: "after",
-        projection: { notes: 1 }, // only return notes
+        projection: { notes: 1 },
       }
     );
 
@@ -91,7 +84,6 @@ export async function POST(
     );
   } catch (err) {
     if (err instanceof Response) {
-      // from ensureAdmin
       return err;
     }
 

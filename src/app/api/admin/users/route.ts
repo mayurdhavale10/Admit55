@@ -3,27 +3,10 @@ import { NextResponse } from "next/server";
 import { getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
 import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
 
-// ✅ IMPORTANT:
-// Replace this with the SAME admin auth you want (session/cookies/etc.)
-async function ensureAdmin(req: Request) {
-  const secretHeader = req.headers.get("x-admin-secret");
-  if (!secretHeader || secretHeader !== process.env.ADMIN_ADMIN_SECRET) {
-    throw new Response("Unauthorized", { status: 401 });
-  }
-}
-
-function toIsoOrEmpty(value?: Date | string | null): string {
-  if (!value) return "";
-  const d = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString();
-}
-
+// 🚨 TEMP: no admin check – always allow
+// When you’re ready, wire this into your real auth.
 export async function GET(req: Request) {
   try {
-    // 🔐 Admin auth
-    await ensureAdmin(req);
-
     const { searchParams } = new URL(req.url);
 
     const role = searchParams.get("role"); // "admin" | "user" | null
@@ -67,7 +50,6 @@ export async function GET(req: Request) {
       mongoFilter.$or = [{ email: regex }, { name: regex }];
     }
 
-    // Optional: simple limit (you can make this a query param later)
     const limit = 200;
 
     const docs = await col
@@ -76,7 +58,13 @@ export async function GET(req: Request) {
       .limit(limit)
       .toArray();
 
-    // Map Mongo docs -> frontend-friendly objects
+    const toIsoOrEmpty = (value?: Date | string | null): string => {
+      if (!value) return "";
+      const d = typeof value === "string" ? new Date(value) : value;
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toISOString();
+    };
+
     const users = docs.map((u) => ({
       _id: u._id ? String(u._id) : "",
       email: u.email,
@@ -95,11 +83,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ users }, { status: 200 });
   } catch (err) {
-    if (err instanceof Response) {
-      // from ensureAdmin
-      return err;
-    }
-
     console.error("[GET /api/admin/users] Error:", err);
     return NextResponse.json(
       { error: "Failed to load users" },

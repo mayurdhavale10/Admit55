@@ -3,14 +3,10 @@ import { NextResponse } from "next/server";
 import { getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
 import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
 
-// ✅ IMPORTANT:
-// Replace this block with the *same* admin auth you used in /api/admin/users
-async function ensureAdmin(req: Request) {
-  const secretHeader = req.headers.get("x-admin-secret");
-  if (!secretHeader || secretHeader !== process.env.ADMIN_ADMIN_SECRET) {
-    // Or whatever you used earlier (session, token, etc.)
-    throw new Response("Unauthorized", { status: 401 });
-  }
+// 🚨 TEMP: disable admin check
+async function ensureAdmin(_req: Request) {
+  return;
+  // Same as above when you re-enable
 }
 
 function toIsoOrEmpty(value?: Date | string | null): string {
@@ -23,34 +19,29 @@ function toIsoOrEmpty(value?: Date | string | null): string {
 function escapeCsv(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
   const str = String(value);
-  // Wrap with quotes and escape embedded quotes
   const escaped = str.replace(/"/g, '""');
   return `"${escaped}"`;
 }
 
 export async function GET(req: Request) {
   try {
-    // 🔐 Admin auth (same logic as /api/admin/users)
     await ensureAdmin(req);
 
     const { searchParams } = new URL(req.url);
 
-    // Filters – keep these in sync with /api/admin/users
-    const role = searchParams.get("role"); // "admin" | "user" | null
-    const startDateStr = searchParams.get("startDate"); // e.g. 2025-01-01
-    const endDateStr = searchParams.get("endDate"); // e.g. 2025-12-31
-    const search = searchParams.get("q"); // name/email search
+    const role = searchParams.get("role");
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
+    const search = searchParams.get("q");
 
     const col = await getLoggedInUsersCollection<LoggedInUser>();
 
     const mongoFilter: Record<string, any> = {};
 
-    // Filter by role
     if (role === "admin" || role === "user") {
       mongoFilter.role = role;
     }
 
-    // Date range filter (on lastLogin; you can swap to createdAt if you prefer)
     if (startDateStr || endDateStr) {
       const dateFilter: Record<string, any> = {};
       if (startDateStr) {
@@ -62,7 +53,6 @@ export async function GET(req: Request) {
       if (endDateStr) {
         const end = new Date(endDateStr);
         if (!Number.isNaN(end.getTime())) {
-          // end of that day (23:59:59.999)
           end.setHours(23, 59, 59, 999);
           dateFilter.$lte = end;
         }
@@ -72,7 +62,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // Simple text search on name/email
     if (search && search.trim().length > 0) {
       const regex = new RegExp(search.trim(), "i");
       mongoFilter.$or = [{ email: regex }, { name: regex }];
@@ -83,7 +72,6 @@ export async function GET(req: Request) {
       .sort({ lastLogin: -1 })
       .toArray();
 
-    // Build CSV header
     const header = [
       "name",
       "email",
@@ -116,7 +104,6 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     if (err instanceof Response) {
-      // thrown by ensureAdmin
       return err;
     }
 

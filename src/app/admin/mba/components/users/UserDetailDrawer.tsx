@@ -1,13 +1,10 @@
-import React, { useState } from "react";
-import type { AdminUser } from "../../../dashboard/page";
+"use client";
 
-export type UserNote = {
-  text: string;
-  createdAt: string; // ISO string from API
-};
+import React, { useState } from "react";
+import type { AdminUser, UserNote } from "../../../dashboard/page";
 
 type Props = {
-  user: (AdminUser & { notes?: UserNote[] }) | null;
+  user: AdminUser | null;
   open: boolean;
   onClose: () => void;
   onNoteAdded: (userId: string, notes: UserNote[]) => void;
