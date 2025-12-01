@@ -13,6 +13,12 @@ export interface LoggedInUser extends Document {
   lastLogin: Date;
   createdAt: Date;
   updatedAt: Date;
+
+  // NEW: internal notes attached to the user
+  notes?: {
+    text: string;
+    createdAt: Date;
+  }[];
 }
 
 // 2) Upsert helper: call this every time someone logs in
@@ -45,6 +51,8 @@ export async function upsertLoggedInUser(params: {
       lastLogin: now,
       createdAt: now,
       updatedAt: now,
+      // NEW: start with an empty notes array
+      notes: [],
     };
 
     const result = await col.insertOne(doc);
@@ -69,6 +77,9 @@ export async function upsertLoggedInUser(params: {
       },
       $setOnInsert: {
         createdAt: existing.createdAt || now,
+        // If for some reason we ever hit setOnInsert on an existing-like case,
+        // we still default notes to an empty array.
+        notes: existing.notes ?? [],
       },
       $inc: {
         loginCount: 1,
