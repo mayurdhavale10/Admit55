@@ -9,7 +9,10 @@ import Navbar, { type LinkItem, type LinkComp } from "./Navbar";
 const BASE_ITEMS: LinkItem[] = [
   { href: "/", label: "Home" },
   { href: "/your-tools", label: "YourTools" },
-  { href: "/profile-review", label: "Profile Review" },
+
+  // ⬇️ CHANGED: was "/profile-review"
+  { href: "/profile", label: "Your Profile" },
+
   { href: "/b-school-match", label: "B-School Match" },
   { href: "/alum-coaches", label: "Alum Coaches" },
   { href: "/contact", label: "Contact" },
@@ -35,7 +38,6 @@ export default function WebNavbar() {
       href: "#login",
       label: "Login",
       onClick: () => {
-        // Google login (or whatever provider you configured)
         signIn("google");
       },
     });

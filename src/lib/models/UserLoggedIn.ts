@@ -14,7 +14,11 @@ export interface LoggedInUser extends Document {
   createdAt: Date;
   updatedAt: Date;
 
-  // NEW: internal notes attached to the user
+  // NEW PROFILE FIELDS
+  headline?: string | null;        // e.g. "Future MBA Applicant"
+  targetIntake?: string | null;    // e.g. "Fall 2026"
+
+  // Internal notes (for admin)
   notes?: {
     text: string;
     createdAt: Date;
@@ -37,7 +41,6 @@ export async function upsertLoggedInUser(params: {
   const col = await getLoggedInUsersCollection<LoggedInUser>();
   const now = new Date();
 
-  // Check if user already exists
   const existing = await col.findOne({ email });
 
   if (!existing) {
@@ -51,7 +54,11 @@ export async function upsertLoggedInUser(params: {
       lastLogin: now,
       createdAt: now,
       updatedAt: now,
-      // NEW: start with an empty notes array
+
+      // NEW INITIAL VALUES
+      headline: "Future MBA Applicant",
+      targetIntake: null, // user will fill later
+
       notes: [],
     };
 
@@ -62,9 +69,7 @@ export async function upsertLoggedInUser(params: {
     };
   }
 
-  // Existing user → increment loginCount & update timestamps / details
-  const updatedLoginCount = (existing.loginCount || 0) + 1;
-
+  // Existing user → update
   await col.updateOne(
     { _id: existing._id },
     {
@@ -74,23 +79,17 @@ export async function upsertLoggedInUser(params: {
         role: role || existing.role || "user",
         lastLogin: now,
         updatedAt: now,
+
+        // preserve existing headline/intake if present
+        headline: existing.headline ?? "Future MBA Applicant",
+        targetIntake: existing.targetIntake ?? null,
       },
-      $setOnInsert: {
-        createdAt: existing.createdAt || now,
-        // If for some reason we ever hit setOnInsert on an existing-like case,
-        // we still default notes to an empty array.
-        notes: existing.notes ?? [],
-      },
-      $inc: {
-        loginCount: 1,
-      },
+      $inc: { loginCount: 1 },
     }
   );
 
-  // Return the latest version
   const refreshed = await col.findOne({ _id: existing._id });
   if (!refreshed) {
-    // Should not happen, but just in case
     throw new Error("[UserLoggedIn] Failed to reload user after update");
   }
 
