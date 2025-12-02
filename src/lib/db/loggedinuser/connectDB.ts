@@ -9,7 +9,10 @@ const MONGODB_DB =
   process.env.MONGODB_DB_LOGGEDIN || process.env.MONGODB_DB || "admit55";
 
 // Name of the collection where we'll store "people who logged in"
-const LOGGED_IN_USERS_COLLECTION = "logged_in_users";
+export const LOGGED_IN_USERS_COLLECTION = "logged_in_users";
+
+// NEW: collection name for session bookings
+export const SESSION_BOOKINGS_COLLECTION = "session_bookings";
 
 // Small TS helper for global caching
 type MongoGlobal = typeof globalThis & {
@@ -58,8 +61,19 @@ export async function connectDB(): Promise<Db> {
  * We'll use this from our User model / auth callbacks.
  */
 export async function getLoggedInUsersCollection<
-  T extends Document = Document
+  T extends Document = Document,
 >(): Promise<Collection<T>> {
   const db = await connectDB();
   return db.collection<T>(LOGGED_IN_USERS_COLLECTION);
+}
+
+/**
+ * NEW: Convenience helper for the "session_bookings" collection.
+ * Used by SessionBooking model & admin bookings page.
+ */
+export async function getSessionBookingsCollection<
+  T extends Document = Document,
+>(): Promise<Collection<T>> {
+  const db = await connectDB();
+  return db.collection<T>(SESSION_BOOKINGS_COLLECTION);
 }

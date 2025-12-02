@@ -1,30 +1,34 @@
+// src/app/admin/bookings/page.tsx
 import { getAllBookings } from "@src/lib/models/SessionBooking";
+import AdminBookingsClient from "@src/app/admin/bookings/AdminBookingsClient";
 
 export default async function AdminBookingsPage() {
   const bookings = await getAllBookings();
 
+  const initialBookings = bookings.map((b) => ({
+    _id: b._id?.toString() ?? "",
+    userEmail: b.userEmail,
+    userName: b.userName ?? "",
+    userPhone: b.userPhone ?? "",
+    topic: b.topic,
+    preferredTime: b.preferredTime,
+    status: b.status,
+    coachId: b.coachId ?? "",
+    coachName: b.coachName ?? "",
+    confirmedDate: b.confirmedDate ?? "",
+    adminNotes: b.adminNotes ?? "",
+    createdAt: b.createdAt?.toISOString?.() ?? "",
+    updatedAt: b.updatedAt ? b.updatedAt.toISOString() : "",
+  }));
+
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Session Bookings</h1>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#020617]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-slate-50 mb-6">
+          Session Bookings
+        </h1>
 
-      <div className="space-y-4">
-        {bookings.map((b) => (
-          <div
-            key={b._id?.toString()}
-            className="border border-gray-300 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-[#0E0E0E]"
-          >
-            <p><strong>User:</strong> {b.userEmail}</p>
-            <p><strong>Topic:</strong> {b.topic}</p>
-            <p><strong>Preferred Time:</strong> {b.preferredTime}</p>
-            <p><strong>Status:</strong> {b.status}</p>
-            <p><strong>Coach:</strong> {b.coachName || "-"}</p>
-            <p><strong>Date:</strong> {b.confirmedDate || "-"}</p>
-
-            <button className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg">
-              Edit
-            </button>
-          </div>
-        ))}
+        <AdminBookingsClient initialBookings={initialBookings} />
       </div>
     </div>
   );
