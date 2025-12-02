@@ -1,3 +1,4 @@
+// src/app/profile/components/ProfileDetailsPanel.tsx
 "use client";
 
 import { useState } from "react";
@@ -12,7 +13,7 @@ export default function ProfileDetailsPanel({
     targetIntake?: string;
     myGoal?: string;
   };
-  onProfileUpdated: () => void;
+  onProfileUpdated?: () => void; // <-- now optional
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -28,6 +29,7 @@ export default function ProfileDetailsPanel({
 
       const res = await fetch("/api/profile/update", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           headline,
@@ -36,17 +38,23 @@ export default function ProfileDetailsPanel({
         }),
       });
 
-      const data = await res.json();
-      if (!data.success) {
+      const json = await res.json();
+      if (!json.success) {
         alert("Failed to save profile.");
         return;
       }
 
-      onProfileUpdated();
+      // If parent wants to refresh profile, call its callback
+      if (onProfileUpdated) onProfileUpdated();
+      else {
+        // fallback: refresh this component by resetting fields
+        console.log("Profile saved (no parent callback present).");
+      }
+
       setOpen(false);
     } catch (error) {
+      console.error("Error saving profile:", error);
       alert("Error saving profile.");
-      console.error(error);
     } finally {
       setSaving(false);
     }
@@ -54,7 +62,6 @@ export default function ProfileDetailsPanel({
 
   return (
     <div className="rounded-3xl bg-white border border-gray-300 shadow-sm p-6 sm:p-8 dark:bg-[#0A0A0A] dark:border-gray-700">
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg sm:text-xl font-semibold text-black dark:text-white">
@@ -69,17 +76,17 @@ export default function ProfileDetailsPanel({
         </button>
       </div>
 
-      {/* Expandable */}
+      {/* Expandable Form */}
       {open && (
         <div className="mt-6 space-y-4 text-sm">
-
           {/* Name */}
           <div>
             <label className="block text-xs font-medium text-black dark:text-white">
               Full Name
             </label>
             <input
-              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white dark:placeholder:text-gray-300"
+              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black
+                placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your full name"
@@ -92,7 +99,8 @@ export default function ProfileDetailsPanel({
               Headline
             </label>
             <input
-              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white dark:placeholder:text-gray-300"
+              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black
+                placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white"
               value={headline}
               onChange={(e) => setHeadline(e.target.value)}
               placeholder="e.g. Aspiring MBA Candidate"
@@ -105,7 +113,8 @@ export default function ProfileDetailsPanel({
               Target Intake
             </label>
             <input
-              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white dark:placeholder:text-gray-300"
+              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black
+                placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white"
               value={targetIntake}
               onChange={(e) => setTargetIntake(e.target.value)}
               placeholder="e.g. 2027"
@@ -118,10 +127,11 @@ export default function ProfileDetailsPanel({
               My Goal
             </label>
             <textarea
-              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white dark:placeholder:text-gray-300"
+              className="mt-1 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-sm text-black
+                placeholder:text-gray-500 dark:bg-[#1A1A1A] dark:border-gray-600 dark:text-white"
               value={myGoal}
               onChange={(e) => setMyGoal(e.target.value)}
-              placeholder="e.g. Move to consulting; join MBB; get into INSEAD"
+              placeholder="e.g. Join MBB, get into INSEAD/Wharton etc"
               rows={3}
             />
           </div>
