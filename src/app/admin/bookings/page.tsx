@@ -1,4 +1,6 @@
-// src/app/admin/bookings/page.tsx
+export const dynamic = "force-dynamic";
+// or: export const revalidate = 0;
+
 import { getAllBookings } from "@src/lib/models/SessionBooking";
 import AdminBookingsClient from "@src/app/admin/bookings/AdminBookingsClient";
 
