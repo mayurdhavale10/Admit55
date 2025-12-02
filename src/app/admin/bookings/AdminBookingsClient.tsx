@@ -83,14 +83,15 @@ export default function AdminBookingsClient({
     );
   }
 
+  // 🔧 Now uses POST /api/admin/bookings/update
   async function updateStatus(id: string, status: BookingStatus) {
     try {
       setBusyId(id);
 
-      const res = await fetch(`/api/admin/bookings/${id}`, {
-        method: "PATCH",
+      const res = await fetch("/api/admin/bookings/update", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ id, status }),
       });
 
       const text = await res.text();
@@ -98,7 +99,7 @@ export default function AdminBookingsClient({
       try {
         json = text ? JSON.parse(text) : {};
       } catch {
-        // response not JSON, ignore parse error
+        // not JSON, ignore parse error
       }
 
       if (!res.ok || json?.success !== true) {
@@ -114,7 +115,6 @@ export default function AdminBookingsClient({
         return;
       }
 
-      // success
       setBookings((prev) =>
         prev.map((b) => (b._id === id ? { ...b, status } : b)),
       );
@@ -126,22 +126,33 @@ export default function AdminBookingsClient({
     }
   }
 
+  // 🔧 Now uses POST /api/admin/bookings/update
   async function assignCoach(id: string) {
     const coachName = window.prompt("Enter coach name to assign:");
     if (!coachName) return;
 
     try {
       setBusyId(id);
-      const res = await fetch(`/api/admin/bookings/${id}`, {
-        method: "PATCH",
+      const res = await fetch("/api/admin/bookings/update", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coachName, status: "assigned" }),
+        body: JSON.stringify({ id, coachName, status: "assigned" }),
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error("Failed to assign coach:", txt);
-        alert("Failed to assign coach.");
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        // ignore parse error
+      }
+
+      if (!res.ok || json?.success !== true) {
+        console.error("Failed to assign coach:", res.status, text || json?.error);
+        alert(
+          `Failed to assign coach (HTTP ${res.status}).\n` +
+            (json?.error || text || "Unknown error from server."),
+        );
         return;
       }
 
@@ -151,32 +162,45 @@ export default function AdminBookingsClient({
         ),
       );
     } catch (err) {
-      console.error(err);
+      console.error("Network error while assigning coach:", err);
       alert("Network error while assigning coach.");
     } finally {
       setBusyId(null);
     }
   }
 
+  // 🔧 Now uses POST /api/admin/bookings/delete
   async function deleteBooking(id: string) {
     if (!window.confirm("Delete this booking request?")) return;
 
     try {
       setBusyId(id);
-      const res = await fetch(`/api/admin/bookings/${id}`, {
-        method: "DELETE",
+      const res = await fetch("/api/admin/bookings/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error("Failed to delete booking:", txt);
-        alert("Failed to delete booking.");
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        // ignore parse error
+      }
+
+      if (!res.ok || json?.success !== true) {
+        console.error("Failed to delete booking:", res.status, text || json?.error);
+        alert(
+          `Failed to delete booking (HTTP ${res.status}).\n` +
+            (json?.error || text || "Unknown error from server."),
+        );
         return;
       }
 
       setBookings((prev) => prev.filter((b) => b._id !== id));
     } catch (err) {
-      console.error(err);
+      console.error("Network error while deleting booking:", err);
       alert("Network error while deleting booking.");
     } finally {
       setBusyId(null);
