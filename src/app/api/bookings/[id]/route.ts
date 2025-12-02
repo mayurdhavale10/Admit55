@@ -1,15 +1,10 @@
 // src/app/api/admin/bookings/[id]/route.ts
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
 import { updateBooking, deleteBooking } from "@src/lib/models/SessionBooking";
 
-type RouteContext = { params: { id: string } };
-
-// TEMP: very loose admin check – treat any logged-in user as admin
-function isAdmin(session: any) {
-  return !!session?.user?.email;
-}
+type RouteContext = {
+  params: { id: string };
+};
 
 /**
  * PATCH /api/admin/bookings/:id
@@ -17,16 +12,8 @@ function isAdmin(session: any) {
  */
 export async function PATCH(req: Request, context: RouteContext) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !isAdmin(session)) {
-      return NextResponse.json(
-        { error: "Not authorized" },
-        { status: 403 },
-      );
-    }
-
     const id = context.params.id;
+
     if (!id) {
       return NextResponse.json(
         { error: "Missing booking id" },
@@ -42,6 +29,7 @@ export async function PATCH(req: Request, context: RouteContext) {
     }
 
     const updates: any = {};
+
     if (body.status) updates.status = body.status;
     if (body.coachName) updates.coachName = body.coachName;
     if (body.coachId) updates.coachId = body.coachId;
@@ -75,16 +63,8 @@ export async function PATCH(req: Request, context: RouteContext) {
  */
 export async function DELETE(req: Request, context: RouteContext) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !isAdmin(session)) {
-      return NextResponse.json(
-        { error: "Not authorized" },
-        { status: 403 },
-      );
-    }
-
     const id = context.params.id;
+
     if (!id) {
       return NextResponse.json(
         { error: "Missing booking id" },

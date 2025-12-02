@@ -86,24 +86,40 @@ export default function AdminBookingsClient({
   async function updateStatus(id: string, status: BookingStatus) {
     try {
       setBusyId(id);
+
       const res = await fetch(`/api/admin/bookings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error("Failed to update booking:", txt);
-        alert("Failed to update booking status.");
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        // response not JSON, ignore parse error
+      }
+
+      if (!res.ok || json?.success !== true) {
+        console.error(
+          "Failed to update booking:",
+          res.status,
+          text || json?.error,
+        );
+        alert(
+          `Failed to update booking status (HTTP ${res.status}).\n` +
+            (json?.error || text || "Unknown error from server."),
+        );
         return;
       }
 
+      // success
       setBookings((prev) =>
         prev.map((b) => (b._id === id ? { ...b, status } : b)),
       );
     } catch (err) {
-      console.error(err);
+      console.error("Network error while updating booking:", err);
       alert("Network error while updating booking.");
     } finally {
       setBusyId(null);
