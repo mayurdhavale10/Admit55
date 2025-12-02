@@ -7,6 +7,7 @@ import { getSessionBookingsCollection } from "@src/lib/db/loggedinuser/connectDB
  * - pending  : user requested, waiting for admin/coach
  * - accepted : confirmed with coach/date
  * - rejected : explicitly declined
+ * - assigned : assigned to a specific coach
  * - completed: session done
  * - cancelled: cancelled by user/admin
  */
@@ -14,6 +15,7 @@ export type BookingStatus =
   | "pending"
   | "accepted"
   | "rejected"
+  | "assigned"
   | "completed"
   | "cancelled";
 
@@ -103,6 +105,8 @@ export async function getBookingById(
 
 /**
  * Update booking fields (status, coach, confirmed date, notes, etc.).
+ * For your MongoDB driver, findOneAndUpdate returns the updated doc or null,
+ * so we just return that.
  */
 export async function updateBooking(
   id: string | ObjectId,
@@ -125,15 +129,12 @@ export async function updateBooking(
       },
     },
     {
-      returnDocument: "after", // for modern mongodb driver
+      returnDocument: "after",
     },
   );
 
-  if (!updatedDoc) {
-    return null;
-  }
-
-  return updatedDoc;
+  // updatedDoc is either the updated document or null
+  return updatedDoc ? (updatedDoc as SessionBooking) : null;
 }
 
 /**

@@ -4,34 +4,33 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { updateBooking, deleteBooking } from "@src/lib/models/SessionBooking";
 
-type Params = { params: { id: string } };
+type RouteContext = { params: { id: string } };
 
-// Optional: tweak this check if you have a real admin flag/role
+// TEMP: very loose admin check – treat any logged-in user as admin
 function isAdmin(session: any) {
-  // e.g. return session?.user?.role === "admin";
-  return !!session?.user?.email; // TEMP: allow any logged-in user
+  return !!session?.user?.email;
 }
 
 /**
  * PATCH /api/admin/bookings/:id
  * Body: { status?, coachName?, coachId?, confirmedDate?, adminNotes? }
  */
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(req: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session || !isAdmin(session)) {
       return NextResponse.json(
         { error: "Not authorized" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    const { id } = params;
+    const id = context.params.id;
     if (!id) {
       return NextResponse.json(
         { error: "Missing booking id" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -43,7 +42,6 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 
     const updates: any = {};
-
     if (body.status) updates.status = body.status;
     if (body.coachName) updates.coachName = body.coachName;
     if (body.coachId) updates.coachId = body.coachId;
@@ -55,19 +53,19 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!updated) {
       return NextResponse.json(
         { error: "Booking not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     return NextResponse.json(
       { success: true, booking: updated },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (err) {
     console.error("[ADMIN BOOKING PATCH ERROR]", err);
     return NextResponse.json(
       { error: "Failed to update booking" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -75,22 +73,22 @@ export async function PATCH(req: Request, { params }: Params) {
 /**
  * DELETE /api/admin/bookings/:id
  */
-export async function DELETE(req: Request, { params }: Params) {
+export async function DELETE(req: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session || !isAdmin(session)) {
       return NextResponse.json(
         { error: "Not authorized" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    const { id } = params;
+    const id = context.params.id;
     if (!id) {
       return NextResponse.json(
         { error: "Missing booking id" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -99,7 +97,7 @@ export async function DELETE(req: Request, { params }: Params) {
     if (!ok) {
       return NextResponse.json(
         { error: "Booking not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -108,7 +106,7 @@ export async function DELETE(req: Request, { params }: Params) {
     console.error("[ADMIN BOOKING DELETE ERROR]", err);
     return NextResponse.json(
       { error: "Failed to delete booking" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
