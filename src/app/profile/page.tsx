@@ -1,80 +1,87 @@
 // src/app/profile/page.tsx
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+
+import { authOptions } from "../api/auth/[...nextauth]/route";
+import {
+  connectDB,
+  getLoggedInUsersCollection,
+} from "@src/lib/db/loggedinuser/connectDB";
+import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
+import { getBookingsForUser } from "@src/lib/models/SessionBooking";
+
 import ProfileSummaryCard from "./components/ProfileSummaryCard";
 import ProfileDetailsPanel from "./components/ProfileDetailsPanel";
 import ProfileBookingCard from "./components/ProfileBookingCard";
-
-async function loadProfile() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/profile/me`, {
-      method: "GET",
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    return json.profile ?? null;
-  } catch (err) {
-    console.error("Failed to load profile:", err);
-    return null;
-  }
-}
-
-async function loadBookings() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/profile/bookings`, {
-      method: "GET",
-      cache: "no-store",
-    });
-
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.bookings ?? [];
-  } catch (err) {
-    console.error("Failed to load bookings:", err);
-    return [];
-  }
-}
+import type { Booking } from "./components/ProfileBookingCard";
 
 export default async function ProfilePage() {
-  const profile = await loadProfile();
-  const bookings = await loadBookings();
+  // 1) Require logged-in user
+  const session = await getServerSession(authOptions);
 
-  // Build fallback if no profile returned
-  const mergedProfile = {
-    name: profile?.name ?? "Future MBA Applicant",
-    email: profile?.email ?? "",
-    headline: profile?.headline ?? "",
-    targetIntake: profile?.targetIntake ?? "",
-    myGoal: profile?.myGoal ?? "",
+  if (!session || !session.user?.email) {
+    // If you prefer, redirect to "/"
+    redirect("/api/auth/signin");
+  }
+
+  const email = session.user.email;
+
+  // 2) Load profile from DB
+  await connectDB();
+  const col = await getLoggedInUsersCollection<LoggedInUser>();
+  const existing = await col.findOne({ email });
+
+  const profile = {
+    email,
+    name: existing?.name ?? session.user.name ?? "Future MBA Applicant",
+    image: existing?.image ?? (session.user as any)?.image ?? undefined,
+    headline: existing?.headline ?? "",
+    targetIntake: existing?.targetIntake ?? "",
+    myGoal: existing?.myGoal ?? "",
     mentorNotice:
-      profile?.mentorNotice ??
+      existing?.mentorNotice ??
       "Important notice from your mentor will appear here.",
   };
 
+  // 3) Load bookings for this user (latest first)
+  const rawBookings = await getBookingsForUser(email);
+
+  const bookings: Booking[] = rawBookings.map((b) => ({
+    _id: b._id?.toString() ?? "",
+    userEmail: b.userEmail,
+    userName: b.userName ?? "",
+    userPhone: b.userPhone ?? "",
+    topic: b.topic,
+    preferredTime: b.preferredTime,
+    status: (b.status as Booking["status"]) ?? "pending",
+    coachId: b.coachId ?? "",
+    coachName: b.coachName ?? "",
+    confirmedDate: b.confirmedDate ?? "",
+    adminNotes: b.adminNotes ?? "",
+    createdAt: b.createdAt?.toISOString?.() ?? "",
+  }));
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* HEADER */}
+      {/* HERO */}
       <div className="w-full bg-gradient-to-b from-[#0A2540] to-[#1747D6] text-white pb-8">
         <div className="pt-[96px] px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
-          <ProfileSummaryCard profile={mergedProfile} />
+          <ProfileSummaryCard profile={profile} />
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* CONTENT */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-        
-        {/* DETAILS PANEL */}
+        {/* PROFILE DETAILS */}
         <section className="mt-8">
-          <ProfileDetailsPanel profile={mergedProfile} />
+          <ProfileDetailsPanel profile={profile} />
+          {/* NOTE: onProfileUpdated is optional in the component;
+             we don't pass it from a server component */}
         </section>
 
-        {/* BOOKING SECTION */}
+        {/* BOOKING CARD */}
         <section className="mt-10">
-          <ProfileBookingCard
-            bookings={bookings}
-            profileEmail={mergedProfile.email}
-          />
+          <ProfileBookingCard bookings={bookings} profileEmail={email} />
         </section>
       </div>
     </div>
