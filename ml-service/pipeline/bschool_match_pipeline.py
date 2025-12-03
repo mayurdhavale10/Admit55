@@ -44,7 +44,9 @@ and (optionally) resume / resume analysis:
 CANDIDATE_PROFILE_JSON:
 """ + candidate_profile_json + """
 
-Your job is to recommend MBA / MiM / PGP programs that are a GOOD FIT.
+Your job is to recommend MBA / MiM / PGP programs that are a GOOD FIT for this specific candidate.
+
+CRITICAL: You MUST provide at least 6-9 school recommendations split across three tiers.
 
 You MUST return ONLY a valid JSON object with this exact structure:
 
@@ -52,48 +54,71 @@ You MUST return ONLY a valid JSON object with this exact structure:
   "summary": {
     "profile_snapshot": "One-paragraph summary of the candidate",
     "target_strategy": "1–2 sentences explaining the overall application strategy",
-    "key_factors": [
-      "Short bullet-style points about what matters most for their school list"
-    ]
+    "key_factors": ["Factor 1", "Factor 2", "Factor 3"]
   },
   "matches": [
     {
       "school_name": "IIM Ahmedabad",
-      "program_name": "PGP (Flagship MBA equivalent)",
+      "program_name": "PGP",
       "country": "India",
       "region": "Asia",
       "tier": "ambitious",
       "duration_years": 2,
       "program_type": "MBA/PGP",
-      "notes": "1–3 sentences on why this is a good (or stretch) fit based on THEIR profile",
-      "risks": "Key risks or reasons it might be hard / not ideal",
+      "notes": "Strong fit because of your consulting goals and quantitative background",
+      "risks": "Highly competitive admission with low acceptance rate",
       "fit_scores": {
-        "academic_fit": 0-10,
-        "career_outcomes_fit": 0-10,
-        "geography_fit": 0-10,
-        "brand_prestige": 0-10,
-        "roi_affordability": 0-10,
-        "culture_personal_fit": 0-10
+        "academic_fit": 8.5,
+        "career_outcomes_fit": 9.0,
+        "geography_fit": 10.0,
+        "brand_prestige": 9.5,
+        "roi_affordability": 7.0,
+        "culture_personal_fit": 8.0
+      }
+    },
+    {
+      "school_name": "XLRI Jamshedpur",
+      "program_name": "PGDM",
+      "country": "India",
+      "region": "Asia",
+      "tier": "target",
+      "duration_years": 2,
+      "program_type": "MBA/PGP",
+      "notes": "Excellent for HR and consulting careers, strong alumni network",
+      "risks": "Located in smaller city, less international exposure",
+      "fit_scores": {
+        "academic_fit": 8.0,
+        "career_outcomes_fit": 8.5,
+        "geography_fit": 9.0,
+        "brand_prestige": 8.5,
+        "roi_affordability": 8.5,
+        "culture_personal_fit": 8.5
       }
     }
   ],
   "tiers": {
-    "ambitious": ["School 1", "School 2"],
-    "target": ["School 3", "School 4"],
-    "safe": ["School 5", "School 6"]
+    "ambitious": ["IIM Ahmedabad", "IIM Bangalore", "IIM Calcutta"],
+    "target": ["XLRI Jamshedpur", "SP Jain Mumbai", "IMT Ghaziabad"],
+    "safe": ["Great Lakes Chennai", "TAPMI Manipal", "XIMB Bhubaneswar"]
   }
 }
 
-STRICT RULES (IMPORTANT):
-1. Always include at least 2–3 schools per tier where possible (ambitious / target / safe).
-2. Tiers must be exactly one of: "ambitious", "target", "safe".
-3. All fit_scores must be numbers between 0 and 10 (can be floats).
-4. Tailor EVERY recommendation to THIS candidate's profile (career goals, scores, geography, budget, etc.).
-5. Prefer Indian and global schools that match their goals. If they clearly prefer India-only, focus mostly on Indian schools.
-6. NEVER invent fake schools or programs – only realistic, well-known or regionally-relevant schools.
-7. OUTPUT ONLY JSON. No markdown, no extra commentary, no backticks.
+STRICT RULES (CRITICAL):
+1. You MUST include at least 6-9 schools total (2-3 per tier minimum)
+2. Tiers must be exactly: "ambitious", "target", or "safe"
+3. All fit_scores must be numbers between 0 and 10 (decimals allowed)
+4. Tailor EVERY recommendation to THIS candidate's specific profile:
+   - Their career goals and target industry
+   - Their academic scores (GMAT/CAT/percentile)
+   - Their geography preferences
+   - Their budget constraints
+   - Their work experience level
+5. For Indian candidates, prioritize: IIMs, XLRI, SP Jain, FMS, ISB, MDI, IMT, Great Lakes, TAPMI, XIMB
+6. For international focus, add: INSEAD, LBS, MIT Sloan, Wharton, Stanford GSB, Harvard, Kellogg, IESE
+7. NEVER invent fake schools - only use real, well-known programs
+8. OUTPUT ONLY JSON - no markdown, no commentary, no code blocks, no backticks
 
-Now, based on the candidate profile, generate the JSON response.
+Generate the complete JSON response now:
 """
     
     return prompt
@@ -177,14 +202,27 @@ def _normalize_matches(matches: Any) -> List[Dict[str, Any]]:
 def _build_tiers_from_matches(matches: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """
     Build a tiers dict from the matches list.
+    Maps internal tiers to frontend-expected names:
+    - ambitious -> dream
+    - target -> competitive
+    - safe -> safe
     """
-    tiers = {"ambitious": [], "target": [], "safe": []}
+    tiers = {"dream": [], "competitive": [], "safe": []}
     for m in matches:
         tier = m.get("tier", "target")
         name = m.get("school_name", "Unknown School")
-        if tier not in tiers:
-            tier = "target"
-        tiers[tier].append(name)
+        
+        # Map tiers
+        if tier == "ambitious":
+            tiers["dream"].append(name)
+        elif tier == "target":
+            tiers["competitive"].append(name)
+        elif tier == "safe":
+            tiers["safe"].append(name)
+        else:
+            # Default to competitive
+            tiers["competitive"].append(name)
+    
     return tiers
 
 
@@ -244,8 +282,8 @@ def run_bschool_match(candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
             },
             "matches": [],
             "tiers": {
-                "ambitious": [],
-                "target": [],
+                "dream": [],
+                "competitive": [],
                 "safe": [],
             },
             "meta": {
@@ -259,7 +297,11 @@ def run_bschool_match(candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
 
     # 3. Extract JSON
     try:
+        # Log raw output for debugging
+        print(f"[bschool-match] Raw output preview: {raw_output[:500]}", file=sys.stderr)
         parsed = extract_first_json(raw_output)
+        print(f"[bschool-match] Parsed JSON keys: {list(parsed.keys())}", file=sys.stderr)
+        print(f"[bschool-match] Matches count: {len(parsed.get('matches', []))}", file=sys.stderr)
     except Exception as e:
         elapsed = time.time() - start_time
         print(
@@ -274,8 +316,8 @@ def run_bschool_match(candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
             },
             "matches": [],
             "tiers": {
-                "ambitious": [],
-                "target": [],
+                "dream": [],
+                "competitive": [],
                 "safe": [],
             },
             "meta": {
@@ -299,10 +341,10 @@ def run_bschool_match(candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(tiers_raw, dict) or not tiers_raw:
         tiers = _build_tiers_from_matches(matches)
     else:
-        # Normalize tiers to just school names
+        # Normalize tiers and map to frontend names
         tiers = {
-            "ambitious": list(tiers_raw.get("ambitious", [])),
-            "target": list(tiers_raw.get("target", [])),
+            "dream": list(tiers_raw.get("ambitious", [])),
+            "competitive": list(tiers_raw.get("target", [])),
             "safe": list(tiers_raw.get("safe", [])),
         }
 
