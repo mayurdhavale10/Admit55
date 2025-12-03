@@ -50,14 +50,14 @@ export default function MatchForm({
     mode === "questions-only"
       ? "Answer quick questions"
       : mode === "resume-upload"
-      ? "Upload your résumé"
+      ? "Upload your résumé + answer key questions"
       : "Use saved Admit55 profile";
 
   const headerSubtitle =
     mode === "questions-only"
       ? "Best if you're just getting started. Takes ~2–3 minutes."
       : mode === "resume-upload"
-      ? "Upload your résumé (PDF / DOC / DOCX) and we’ll extract your experience automatically."
+      ? "Upload your résumé (PDF / DOC / DOCX) and answer a few key questions so we fully understand your goals and constraints."
       : "We’ll use your saved profile & résumé analysis from Admit55 to generate your B-School list.";
 
   return (
@@ -92,25 +92,7 @@ export default function MatchForm({
 
       {/* BODY */}
       <div className="mt-4 space-y-4">
-        {/* MODE 1: QUESTIONS ONLY */}
-        {isQuestionsMode && (
-          <>
-            {BSMATCH_QUESTIONS.map((q) => (
-              <QuestionField
-                key={q.id}
-                question={q}
-                value={answers[q.id]}
-                onChange={handleChange}
-              />
-            ))}
-            <p className="mt-2 text-[11px] text-slate-500">
-              Tip: Give short, concrete answers for goals & preferences. You can
-              refine your list later with an Admit55 coach.
-            </p>
-          </>
-        )}
-
-        {/* MODE 2: RESUME UPLOAD ONLY */}
+        {/* MODE 2: RESUME UPLOAD (HYBRID: RESUME + QUESTIONS) */}
         {isResumeUploadMode && (
           <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/60 px-4 py-6">
             <p className="text-sm font-semibold text-emerald-900">
@@ -118,7 +100,8 @@ export default function MatchForm({
             </p>
             <p className="mt-1 text-xs text-emerald-800/90">
               We’ll parse your work experience, academics and impact from your
-              résumé and use it to build your Dream / Competitive / Safe list.
+              résumé and combine it with your answers below to build a precise
+              Dream / Competitive / Safe list.
             </p>
 
             <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-emerald-300/80 bg-white px-4 py-6 text-center hover:bg-emerald-50">
@@ -149,7 +132,32 @@ export default function MatchForm({
                 Please upload a résumé before running your match.
               </p>
             )}
+
+            <p className="mt-4 text-[11px] text-emerald-900">
+              Next: answer the short questions below so we understand your test
+              scores, goals, budget and geography preferences.
+            </p>
           </div>
+        )}
+
+        {/* MODE 1 & 2: QUESTIONS BLOCK (QUESTIONS-ONLY + RESUME-UPLOAD) */}
+        {(isQuestionsMode || isResumeUploadMode) && (
+          <>
+            <div className="mt-4 space-y-4">
+              {BSMATCH_QUESTIONS.map((q) => (
+                <QuestionField
+                  key={q.id}
+                  question={q}
+                  value={answers[q.id]}
+                  onChange={handleChange}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              Tip: Give short, concrete answers for goals, test scores and
+              preferences. Clear inputs = sharper B-school recommendations.
+            </p>
+          </>
         )}
 
         {/* MODE 3: USE SAVED PROFILE */}

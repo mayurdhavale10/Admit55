@@ -18,7 +18,7 @@ from gemini_client import call_gemini  # assumes ml-service root on sys.path
 from pipeline.mba_hybrid_pipeline import extract_first_json  # reuse robust JSON extractor
 
 # Read B-school specific model from env
-BSCHOOL_MODEL = os.getenv("GEMINI_BSCHOOL", "gemini-1.5-flash")
+BSCHOOL_MODEL = os.getenv("GEMINI_BSCHOOL", "gemini-2.5-flash")
 
 
 # -------------------------------------------------------------------
