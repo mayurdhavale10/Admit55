@@ -7,6 +7,7 @@ Uses Google Generative Language REST API
 import os
 import sys
 import time
+import json
 import requests
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -25,7 +26,7 @@ def call_gemini(
     max_output_tokens: int = 1024,
     retry_count: int = 2,
     timeout: int = 120,
-    model: str = None,  # NEW: allow caller to override model
+    model: str = None,  # allow caller to override model
 ) -> str:
     """
     Basic Gemini text completion helper.
@@ -69,7 +70,10 @@ def call_gemini(
 
     for attempt in range(1, retry_count + 1):
         try:
-            print(f"[Gemini] Calling {gemini_model}, attempt {attempt}/{retry_count}", file=sys.stderr)
+            print(
+                f"[Gemini] Calling {gemini_model}, attempt {attempt}/{retry_count}",
+                file=sys.stderr,
+            )
             resp = requests.post(url, json=payload, timeout=timeout)
 
             if resp.status_code == 429:
@@ -84,7 +88,10 @@ def call_gemini(
                 # Server error
                 last_error = f"Server error {resp.status_code}: {resp.text[:200]}"
                 wait = 2 ** attempt
-                print(f"[Gemini] {last_error}, retrying in {wait}s...", file=sys.stderr)
+                print(
+                    f"[Gemini] {last_error}, retrying in {wait}s...",
+                    file=sys.stderr,
+                )
                 time.sleep(wait)
                 continue
 
@@ -96,15 +103,72 @@ def call_gemini(
 
             data = resp.json()
 
-            # Expected path: candidates[0].content.parts[0].text
-            try:
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-            except (KeyError, IndexError) as e:
+            # --------- Robust parsing for B-school pipeline ---------
+            candidates = data.get("candidates", [])
+            if not candidates:
+                error_msg = f"Gemini returned no candidates: {data}"
+                print(f"[Gemini] {error_msg}", file=sys.stderr)
+                raise GeminiError(error_msg)
+
+            first = candidates[0]
+            content = first.get("content") or {}
+            parts = content.get("parts") or []
+            finish_reason = first.get("finishReason")
+
+            # If there are no parts AND we hit MAX_TOKENS, return a minimal JSON stub
+            # so the downstream bschool_match_pipeline can fall back to its hardcoded list.
+            if not parts:
+                if finish_reason == "MAX_TOKENS":
+                    print(
+                        "[Gemini] MAX_TOKENS with empty parts; returning minimal JSON stub for fallback",
+                        file=sys.stderr,
+                    )
+                    fallback_json = {
+                        "summary": {
+                            "profile_snapshot": "",
+                            "target_strategy": "",
+                            "key_factors": [],
+                        },
+                        "matches": [],
+                        "tiers": {},
+                    }
+                    text = json.dumps(fallback_json)
+                    return text
+
                 error_msg = f"Unexpected Gemini response structure: {data}"
                 print(f"[Gemini] {error_msg}", file=sys.stderr)
-                raise GeminiError(error_msg) from e
+                raise GeminiError(error_msg)
 
-            text = (text or "").strip()
+            # Collect text from parts
+            texts = []
+            for p in parts:
+                if isinstance(p, dict) and isinstance(p.get("text"), str):
+                    texts.append(p["text"])
+
+            # Edge case: parts exist but no text fields
+            if not texts:
+                if finish_reason == "MAX_TOKENS":
+                    print(
+                        "[Gemini] MAX_TOKENS with non-text parts; returning minimal JSON stub for fallback",
+                        file=sys.stderr,
+                    )
+                    fallback_json = {
+                        "summary": {
+                            "profile_snapshot": "",
+                            "target_strategy": "",
+                            "key_factors": [],
+                        },
+                        "matches": [],
+                        "tiers": {},
+                    }
+                    text = json.dumps(fallback_json)
+                    return text
+
+                error_msg = f"Gemini response had parts but no text: {data}"
+                print(f"[Gemini] {error_msg}", file=sys.stderr)
+                raise GeminiError(error_msg)
+
+            text = "\n".join(texts).strip()
             print(f"[Gemini] [OK] Generated {len(text)} chars", file=sys.stderr)
             return text
 
@@ -117,7 +181,7 @@ def call_gemini(
                 time.sleep(wait)
                 continue
         except GeminiError as e:
-            # Our own logical/API error
+            # Our own logical/API error – don't auto-retry unless it's network-level
             raise
         except Exception as e:
             last_error = f"Unexpected error: {e}"
