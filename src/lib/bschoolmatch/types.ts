@@ -14,6 +14,7 @@ export type BschoolMatchMode =
 // =============================
 
 export interface CandidateScores {
+  // Legacy / structured scores (still supported)
   gmat?: number | null;
   gre?: number | null;
   cat?: number | null;
@@ -21,15 +22,55 @@ export interface CandidateScores {
   xii_percentage?: number | null; // Class 12
   ug_cgpa?: number | null;
   other_tests?: string | null; // e.g. "IELTS 7.5"
+
+  // New generic test fields from the questionnaire
+  /**
+   * Raw test score string as entered by user
+   * e.g. "GMAT 710 (Q50 V38)" or "CAT 98.2%ile"
+   */
+  test_score_raw?: string;
+
+  /**
+   * Parsed numeric test score (best-effort)
+   * e.g. 710, 325, 98.2, etc.
+   */
+  test_score_numeric?: number | null;
+
+  /**
+   * Undergrad GPA / percentage as raw string,
+   * e.g. "8.1/10", "72%", etc.
+   */
+  undergrad_gpa_raw?: string;
 }
 
 export interface CandidateConstraints {
+  // Existing fields
   budget_level?: "low" | "medium" | "high";
   prefers_one_year?: boolean;
   open_to_abroad?: boolean;
   max_tuition_in_lakhs?: number | null;
   scholarship_need?: "none" | "helpful" | "strong-need";
   risk_tolerance?: "safe" | "balanced" | "aggressive";
+
+  // NEW: richer constraint fields from the new Qs
+  /**
+   * Max total budget (tuition + living),
+   * in whatever normalized currency your backend uses
+   * (e.g. INR, USD). This is a soft cap for the match engine.
+   */
+  max_budget_total?: number | null;
+
+  /** Is the user open to stretching budget if the fit is amazing? */
+  flexible_budget?: boolean;
+
+  /** Is the user open to adding/removing geographies if needed? */
+  flexible_geography?: boolean;
+
+  /** Is the user OK to go slightly more / less risky than chosen risk_tolerance? */
+  flexible_risk?: boolean;
+
+  /** Is the user flexible on 1-year vs 2-year program length? */
+  flexible_program_length?: boolean;
 }
 
 // =============================
@@ -41,6 +82,13 @@ export interface CandidateGoals {
   long_term?: string;
   target_functions?: string[]; // e.g. ["consulting", "product management"]
   target_industries?: string[]; // e.g. ["tech", "finance"]
+
+  // NEW: explicit fields from the extra questions
+  /** User’s direct post-MBA goal statement (industry + function + geography). */
+  post_mba_goal?: string;
+
+  /** “Why MBA now?” motivation/story in their own words. */
+  why_mba_now?: string;
 }
 
 // =============================

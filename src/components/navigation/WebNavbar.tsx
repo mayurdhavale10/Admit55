@@ -13,7 +13,7 @@ const BASE_ITEMS: LinkItem[] = [
   // ⬇️ CHANGED: was "/profile-review"
   { href: "/profile", label: "Your Profile" },
 
-  { href: "/b-school-match", label: "B-School Match" },
+  { href: "/mba/tools/bschool-match", label: "B-School Match" },
   { href: "/alum-coaches", label: "Alum Coaches" },
   { href: "/contact", label: "Contact" },
 ];

@@ -29,6 +29,18 @@ function toStringArray(value: unknown): string[] {
   return [String(value)];
 }
 
+/**
+ * Safe helper: convert unknown → boolean | undefined
+ */
+function toBoolOrUndefined(value: unknown): boolean | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  const s = String(value).trim().toLowerCase();
+  if (["yes", "y", "true", "1"].includes(s)) return true;
+  if (["no", "n", "false", "0"].includes(s)) return false;
+  return undefined;
+}
+
 export interface BuildProfileOptions {
   mode: BschoolMatchMode;
   name?: string;
@@ -55,8 +67,12 @@ export function buildCandidateProfileFromAnswers(
     resumeAnalysis,
   } = options;
 
-  // --- Work experience ---
-  const totalExp = toNumberOrNull(answers["total_experience"]);
+  // ---------------------------------------
+  // Work experience
+  // ---------------------------------------
+  const totalExp =
+    toNumberOrNull(answers["total_experience"]) ??
+    toNumberOrNull(answers["experience_years"]);
   const hasManagerial = String(
     answers["has_managerial_experience"] ?? "no"
   ).toLowerCase();
@@ -65,21 +81,98 @@ export function buildCandidateProfileFromAnswers(
   const managerialYears =
     hasManagerial === "formal" ? Math.max(1, totalExp ?? 0) : 0;
 
-  // --- Constraints / preferences ---
-  const constraints: CandidateConstraints = {
+  // ---------------------------------------
+  // Test scores (GMAT / GRE / CAT etc.)
+  // You can keep both numeric + raw
+  // ---------------------------------------
+  const testScoreRaw =
+    typeof answers["test_score"] === "string"
+      ? (answers["test_score"] as string).trim()
+      : answers["test_score"] != null
+      ? String(answers["test_score"])
+      : "";
+
+  const testScoreNumeric = toNumberOrNull(answers["test_score"]);
+  const ugGpaRaw =
+    typeof answers["ug_gpa"] === "string"
+      ? (answers["ug_gpa"] as string).trim()
+      : answers["ug_gpa"] != null
+      ? String(answers["ug_gpa"])
+      : "";
+
+  const intakeYear =
+    toNumberOrNull(answers["intake_year"]) ??
+    toNumberOrNull(answers["target_intake_year"]);
+
+  // ---------------------------------------
+  // Constraints / preferences
+  // ---------------------------------------
+  const maxBudgetTotal =
+    toNumberOrNull(answers["max_budget"]) ??
+    toNumberOrNull(answers["budget"]) ??
+    toNumberOrNull(answers["max_budget_total"]);
+
+  const geoAnswer = answers["geography"];
+  const preferredRegions = [
+    ...toStringArray(answers["preferred_regions"]),
+    ...toStringArray(geoAnswer),
+  ].filter(Boolean);
+
+  const constraintsBase: CandidateConstraints = {
     budget_level: (answers["budget_level"] as any) || undefined,
     risk_tolerance: (answers["risk_tolerance"] as any) || "balanced",
-    // can extend later: prefers_one_year, scholarship_need, etc.
   };
 
-  // --- Goals ---
+  // Extend constraints with richer info (cast to any for safety)
+  const constraints: CandidateConstraints = {
+    ...constraintsBase,
+    ...(maxBudgetTotal != null && { max_budget_total: maxBudgetTotal } as any),
+    ...(toBoolOrUndefined(answers["flexible_budget"]) !== undefined && {
+      flexible_budget: toBoolOrUndefined(answers["flexible_budget"]),
+    } as any),
+    ...(toBoolOrUndefined(answers["flexible_geography"]) !== undefined && {
+      flexible_geography: toBoolOrUndefined(answers["flexible_geography"]),
+    } as any),
+    ...(toBoolOrUndefined(answers["flexible_risk"]) !== undefined && {
+      flexible_risk: toBoolOrUndefined(answers["flexible_risk"]),
+    } as any),
+    ...(toBoolOrUndefined(answers["flexible_program_length"]) !== undefined && {
+      flexible_program_length: toBoolOrUndefined(
+        answers["flexible_program_length"]
+      ),
+    } as any),
+  };
+
+  // ---------------------------------------
+  // Goals
+  // ---------------------------------------
+  const postMbaGoal =
+    typeof answers["post_mba_goal"] === "string"
+      ? (answers["post_mba_goal"] as string).trim()
+      : "";
+
+  const whyMbaNow =
+    typeof answers["why_mba_now"] === "string"
+      ? (answers["why_mba_now"] as string).trim()
+      : "";
+
   const goals: CandidateGoals = {
-    short_term: (answers["career_goals_short"] as string) || "",
+    short_term:
+      postMbaGoal ||
+      ((answers["career_goals_short"] as string) || ""),
     long_term: (answers["career_goals_long"] as string) || "",
     // In v1 we keep these empty; later we can derive from text using LLM
     target_functions: [],
     target_industries: [],
   };
+
+  // Attach extra goal metadata without breaking older types
+  if (whyMbaNow) {
+    (goals as any).why_mba_now = whyMbaNow;
+  }
+  if (postMbaGoal) {
+    (goals as any).post_mba_goal = postMbaGoal;
+  }
 
   const profile: CandidateProfile = {
     // Meta
@@ -87,25 +180,40 @@ export function buildCandidateProfileFromAnswers(
     email,
     mode,
 
-    // Background (minimal for v1 – you can enrich later)
-    current_role: undefined,
-    current_company: undefined,
+    // Background
+    current_role:
+      typeof answers["current_role"] === "string"
+        ? (answers["current_role"] as string)
+        : undefined,
+    current_company:
+      typeof answers["current_company"] === "string"
+        ? (answers["current_company"] as string)
+        : undefined,
     total_work_experience_years: totalExp ?? undefined,
     managerial_experience_years: managerialYears || undefined,
-    has_international_experience: undefined,
+    has_international_experience: toBoolOrUndefined(
+      answers["has_international_experience"]
+    ),
 
-    // Academics / tests (hook for future)
-    undergrad_degree: undefined,
-    undergrad_institution: undefined,
-    undergrad_grad_year: null,
+    // Academics / tests
+    undergrad_degree:
+      typeof answers["ug_degree"] === "string"
+        ? (answers["ug_degree"] as string)
+        : undefined,
+    undergrad_institution:
+      typeof answers["ug_institution"] === "string"
+        ? (answers["ug_institution"] as string)
+        : undefined,
+    undergrad_grad_year: toNumberOrNull(answers["ug_grad_year"]),
     scores: {
-      // For now, we’re not mapping test_status → numeric score here.
-      // That logic can live in the backend match pipeline if needed.
-    },
+      ...(testScoreRaw && { test_score_raw: testScoreRaw }),
+      ...(testScoreNumeric != null && { test_score_numeric: testScoreNumeric }),
+      ...(ugGpaRaw && { undergrad_gpa_raw: ugGpaRaw }),
+    } as any,
 
     // Preferences
-    target_intake_year: toNumberOrNull(answers["target_intake_year"]),
-    preferred_regions: toStringArray(answers["preferred_regions"]),
+    target_intake_year: intakeYear,
+    preferred_regions: preferredRegions,
     preferred_program_types: toStringArray(
       answers["preferred_program_types"]
     ),
@@ -119,7 +227,7 @@ export function buildCandidateProfileFromAnswers(
     resume_summary: resumeSummary || undefined,
     resume_analysis: resumeAnalysis,
 
-    // Free-form extra context, if you add such a question later
+    // Free-form extra context
     extra_context:
       typeof answers["extra_context"] === "string"
         ? (answers["extra_context"] as string)
@@ -206,7 +314,7 @@ export function buildBschoolMatchRequestFromResume(
     constraints: {
       // Default to balanced risk if unknown
       risk_tolerance: "balanced",
-    },
+    } as any,
 
     goals: {
       short_term: "",

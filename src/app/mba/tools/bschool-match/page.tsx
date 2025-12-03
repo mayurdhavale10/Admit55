@@ -35,13 +35,33 @@ export default function BschoolMatchPage() {
     setHasSubmitted(true);
 
     try {
-      // ⛔️ For now we still only use answers; resumeFile wiring will come later
+      // --- NEW: try to read resume text on client (if provided) ---
+      let resumeText: string | null = null;
+
+      if (resumeFile) {
+        try {
+          const raw = await resumeFile.text();
+          // Hard cap so we don't send crazy-large payloads to LLM
+          const MAX_CHARS = 50000;
+          resumeText = raw.slice(0, MAX_CHARS);
+          console.log(
+            "[BschoolMatch] Read resume text from file, length=",
+            resumeText.length
+          );
+        } catch (fileErr) {
+          console.error("[BschoolMatch] Failed to read resume file:", fileErr);
+          // We silently fall back to answers-only if file read fails
+          resumeText = null;
+        }
+      }
+
+      // Build final request: answers + optional resume text
       const request = buildBschoolMatchRequestFromAnswers(answers, {
         mode,
         name: undefined,
         email: undefined,
-        resumeText: null,
-        resumeSummary: null,
+        resumeText,          // ⬅️ now actually sending resume text
+        resumeSummary: null, // can be wired later from profiler
         resumeAnalysis: null,
         profileResumeReport: undefined,
       });
@@ -80,7 +100,7 @@ export default function BschoolMatchPage() {
 
             <p className="mt-4 mb-10 max-w-3xl text-blue-100 text-lg md:text-xl leading-relaxed">
               Get an AI-curated, human-verified analysis of your MBA profile and
-              discover schools that truly fit your goals. Upload your résumé or
+              discover schools that truly fit your goals. Upload your résumé and
               answer a few quick questions to begin.
             </p>
           </div>
