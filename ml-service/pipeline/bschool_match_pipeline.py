@@ -9,6 +9,7 @@ LLM-powered B-School Match engine.
 """
 
 import json
+import os
 import sys
 import time
 from typing import Any, Dict, List
@@ -16,18 +17,32 @@ from typing import Any, Dict, List
 from gemini_client import call_gemini  # assumes ml-service root on sys.path
 from pipeline.mba_hybrid_pipeline import extract_first_json  # reuse robust JSON extractor
 
+# Read B-school specific model from env
+BSCHOOL_MODEL = os.getenv("GEMINI_BSCHOOL", "gemini-1.5-flash")
+
 
 # -------------------------------------------------------------------
-# Prompt Template
+# Prompt Template - Using string concatenation
 # -------------------------------------------------------------------
-MATCH_PROMPT_TEMPLATE = """
-You are an expert MBA admissions consultant and B-school match engine.
+def build_match_prompt(candidate_profile: Dict[str, Any]) -> str:
+    """
+    Build the full prompt by injecting candidate_profile JSON.
+    Uses string concatenation to avoid any format string issues.
+    """
+    candidate_profile_json = json.dumps(
+        candidate_profile,
+        ensure_ascii=False,
+        indent=2,
+    )
+    
+    # Build prompt using string concatenation to avoid ANY formatting issues
+    prompt = """You are an expert MBA admissions consultant and B-school match engine.
 
 You are given a JSON object describing the candidate's profile, preferences,
 and (optionally) resume / resume analysis:
 
 CANDIDATE_PROFILE_JSON:
-{candidate_profile_json}
+""" + candidate_profile_json + """
 
 Your job is to recommend MBA / MiM / PGP programs that are a GOOD FIT.
 
@@ -80,285 +95,264 @@ STRICT RULES (IMPORTANT):
 
 Now, based on the candidate profile, generate the JSON response.
 """
-
-
-# -------------------------------------------------------------------
-# Helper: Build Prompt
-# -------------------------------------------------------------------
-def build_match_prompt(candidate_profile: Dict[str, Any]) -> str:
-  """
-  Convert candidate profile dict into a prompt-ready JSON string
-  and embed into MATCH_PROMPT_TEMPLATE.
-
-  IMPORTANT:
-  We use .replace instead of .format because MATCH_PROMPT_TEMPLATE contains
-  many { ... } braces in the example JSON. Using .format() would treat
-  those as format placeholders and crash with KeyError like '\\n  "summary"'.
-  """
-  candidate_profile_json = json.dumps(
-      candidate_profile,
-      ensure_ascii=False,
-      indent=2,
-  )
-
-  # Safely inject just this one placeholder
-  prompt = MATCH_PROMPT_TEMPLATE.replace(
-      "{candidate_profile_json}", candidate_profile_json
-  )
-
-  return prompt
+    
+    return prompt
 
 
 # -------------------------------------------------------------------
 # Helper: Normalize Output
 # -------------------------------------------------------------------
 def _normalize_fit_scores(raw_scores: Dict[str, Any]) -> Dict[str, float]:
-  """
-  Ensure all fit_scores are numeric and in 0–10.
-  """
-  if not isinstance(raw_scores, dict):
-    return {
-        "academic_fit": 5.0,
-        "career_outcomes_fit": 5.0,
-        "geography_fit": 5.0,
-        "brand_prestige": 5.0,
-        "roi_affordability": 5.0,
-        "culture_personal_fit": 5.0,
-    }
+    """
+    Ensure all fit_scores are numeric and in 0–10.
+    """
+    if not isinstance(raw_scores, dict):
+        return {
+            "academic_fit": 5.0,
+            "career_outcomes_fit": 5.0,
+            "geography_fit": 5.0,
+            "brand_prestige": 5.0,
+            "roi_affordability": 5.0,
+            "culture_personal_fit": 5.0,
+        }
 
-  out: Dict[str, float] = {}
-  keys = [
-      "academic_fit",
-      "career_outcomes_fit",
-      "geography_fit",
-      "brand_prestige",
-      "roi_affordability",
-      "culture_personal_fit",
-  ]
-  for k in keys:
-    v = raw_scores.get(k, 5.0)
-    try:
-      num = float(v)
-    except Exception:
-      num = 5.0
-    if num < 0:
-      num = 0.0
-    if num > 10:
-      num = 10.0
-    out[k] = round(num, 2)
-  return out
+    out: Dict[str, float] = {}
+    keys = [
+        "academic_fit",
+        "career_outcomes_fit",
+        "geography_fit",
+        "brand_prestige",
+        "roi_affordability",
+        "culture_personal_fit",
+    ]
+    for k in keys:
+        v = raw_scores.get(k, 5.0)
+        try:
+            num = float(v)
+        except Exception:
+            num = 5.0
+        if num < 0:
+            num = 0.0
+        if num > 10:
+            num = 10.0
+        out[k] = round(num, 2)
+    return out
 
 
 def _normalize_matches(matches: Any) -> List[Dict[str, Any]]:
-  """
-  Ensure 'matches' is a list of objects with expected keys and normalized fit_scores.
-  """
-  if not isinstance(matches, list):
-    return []
+    """
+    Ensure 'matches' is a list of objects with expected keys and normalized fit_scores.
+    """
+    if not isinstance(matches, list):
+        return []
 
-  normalized: List[Dict[str, Any]] = []
-  for m in matches:
-    if not isinstance(m, dict):
-      continue
+    normalized: List[Dict[str, Any]] = []
+    for m in matches:
+        if not isinstance(m, dict):
+            continue
 
-    tier = m.get("tier", "target") or "target"
-    if tier not in ("ambitious", "target", "safe"):
-      tier = "target"
+        tier = m.get("tier", "target") or "target"
+        if tier not in ("ambitious", "target", "safe"):
+            tier = "target"
 
-    fit_scores = _normalize_fit_scores(m.get("fit_scores", {}))
+        fit_scores = _normalize_fit_scores(m.get("fit_scores", {}))
 
-    normalized.append(
-        {
-            "school_name": m.get("school_name", "").strip() or "Unknown School",
-            "program_name": m.get("program_name", "").strip() or "MBA / PGP",
-            "country": m.get("country", "").strip() or "Unknown",
-            "region": m.get("region", "").strip() or "Unknown",
-            "tier": tier,
-            "duration_years": m.get("duration_years", 2),
-            "program_type": m.get("program_type", "MBA/PGP"),
-            "notes": m.get("notes", "").strip(),
-            "risks": m.get("risks", "").strip(),
-            "fit_scores": fit_scores,
-        }
-    )
-  return normalized
+        normalized.append(
+            {
+                "school_name": m.get("school_name", "").strip() or "Unknown School",
+                "program_name": m.get("program_name", "").strip() or "MBA / PGP",
+                "country": m.get("country", "").strip() or "Unknown",
+                "region": m.get("region", "").strip() or "Unknown",
+                "tier": tier,
+                "duration_years": m.get("duration_years", 2),
+                "program_type": m.get("program_type", "MBA/PGP"),
+                "notes": m.get("notes", "").strip(),
+                "risks": m.get("risks", "").strip(),
+                "fit_scores": fit_scores,
+            }
+        )
+    return normalized
 
 
 def _build_tiers_from_matches(matches: List[Dict[str, Any]]) -> Dict[str, List[str]]:
-  """
-  Build a tiers dict from the matches list.
-  """
-  tiers = {"ambitious": [], "target": [], "safe": []}
-  for m in matches:
-    tier = m.get("tier", "target")
-    name = m.get("school_name", "Unknown School")
-    if tier not in tiers:
-      tier = "target"
-    tiers[tier].append(name)
-  return tiers
+    """
+    Build a tiers dict from the matches list.
+    """
+    tiers = {"ambitious": [], "target": [], "safe": []}
+    for m in matches:
+        tier = m.get("tier", "target")
+        name = m.get("school_name", "Unknown School")
+        if tier not in tiers:
+            tier = "target"
+        tiers[tier].append(name)
+    return tiers
 
 
 # -------------------------------------------------------------------
 # Main Pipeline Function
 # -------------------------------------------------------------------
 def run_bschool_match(candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
-  """
-  Main entry point:
-  - candidate_profile: dict built by your Next.js backend (answers + optional resume info).
-  - Returns a structured JSON with summary + matches + tiers.
-  """
-  print("\n" + "=" * 60, file=sys.stderr)
-  print("B-SCHOOL MATCH PIPELINE v1.0", file=sys.stderr)
-  print("LLM: Gemini (via gemini_client)", file=sys.stderr)
-  print("=" * 60 + "\n", file=sys.stderr)
+    """
+    Main entry point:
+    - candidate_profile: dict built by your Next.js backend (answers + optional resume info).
+    - Returns a structured JSON with summary + matches + tiers.
+    """
+    print("\n" + "=" * 60, file=sys.stderr)
+    print("B-SCHOOL MATCH PIPELINE v1.0", file=sys.stderr)
+    print(f"LLM: {BSCHOOL_MODEL} (via gemini_client)", file=sys.stderr)
+    print("=" * 60 + "\n", file=sys.stderr)
 
-  start_time = time.time()
+    start_time = time.time()
 
-  # Basic logging
-  try:
-    size_hint = len(json.dumps(candidate_profile))
-  except Exception:
-    size_hint = -1
-  print(f"[bschool-match] Candidate profile size ~ {size_hint} chars", file=sys.stderr)
+    # Basic logging
+    try:
+        size_hint = len(json.dumps(candidate_profile))
+    except Exception:
+        size_hint = -1
+    print(f"[bschool-match] Candidate profile size ~ {size_hint} chars", file=sys.stderr)
 
-  # 1. Build prompt
-  prompt = build_match_prompt(candidate_profile)
+    # 1. Build prompt
+    prompt = build_match_prompt(candidate_profile)
 
-  # 2. Call Gemini
-  try:
-    print("[bschool-match] Calling Gemini for matches...", file=sys.stderr)
-    raw_output = call_gemini(
-        prompt,
-        temperature=0.2,
-        max_output_tokens=2048,
-        retry_count=3,
-        timeout=120,
-    )
-    print(
-        f"[bschool-match] Raw model output length = {len(raw_output)} chars",
-        file=sys.stderr,
-    )
-  except Exception as e:
+    # 2. Call Gemini with BSCHOOL_MODEL
+    try:
+        print(f"[bschool-match] Calling {BSCHOOL_MODEL} for matches...", file=sys.stderr)
+        raw_output = call_gemini(
+            prompt,
+            temperature=0.2,
+            max_output_tokens=2048,
+            retry_count=3,
+            timeout=120,
+            model=BSCHOOL_MODEL,  # NEW: pass model explicitly
+        )
+        print(
+            f"[bschool-match] Raw model output length = {len(raw_output)} chars",
+            file=sys.stderr,
+        )
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(
+            f"[bschool-match] ✗ Gemini call failed after {elapsed:.2f}s: {e}",
+            file=sys.stderr,
+        )
+        # Hard fallback JSON
+        return {
+            "summary": {
+                "profile_snapshot": "Unable to generate school matches due to an internal error.",
+                "target_strategy": "Please try again in a few minutes.",
+                "key_factors": [],
+            },
+            "matches": [],
+            "tiers": {
+                "ambitious": [],
+                "target": [],
+                "safe": [],
+            },
+            "meta": {
+                "error": str(e),
+                "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "pipeline_version": "1.0.0",
+                "llm_status": "failed",
+                "model_used": BSCHOOL_MODEL,
+            },
+        }
+
+    # 3. Extract JSON
+    try:
+        parsed = extract_first_json(raw_output)
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(
+            f"[bschool-match] ✗ JSON extraction failed after {elapsed:.2f}s: {e}",
+            file=sys.stderr,
+        )
+        return {
+            "summary": {
+                "profile_snapshot": "Model response could not be parsed as JSON.",
+                "target_strategy": "Please try again or contact support if the issue persists.",
+                "key_factors": [],
+            },
+            "matches": [],
+            "tiers": {
+                "ambitious": [],
+                "target": [],
+                "safe": [],
+            },
+            "meta": {
+                "error": f"JSON parse error: {e}",
+                "raw_output_head": raw_output[:500],
+                "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "pipeline_version": "1.0.0",
+                "llm_status": "ok_but_parse_failed",
+                "model_used": BSCHOOL_MODEL,
+            },
+        }
+
+    # 4. Normalize structure
+    summary = parsed.get("summary") or {}
+    matches_raw = parsed.get("matches") or []
+    tiers_raw = parsed.get("tiers") or {}
+
+    matches = _normalize_matches(matches_raw)
+
+    # If LLM didn't provide tiers, build from matches
+    if not isinstance(tiers_raw, dict) or not tiers_raw:
+        tiers = _build_tiers_from_matches(matches)
+    else:
+        # Normalize tiers to just school names
+        tiers = {
+            "ambitious": list(tiers_raw.get("ambitious", [])),
+            "target": list(tiers_raw.get("target", [])),
+            "safe": list(tiers_raw.get("safe", [])),
+        }
+
+    # Ensure summary fields
+    summary_out = {
+        "profile_snapshot": summary.get("profile_snapshot", "").strip()
+        or "Candidate profile summary not provided by the model.",
+        "target_strategy": summary.get("target_strategy", "").strip()
+        or "Target a balanced mix of ambitious, target, and safe schools aligned to your goals.",
+        "key_factors": summary.get("key_factors", []) or [],
+    }
+
     elapsed = time.time() - start_time
-    print(
-        f"[bschool-match] ✗ Gemini call failed after {elapsed:.2f}s: {e}",
-        file=sys.stderr,
-    )
-    # Hard fallback JSON
+    print(f"[bschool-match] ✓ Pipeline complete in {elapsed:.2f}s", file=sys.stderr)
+
+    # 5. Final response
     return {
-        "summary": {
-            "profile_snapshot": "Unable to generate school matches due to an internal error.",
-            "target_strategy": "Please try again in a few minutes.",
-            "key_factors": [],
-        },
-        "matches": [],
-        "tiers": {
-            "ambitious": [],
-            "target": [],
-            "safe": [],
-        },
+        "summary": summary_out,
+        "matches": matches,
+        "tiers": tiers,
         "meta": {
-            "error": str(e),
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "pipeline_version": "1.0.0",
-            "llm_status": "failed",
+            "llm_status": "ok",
+            "latency_seconds": round(elapsed, 2),
+            "model_used": BSCHOOL_MODEL,
         },
     }
-
-  # 3. Extract JSON
-  try:
-    parsed = extract_first_json(raw_output)
-  except Exception as e:
-    elapsed = time.time() - start_time
-    print(
-        f"[bschool-match] ✗ JSON extraction failed after {elapsed:.2f}s: {e}",
-        file=sys.stderr,
-    )
-    return {
-        "summary": {
-            "profile_snapshot": "Model response could not be parsed as JSON.",
-            "target_strategy": "Please try again or contact support if the issue persists.",
-            "key_factors": [],
-        },
-        "matches": [],
-        "tiers": {
-            "ambitious": [],
-            "target": [],
-            "safe": [],
-        },
-        "meta": {
-            "error": f"JSON parse error: {e}",
-            "raw_output_head": raw_output[:500],
-            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "pipeline_version": "1.0.0",
-            "llm_status": "ok_but_parse_failed",
-        },
-    }
-
-  # 4. Normalize structure
-  summary = parsed.get("summary") or {}
-  matches_raw = parsed.get("matches") or []
-  tiers_raw = parsed.get("tiers") or {}
-
-  matches = _normalize_matches(matches_raw)
-
-  # If LLM didn't provide tiers, build from matches
-  if not isinstance(tiers_raw, dict) or not tiers_raw:
-    tiers = _build_tiers_from_matches(matches)
-  else:
-    # Normalize tiers to just school names
-    tiers = {
-        "ambitious": list(tiers_raw.get("ambitious", [])),
-        "target": list(tiers_raw.get("target", [])),
-        "safe": list(tiers_raw.get("safe", [])),
-    }
-
-  # Ensure summary fields
-  summary_out = {
-      "profile_snapshot": summary.get("profile_snapshot", "").strip()
-      or "Candidate profile summary not provided by the model.",
-      "target_strategy": summary.get("target_strategy", "").strip()
-      or "Target a balanced mix of ambitious, target, and safe schools aligned to your goals.",
-      "key_factors": summary.get("key_factors", []) or [],
-  }
-
-  elapsed = time.time() - start_time
-  print(f"[bschool-match] ✓ Pipeline complete in {elapsed:.2f}s", file=sys.stderr)
-
-  # 5. Final response
-  return {
-      "summary": summary_out,
-      "matches": matches,
-      "tiers": tiers,
-      "meta": {
-          "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-          "pipeline_version": "1.0.0",
-          "llm_status": "ok",
-          "latency_seconds": round(elapsed, 2),
-      },
-  }
 
 
 # -------------------------------------------------------------------
 # CLI helper for quick manual testing
 # -------------------------------------------------------------------
 if __name__ == "__main__":
-  """
-  Quick manual test:
-  python bschool_match_pipeline.py '{"answers": {...}}'
-  """
-  if len(sys.argv) < 2:
-    print(
-        "Usage: python bschool_match_pipeline.py '<candidate_profile_json>'",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    """
+    Quick manual test:
+    python bschool_match_pipeline.py '{"answers": {...}}'
+    """
+    if len(sys.argv) < 2:
+        print(
+            "Usage: python bschool_match_pipeline.py '<candidate_profile_json>'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-  try:
-    candidate_profile = json.loads(sys.argv[1])
-  except Exception as e:
-    print(f"Invalid JSON: {e}", file=sys.stderr)
-    sys.exit(1)
+    try:
+        candidate_profile = json.loads(sys.argv[1])
+    except Exception as e:
+        print(f"Invalid JSON: {e}", file=sys.stderr)
+        sys.exit(1)
 
-  result = run_bschool_match(candidate_profile)
-  print(json.dumps(result, ensure_ascii=False, indent=2))
+    result = run_bschool_match(candidate_profile)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -10,7 +10,7 @@ import time
 import requests
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-pro-preview")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 
@@ -25,11 +25,20 @@ def call_gemini(
     max_output_tokens: int = 1024,
     retry_count: int = 2,
     timeout: int = 120,
+    model: str = None,  # NEW: allow caller to override model
 ) -> str:
     """
     Basic Gemini text completion helper.
     Takes a plain text prompt and returns the model's text response.
     Retries on transient HTTP errors.
+    
+    Args:
+        prompt: The text prompt to send
+        temperature: Sampling temperature (0.0-1.0)
+        max_output_tokens: Max tokens to generate
+        retry_count: Number of retry attempts on failure
+        timeout: Request timeout in seconds
+        model: Model to use (overrides GEMINI_MODEL env var if provided)
     """
     if not GEMINI_API_KEY:
         raise GeminiError("GEMINI_API_KEY is not set")
@@ -37,7 +46,10 @@ def call_gemini(
     if not prompt or not isinstance(prompt, str):
         raise GeminiError("Prompt must be a non-empty string")
 
-    url = f"{BASE_URL}/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    # Use provided model or fall back to default
+    gemini_model = model or DEFAULT_GEMINI_MODEL
+    
+    url = f"{BASE_URL}/models/{gemini_model}:generateContent?key={GEMINI_API_KEY}"
 
     payload = {
         "contents": [
@@ -57,7 +69,7 @@ def call_gemini(
 
     for attempt in range(1, retry_count + 1):
         try:
-            print(f"[Gemini] Calling {GEMINI_MODEL}, attempt {attempt}/{retry_count}", file=sys.stderr)
+            print(f"[Gemini] Calling {gemini_model}, attempt {attempt}/{retry_count}", file=sys.stderr)
             resp = requests.post(url, json=payload, timeout=timeout)
 
             if resp.status_code == 429:
@@ -78,7 +90,9 @@ def call_gemini(
 
             # Other non-OK statuses
             if resp.status_code != 200:
-                raise GeminiError(f"HTTP {resp.status_code}: {resp.text[:500]}")
+                error_text = resp.text[:500]
+                print(f"[Gemini] HTTP {resp.status_code}: {error_text}", file=sys.stderr)
+                raise GeminiError(f"HTTP {resp.status_code}: {error_text}")
 
             data = resp.json()
 
@@ -86,7 +100,9 @@ def call_gemini(
             try:
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
             except (KeyError, IndexError) as e:
-                raise GeminiError(f"Unexpected Gemini response structure: {data}") from e
+                error_msg = f"Unexpected Gemini response structure: {data}"
+                print(f"[Gemini] {error_msg}", file=sys.stderr)
+                raise GeminiError(error_msg) from e
 
             text = (text or "").strip()
             print(f"[Gemini] [OK] Generated {len(text)} chars", file=sys.stderr)
@@ -101,7 +117,7 @@ def call_gemini(
                 time.sleep(wait)
                 continue
         except GeminiError as e:
-            # Our own logical/API error, no point in retrying unless 5xx/429 above
+            # Our own logical/API error
             raise
         except Exception as e:
             last_error = f"Unexpected error: {e}"
