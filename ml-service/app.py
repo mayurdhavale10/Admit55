@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-FastAPI wrapper for MBA Resume Analysis Pipeline
+FastAPI wrapper for:
+- MBA Resume Analysis Pipeline
+- B-School Match Pipeline
+
 Deployed on Render.com
 """
 
 import os
 import sys
 import tempfile
-from typing import Optional
+from typing import Optional, Dict, Any
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 
 # Add pipeline to path
@@ -21,11 +24,12 @@ from pipeline.mba_hybrid_pipeline import (
     improve_resume,
     PDF_SUPPORT,
 )
+from pipeline.bschool_match_pipeline import run_bschool_match
 
 app = FastAPI(
-    title="MBA Resume Analyzer API",
-    description="AI-powered resume analysis for MBA admissions",
-    version="4.0.0",  # 🚀 matches pipeline v4.0
+    title="MBA Tools API",
+    description="AI-powered resume analysis + B-school match for MBA admissions",
+    version="4.1.0",
 )
 
 # CORS - Allow Vercel domains (you can restrict later)
@@ -42,11 +46,12 @@ async def root():
     """Basic health/info endpoint."""
     return {
         "status": "healthy",
-        "service": "MBA Resume Analyzer",
-        "version": "4.0.0",
+        "service": "MBA Tools",
+        "version": "4.1.0",
         "endpoints": {
             "analyze": "POST /analyze",
             "rewrite": "POST /rewrite",
+            "bschool_match": "POST /bschool-match",
             "health": "GET /health",
             "test": "POST /test",
         },
@@ -67,10 +72,16 @@ async def health():
             "gemini_tertiary": os.getenv("GEMINI_THIRDFALLBACK_MODEL", "not_set"),
             "openai_fallback": os.getenv("OPENAI_FOURTHFALLBACK_MODEL", "not_set"),
         },
-        "pipeline_version": "4.0.0",
+        "pipeline_version": "4.1.0",
+        "extra": {
+            "bschool_match_pipeline": True,
+        },
     }
 
 
+# ============================================================
+# /analyze – Resume Analysis (Profiler / Resume Tool)
+# ============================================================
 @app.post("/analyze")
 async def analyze_resume(
     file: Optional[UploadFile] = File(None),
@@ -179,7 +190,7 @@ async def analyze_resume(
 
 
 # ============================================================
-# /rewrite ENDPOINT - On-Demand Resume Improvement
+# /rewrite – On-Demand Resume Improvement
 # ============================================================
 @app.post("/rewrite")
 async def rewrite_resume(
@@ -241,7 +252,7 @@ async def rewrite_resume(
                 "source": "pipeline.mba_hybrid_pipeline.improve_resume",
                 "original_length": len(trimmed),
                 "improved_length": len(improved),
-                "pipeline_version": "4.0.0",
+                "pipeline_version": "4.1.0",
             },
         }
 
@@ -253,6 +264,60 @@ async def rewrite_resume(
         )
 
 
+# ============================================================
+# /bschool-match – LLM B-School Match Engine
+# ============================================================
+@app.post("/bschool-match")
+async def bschool_match(
+    candidate_profile: Dict[str, Any] = Body(..., description="Structured candidate profile JSON"),
+):
+    """
+    B-School Match engine.
+
+    Expects JSON body like:
+      {
+        "name": "Candidate",
+        "work_experience_years": 3,
+        "target_intake_year": 2026,
+        "preferred_regions": [...],
+        "goals": {...},
+        "scores": {...},
+        "constraints": {...},
+        "resume_summary": "...",   # optional
+        "resume_analysis": {...}   # optional, from /analyze
+      }
+
+    Returns:
+      {
+        "summary": {...},
+        "matches": [...],
+        "tiers": {...},
+        "meta": {...}
+      }
+    """
+
+    if not isinstance(candidate_profile, dict) or not candidate_profile:
+        raise HTTPException(
+            status_code=400,
+            detail="candidate_profile must be a non-empty JSON object",
+        )
+
+    try:
+        print("[BSchoolMatch API] Starting B-school match pipeline", file=sys.stderr)
+        result = run_bschool_match(candidate_profile)
+        print("[BSchoolMatch API] Match pipeline complete", file=sys.stderr)
+        return result
+    except Exception as e:
+        print(f"[BSchoolMatch API] Match pipeline failed: {e}", file=sys.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"B-school match pipeline failed: {str(e)}",
+        )
+
+
+# ============================================================
+# /test – Simple Liveness Test
+# ============================================================
 @app.post("/test")
 async def test_endpoint(text: str = Form(...)):
     """Simple test endpoint to verify FastAPI is alive."""
