@@ -13,13 +13,13 @@ import MatchForm from "./components/MatchForm";
 import MatchResults from "./components/MatchResults";
 import ModeSelector from "./components/ModeSelector";
 
+// ✅ Explicitly type the payload
 type MatchPayload = {
   answers: QuestionAnswerMap;
   resumeFile: File | null;
 };
 
 export default function BschoolMatchPage() {
-  // default: middle card selected
   const [mode, setMode] = useState<BschoolMatchMode>("resume-upload");
 
   const [result, setResult] = useState<BschoolMatchResponse | null>(null);
@@ -27,7 +27,8 @@ export default function BschoolMatchPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  const handleRunMatch = async ({ answers, resumeFile }: MatchPayload) => {
+  // ✅ Explicitly type the handler
+  const handleRunMatch = async ({ answers, resumeFile }: MatchPayload): Promise<void> => {
     console.log("[BschoolMatch] submit payload", { mode, answers, resumeFile });
 
     setError(null);
@@ -35,13 +36,11 @@ export default function BschoolMatchPage() {
     setHasSubmitted(true);
 
     try {
-      // --- NEW: try to read resume text on client (if provided) ---
       let resumeText: string | null = null;
 
       if (resumeFile) {
         try {
           const raw = await resumeFile.text();
-          // Hard cap so we don't send crazy-large payloads to LLM
           const MAX_CHARS = 50000;
           resumeText = raw.slice(0, MAX_CHARS);
           console.log(
@@ -50,18 +49,16 @@ export default function BschoolMatchPage() {
           );
         } catch (fileErr) {
           console.error("[BschoolMatch] Failed to read resume file:", fileErr);
-          // We silently fall back to answers-only if file read fails
           resumeText = null;
         }
       }
 
-      // Build final request: answers + optional resume text
       const request = buildBschoolMatchRequestFromAnswers(answers, {
         mode,
         name: undefined,
         email: undefined,
-        resumeText,          // ⬅️ now actually sending resume text
-        resumeSummary: null, // can be wired later from profiler
+        resumeText,
+        resumeSummary: null,
         resumeAnalysis: null,
         profileResumeReport: undefined,
       });
@@ -107,18 +104,7 @@ export default function BschoolMatchPage() {
 
           {/* Mode card */}
           <div className="mt-10 flex justify-center">
-            <div
-              className="
-                w-full max-w-4xl
-                rounded-2xl
-                border border-white/25 
-                bg-white/10 
-                backdrop-blur-md
-                shadow-[0_18px_45px_rgba(15,23,42,0.45)]
-                px-4 py-4
-                md:px-6 md:py-6
-              "
-            >
+            <div className="w-full max-w-4xl rounded-2xl border border-white/25 bg-white/10 backdrop-blur-md shadow-[0_18px_45px_rgba(15,23,42,0.45)] px-4 py-4 md:px-6 md:py-6">
               <p className="text-lg md:text-xl font-semibold text-white">
                 How would you like to start?
               </p>
@@ -131,16 +117,16 @@ export default function BschoolMatchPage() {
         </div>
       </section>
 
-      {/* MAIN CONTENT – ONE COLUMN FLOW */}
+      {/* MAIN CONTENT */}
       <section className="mx-auto max-w-4xl px-4 pb-16 pt-10 md:px-6 lg:px-10">
-        {/* Form – always visible */}
+        {/* ✅ Form Component - explicitly typed */}
         <MatchForm
           mode={mode}
           isSubmitting={isLoading}
           onSubmit={handleRunMatch}
         />
 
-        {/* Results – only after submit / while loading / error */}
+        {/* ✅ Results Component - only shown after submission */}
         {(hasSubmitted || isLoading || error || result) && (
           <div className="mt-8">
             <MatchResults

@@ -1,4 +1,4 @@
-// src/lib/bschoolmatch/types.ts
+// src/lib/bschoolmatch/types.ts - FIXED VERSION
 
 // =============================
 // Core modes
@@ -14,126 +14,67 @@ export type BschoolMatchMode =
 // =============================
 
 export interface CandidateScores {
-  // Legacy / structured scores (still supported)
   gmat?: number | null;
   gre?: number | null;
   cat?: number | null;
-  x_percentage?: number | null; // Class 10
-  xii_percentage?: number | null; // Class 12
+  x_percentage?: number | null;
+  xii_percentage?: number | null;
   ug_cgpa?: number | null;
-  other_tests?: string | null; // e.g. "IELTS 7.5"
-
-  // New generic test fields from the questionnaire
-  /**
-   * Raw test score string as entered by user
-   * e.g. "GMAT 710 (Q50 V38)" or "CAT 98.2%ile"
-   */
+  other_tests?: string | null;
   test_score_raw?: string;
-
-  /**
-   * Parsed numeric test score (best-effort)
-   * e.g. 710, 325, 98.2, etc.
-   */
   test_score_numeric?: number | null;
-
-  /**
-   * Undergrad GPA / percentage as raw string,
-   * e.g. "8.1/10", "72%", etc.
-   */
   undergrad_gpa_raw?: string;
 }
 
 export interface CandidateConstraints {
-  // Existing fields
   budget_level?: "low" | "medium" | "high";
   prefers_one_year?: boolean;
   open_to_abroad?: boolean;
   max_tuition_in_lakhs?: number | null;
   scholarship_need?: "none" | "helpful" | "strong-need";
   risk_tolerance?: "safe" | "balanced" | "aggressive";
-
-  // NEW: richer constraint fields from the new Qs
-  /**
-   * Max total budget (tuition + living),
-   * in whatever normalized currency your backend uses
-   * (e.g. INR, USD). This is a soft cap for the match engine.
-   */
   max_budget_total?: number | null;
-
-  /** Is the user open to stretching budget if the fit is amazing? */
   flexible_budget?: boolean;
-
-  /** Is the user open to adding/removing geographies if needed? */
   flexible_geography?: boolean;
-
-  /** Is the user OK to go slightly more / less risky than chosen risk_tolerance? */
   flexible_risk?: boolean;
-
-  /** Is the user flexible on 1-year vs 2-year program length? */
   flexible_program_length?: boolean;
 }
-
-// =============================
-// Goals / aspirations
-// =============================
 
 export interface CandidateGoals {
   short_term?: string;
   long_term?: string;
-  target_functions?: string[]; // e.g. ["consulting", "product management"]
-  target_industries?: string[]; // e.g. ["tech", "finance"]
-
-  // NEW: explicit fields from the extra questions
-  /** User’s direct post-MBA goal statement (industry + function + geography). */
+  target_functions?: string[];
+  target_industries?: string[];
   post_mba_goal?: string;
-
-  /** “Why MBA now?” motivation/story in their own words. */
   why_mba_now?: string;
 }
 
-// =============================
-// Canonical candidate profile
-// =============================
-
 export interface CandidateProfile {
-  // Meta
   name?: string;
   email?: string;
   mode?: BschoolMatchMode;
-
-  // Work background
   current_role?: string;
   current_company?: string;
   total_work_experience_years?: number;
   managerial_experience_years?: number;
   has_international_experience?: boolean;
-
-  // Academics & tests
   undergrad_degree?: string;
   undergrad_institution?: string;
   undergrad_grad_year?: number | null;
   scores?: CandidateScores;
-
-  // Preferences & constraints
   target_intake_year?: number | null;
-  preferred_regions?: string[]; // e.g. ["india", "europe", "us"]
-  preferred_program_types?: string[]; // e.g. ["1-year", "2-year", "online"]
+  preferred_regions?: string[];
+  preferred_program_types?: string[];
   constraints?: CandidateConstraints;
-
-  // Goals
   goals?: CandidateGoals;
-
-  // Optional: LLM / resume integration
   resume_text?: string;
   resume_summary?: string;
-  resume_analysis?: any; // shape from profileresume tool, if present
-
-  // Free-form notes
+  resume_analysis?: any;
   extra_context?: string;
 }
 
 // =============================
-// Match result structures
+// Match result structures (FIXED TO MATCH PYTHON BACKEND)
 // =============================
 
 export interface BschoolTierCluster {
@@ -142,23 +83,44 @@ export interface BschoolTierCluster {
   safe: string[];
 }
 
+// ✅ FIXED: This now matches the Python backend's normalized_matches structure
 export interface BschoolMatchSchool {
-  id: string; // e.g. "iim-a-pgp"
-  name: string; // e.g. "IIM Ahmedabad PGP"
+  id: string; // Added by Python backend (e.g. "iim_ahmedabad_0")
+  school_name: string; // Python sends "school_name", not "name"
+  program_name: string;
   country: string;
-  region: string; // "india", "europe", etc.
-  program_type: string; // "2-year", "1-year", "online"
-  tier: "dream" | "competitive" | "safe";
-  overall_match_score: number; // 0–100
-  notes?: string;
-  reasons?: string[];
+  region: string;
+  program_type: string;
+  tier: "ambitious" | "target" | "safe"; // Python uses these, not "dream"/"competitive"/"safe"
+  duration_years: number;
+  notes: string;
+  risks: string;
+  fit_scores: {
+    academic_fit: number;
+    career_outcomes_fit: number;
+    geography_fit: number;
+    brand_prestige: number;
+    roi_affordability: number;
+    culture_personal_fit: number;
+  };
+}
+
+// ✅ ADDED: Helper type for frontend display (with computed fields)
+export interface BschoolMatchSchoolDisplay extends BschoolMatchSchool {
+  name: string; // Alias for school_name
+  overall_match_score: number; // Computed average of fit_scores
+  reasons?: string[]; // Derived from notes
 }
 
 export interface BschoolMatchSummary {
-  headline: string;
-  narrative: string;
-  risk_profile: "safe" | "balanced" | "aggressive";
-  key_drivers: string[];
+  profile_snapshot: string;
+  target_strategy: string;
+  key_factors: string[];
+  // Legacy fields (optional)
+  headline?: string;
+  narrative?: string;
+  risk_profile?: "safe" | "balanced" | "aggressive";
+  key_drivers?: string[];
 }
 
 export interface BschoolMatchResponse {
@@ -170,6 +132,10 @@ export interface BschoolMatchResponse {
     source?: string;
     llm_model?: string;
     generated_at?: string;
+    pipeline_version?: string;
+    llm_status?: string;
+    model_used?: string;
+    latency_seconds?: number;
     [key: string]: unknown;
   };
   processing_meta?: {
@@ -217,22 +183,64 @@ export type QuestionAnswerMap = Record<string, unknown>;
 // =============================
 
 export interface BschoolMatchRequest {
-  /** How the user is running the tool (questions-only / resume-upload / resume-from-profile) */
   mode: BschoolMatchMode;
-
-  /** Canonical structured profile that the ML / match engine consumes */
   profile: CandidateProfile;
-
-  /**
-   * Optional: raw form answers (useful for debugging / future rule-based logic).
-   * Only populated for questions-only / hybrid flows.
-   */
   raw_answers?: QuestionAnswerMap;
-
-  /**
-   * Optional: full JSON report from Profile & Resume tool
-   * (if user chose “resume-from-profile” mode). Forwarded so the ML service
-   * can reuse scoring/strengths instead of re-running heavy analysis.
-   */
   profile_resume_report?: any;
+}
+
+// =============================
+// Helper functions
+// =============================
+
+/**
+ * Convert backend match to display format with computed fields
+ */
+export function toDisplaySchool(
+  school: BschoolMatchSchool
+): BschoolMatchSchoolDisplay {
+  const fit = school.fit_scores;
+  const overall_match_score = Math.round(
+    (fit.academic_fit +
+      fit.career_outcomes_fit +
+      fit.geography_fit +
+      fit.brand_prestige +
+      fit.roi_affordability +
+      fit.culture_personal_fit) /
+      6
+  );
+
+  // Convert notes to reasons array (split by periods/newlines)
+  const reasons = school.notes
+    ? school.notes
+        .split(/[.\n]/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 10)
+        .slice(0, 3)
+    : [];
+
+  return {
+    ...school,
+    name: school.school_name, // Alias for compatibility
+    overall_match_score,
+    reasons,
+  };
+}
+
+/**
+ * Map Python tier names to frontend display names
+ */
+export function mapTierForDisplay(
+  tier: "ambitious" | "target" | "safe"
+): "dream" | "competitive" | "safe" {
+  switch (tier) {
+    case "ambitious":
+      return "dream";
+    case "target":
+      return "competitive";
+    case "safe":
+      return "safe";
+    default:
+      return "competitive";
+  }
 }

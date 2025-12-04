@@ -1,4 +1,4 @@
-import { BschoolMatchResponse } from "@src/lib/bschoolmatch/types";
+import { BschoolMatchResponse, toDisplaySchool, mapTierForDisplay } from "@src/lib/bschoolmatch/types";
 import BSchoolCard from "./BSchoolCard";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -33,6 +33,9 @@ export default function MatchResults({
 
   const { summary, matches } = result;
 
+  // ✅ FIX: Convert backend matches to display format BEFORE filtering
+  const displayMatches = matches.map(toDisplaySchool);
+
   return (
     <div className="space-y-5">
       {/* Summary card */}
@@ -50,16 +53,17 @@ export default function MatchResults({
         </div>
 
         <h2 className="mt-2 text-lg font-semibold text-slate-900">
-          {summary.headline}
+          {summary.headline || summary.profile_snapshot}
         </h2>
 
         <p className="mt-2 text-sm leading-relaxed text-slate-700">
-          {summary.narrative}
+          {summary.narrative || summary.target_strategy}
         </p>
 
-        {summary.key_drivers && summary.key_drivers.length > 0 && (
+        {(summary.key_drivers || summary.key_factors) && 
+         (summary.key_drivers?.length || summary.key_factors?.length) ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {summary.key_drivers.map((driver, idx) => (
+            {(summary.key_drivers || summary.key_factors || []).map((driver, idx) => (
               <span
                 key={idx}
                 className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700"
@@ -68,31 +72,34 @@ export default function MatchResults({
               </span>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Tier columns */}
       <div className="grid gap-4 md:grid-cols-3">
-        {(["dream", "competitive", "safe"] as const).map((tierKey) => {
-          const schools = matches?.filter((s) => s.tier === tierKey) ?? [];
-
+        {(["ambitious", "target", "safe"] as const).map((backendTier) => {
+          // ✅ FIX: Filter displayMatches (which are BschoolMatchSchoolDisplay)
+          const schools = displayMatches.filter((s) => s.tier === backendTier);
+          
+          const displayTier = mapTierForDisplay(backendTier);
+          
           const tierLabel =
-            tierKey === "dream"
+            displayTier === "dream"
               ? "Dream"
-              : tierKey === "competitive"
+              : displayTier === "competitive"
               ? "Competitive"
               : "Safe";
 
           const tierAccentClasses =
-            tierKey === "dream"
+            displayTier === "dream"
               ? "border-pink-300 bg-pink-50 text-pink-800"
-              : tierKey === "competitive"
+              : displayTier === "competitive"
               ? "border-sky-300 bg-sky-50 text-sky-800"
               : "border-emerald-300 bg-emerald-50 text-emerald-800";
 
           return (
             <div
-              key={tierKey}
+              key={backendTier}
               className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm"
             >
               <div
@@ -113,6 +120,7 @@ export default function MatchResults({
                   </p>
                 )}
 
+                {/* ✅ FIX: Pass BschoolMatchSchoolDisplay to BSchoolCard */}
                 {schools.map((school) => (
                   <BSchoolCard key={school.id} school={school} />
                 ))}
