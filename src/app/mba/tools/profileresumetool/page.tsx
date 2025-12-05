@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ResumeUploader from "./components/ResumeUploader";
 import QuickForm from "./components/QuickForm";
 import LoadingState from "./components/LoadingState";
 import ResultDashboard from "./components/ResultDashboard";
 
-import {
-  analyzeResumeFile,
-  analyzeResumeText,
-} from "./utils/api";
+import { analyzeResumeFile, analyzeResumeText } from "./utils/api";
 
 type TabType = "form" | "upload";
 
@@ -18,6 +15,28 @@ export default function ProfileResumeToolPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Refs for scroll targets
+  const quickFormRef = useRef<HTMLDivElement | null>(null);
+  const uploadRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToSection = (tab: TabType) => {
+    const target =
+      tab === "form" ? quickFormRef.current : uploadRef.current;
+
+    if (target) {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  };
+
+  const handleTabClick = (tab: TabType) => {
+    setActiveTab(tab);
+    // wait till browser has had a chance to render, then scroll
+    setTimeout(() => scrollToSection(tab), 50);
+  };
 
   /** Handle File Upload **/
   const handleFileUpload = async (file: File) => {
@@ -42,7 +61,6 @@ export default function ProfileResumeToolPage() {
     setResult(null);
 
     try {
-      // Convert form data to text format for API
       const textData = `
 Work Experience: ${formData.workExperience}
 Industry & Role: ${formData.industryRole}
@@ -67,26 +85,27 @@ GMAT/GRE: ${formData.gmatScore}
     setResult(null);
     setError(null);
     setActiveTab("form");
+    setTimeout(() => scrollToSection("form"), 50);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Section - IMPROVED with more top spacing */}
-      <div className="bg-gradient-to-br from-slate-800 to-blue-900 py-24 px-4 pt-32">
+      {/* BIG BLUE SLATE */}
+      <div className="bg-gradient-to-b from-slate-800 to-blue-900 px-4 pt-32 pb-52 md:pb-60 lg:pb-64">
         <div className="max-w-4xl mx-auto">
-          {/* Title - Professional and High Contrast */}
+          {/* Title */}
           <h1 className="text-4xl md:text-6xl font-bold text-white text-center mb-6">
             Review Your MBA Profile
           </h1>
           <p className="text-center text-blue-100 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-            Get an AI-powered analysis of your MBA readiness in minutes. Upload your
-            resume or answer a few questions.
+            Get an AI-powered analysis of your MBA readiness in minutes. Upload
+            your resume or answer a few questions.
           </p>
 
-          {/* Tabs - Improved styling */}
+          {/* Tabs */}
           <div className="flex justify-center gap-3 mb-6">
             <button
-              onClick={() => setActiveTab("form")}
+              onClick={() => handleTabClick("form")}
               className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
                 activeTab === "form"
                   ? "bg-white text-blue-900 shadow-xl scale-105"
@@ -110,7 +129,7 @@ GMAT/GRE: ${formData.gmatScore}
             </button>
 
             <button
-              onClick={() => setActiveTab("upload")}
+              onClick={() => handleTabClick("upload")}
               className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
                 activeTab === "upload"
                   ? "bg-white text-blue-900 shadow-xl scale-105"
@@ -134,7 +153,7 @@ GMAT/GRE: ${formData.gmatScore}
             </button>
           </div>
 
-          {/* AI Badge - Updated text and styling */}
+          {/* AI Badge */}
           <div className="flex justify-center">
             <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/15 backdrop-blur-md rounded-full text-white text-sm font-medium border border-white/20">
               <svg
@@ -159,15 +178,22 @@ GMAT/GRE: ${formData.gmatScore}
       {/* Main Content */}
       <div className="py-10 px-4">
         <div className="max-w-4xl mx-auto">
-          {/* Tab Content */}
+          {/* Both sections are always rendered; we just hide the inactive one */}
           {!loading && !result && (
-            <div className="mt-6">
-              {activeTab === "form" && (
+            <div className="mt-6 space-y-6">
+              <div
+                ref={quickFormRef}
+                className={activeTab === "form" ? "" : "hidden"}
+              >
                 <QuickForm onAnalyze={handleFormSubmit} />
-              )}
-              {activeTab === "upload" && (
+              </div>
+
+              <div
+                ref={uploadRef}
+                className={activeTab === "upload" ? "" : "hidden"}
+              >
                 <ResumeUploader onUpload={handleFileUpload} />
-              )}
+              </div>
             </div>
           )}
 
@@ -188,7 +214,10 @@ GMAT/GRE: ${formData.gmatScore}
           {/* Results Dashboard */}
           {result && !loading && (
             <div className="mt-10">
-              <ResultDashboard data={result} onNewAnalysis={handleNewAnalysis} />
+              <ResultDashboard
+                data={result}
+                onNewAnalysis={handleNewAnalysis}
+              />
             </div>
           )}
         </div>

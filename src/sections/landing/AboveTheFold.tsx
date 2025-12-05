@@ -6,18 +6,19 @@ import { motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 
 const PROFILE_ROUTE = '/mba/tools/profileresumetool';
-const ESSAY_ROUTE   = '/mba/tools/essaytool';
+const ESSAY_ROUTE = '/mba/tools/essaytool';
 
 type Chip = {
   src: string;
   label: string;
-  x: number;     // offset from hero center (px)
-  y: number;     // offset from hero center (px)
+  x: number; // offset from hero center (px)
+  y: number; // offset from hero center (px)
   size?: number; // optional per-chip icon size
   href?: string; // optional link
 };
 
 type BP = 'mobile' | 'tablet' | 'desktop';
+
 function useBreakpoint(): BP {
   const [bp, setBp] = useState<BP>('desktop');
   useEffect(() => {
@@ -82,7 +83,7 @@ function FloatingChip({
                 alt={chip.label}
                 width={s}
                 height={s}
-                className="object-contain rounded-lg drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)]"
+                className="object-contain rounded-lg drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)] scale-110 md:scale-125"
                 priority={false}
               />
             </Link>
@@ -92,7 +93,7 @@ function FloatingChip({
               alt={chip.label}
               width={s}
               height={s}
-              className="object-contain rounded-lg drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)] pointer-events-auto"
+              className="object-contain rounded-lg drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)] scale-110 md:scale-125 pointer-events-auto"
               priority={false}
             />
           )}
@@ -124,7 +125,7 @@ function CyclingThumb({
   y,
   images,
   start,
-  w = 300,   // bigger size
+  w = 300, // bigger size
   h = 180,
   periodMs = 4000,
   delay = 1.2,
@@ -200,30 +201,101 @@ export default function AboveTheFold() {
   const CHIPS: Chip[] = useMemo(() => {
     if (bp === 'mobile') {
       return [
-        { src: '/logo/profileicon.webp',   label: 'Profile Snapshot', x: -120, y: -190, size: 60, href: PROFILE_ROUTE },
-        { src: '/logo/essayicon.webp',     label: 'Essay Lab',        x:  120, y: -190, size: 78, href: ESSAY_ROUTE   },
-        { src: '/logo/interviewicon.webp', label: 'Interview Ready',  x: -120, y:  210, size: 76 },
-        { src: '/logo/Bschool.webp',       label: 'B-School Match',   x:  120, y:  240, size: 80 },
+        {
+          src: '/logo/profileicon.webp',
+          label: 'Profile Snapshot',
+          x: -120,
+          y: -190,
+          size: 88,
+          href: PROFILE_ROUTE,
+        },
+        {
+          src: '/logo/essayicon.webp',
+          label: 'Essay Lab',
+          x: 120,
+          y: -190,
+          size: 96,
+          href: ESSAY_ROUTE,
+        },
+        {
+          src: '/logo/interviewicon.webp',
+          label: 'Interview Ready',
+          x: -120,
+          y: 210,
+          size: 96,
+        },
+        {
+          src: '/logo/Bschool.webp',
+          label: 'B-School Match',
+          x: 120,
+          y: 240,
+          size: 96,
+        },
       ];
     }
     if (bp === 'tablet') {
       return [
-        { src: '/logo/profileicon.webp',   label: 'Profile Snapshot', x: -360, y: -170, href: PROFILE_ROUTE },
-        { src: '/logo/interviewicon.webp', label: 'Interview Ready',  x: -360, y:  210 },
-        { src: '/logo/essayicon.webp',     label: 'Essay Lab',        x:  300, y: -200, href: ESSAY_ROUTE   },
-        { src: '/logo/Bschool.webp',       label: 'B-School Match',   x:  320, y:  210 },
+        {
+          src: '/logo/profileicon.webp',
+          label: 'Profile Snapshot',
+          x: -360,
+          y: -170,
+          href: PROFILE_ROUTE,
+        },
+        {
+          src: '/logo/interviewicon.webp',
+          label: 'Interview Ready',
+          x: -360,
+          y: 210,
+        },
+        {
+          src: '/logo/essayicon.webp',
+          label: 'Essay Lab',
+          x: 300,
+          y: -200,
+          href: ESSAY_ROUTE,
+        },
+        {
+          src: '/logo/Bschool.webp',
+          label: 'B-School Match',
+          x: 320,
+          y: 210,
+        },
       ];
     }
     // desktop
     return [
-      { src: '/logo/profileicon.webp',   label: 'Profile Snapshot', x: -560, y: -200, href: PROFILE_ROUTE },
-      { src: '/logo/interviewicon.webp', label: 'Interview Ready',  x: -560, y:  260 },
-      { src: '/logo/essayicon.webp',     label: 'Essay Lab',        x:  420, y: -240, href: ESSAY_ROUTE   },
-      { src: '/logo/Bschool.webp',       label: 'B-School Match',   x:  440, y:  240 },
+      {
+        src: '/logo/profileicon.webp',
+        label: 'Profile Snapshot',
+        x: -560,
+        y: -200,
+        href: PROFILE_ROUTE,
+      },
+      {
+        src: '/logo/interviewicon.webp',
+        label: 'Interview Ready',
+        x: -560,
+        y: 260,
+      },
+      {
+        src: '/logo/essayicon.webp',
+        label: 'Essay Lab',
+        x: 420,
+        y: -240,
+        href: ESSAY_ROUTE,
+      },
+      {
+        src: '/logo/Bschool.webp',
+        label: 'B-School Match',
+        x: 440,
+        y: 240,
+      },
     ];
   }, [bp]);
 
-  const iconSize = bp === 'mobile' ? 60 : bp === 'tablet' ? 76 : 88;
+  // Bigger base icon sizes for each breakpoint
+  const iconSize = bp === 'mobile' ? 88 : bp === 'tablet' ? 104 : 124;
   const drift = bp === 'mobile' ? 12 : 48;
   const showTrail = bp !== 'mobile';
 
@@ -233,7 +305,10 @@ export default function AboveTheFold() {
   }, []);
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center text-center" style={{ overflow: 'hidden' }}>
+    <section
+      className="relative min-h-screen flex items-center justify-center text-center"
+      style={{ overflow: 'hidden' }}
+    >
       {/* Background */}
       <div
         className="absolute inset-0 bg-cover bg-center"
@@ -244,7 +319,13 @@ export default function AboveTheFold() {
           zIndex: 0,
         }}
       />
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45))', zIndex: 1 }} />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45))',
+          zIndex: 1,
+        }}
+      />
 
       {/* Center content (above everything) */}
       <div className="relative z-20 max-w-2xl px-6">
@@ -324,14 +405,14 @@ export default function AboveTheFold() {
           <>
             {/* Profile icon is at (-560, -200). Thumb: slightly further left & down from icon */}
             <CyclingThumb
-              x={-620}                 // moved farther from center
-              y={-200 + 150}          // just below icon
+              x={-620} // moved farther from center
+              y={-200 + 150} // just below icon
               images={[
                 '/landing/profiledemofinal.webp',
                 '/landing/profileresumetooltestimonial%20(1).webp',
               ]}
               start={start}
-              w={300}                 // bigger
+              w={300} // bigger
               h={180}
               periodMs={4000}
               delay={1.1}
@@ -339,14 +420,14 @@ export default function AboveTheFold() {
 
             {/* Essay icon is at (420, -240). Thumb: slightly further right & down from icon */}
             <CyclingThumb
-              x={480}                 // moved farther from center
-              y={-240 + 160}          // just below icon
+              x={480} // moved farther from center
+              y={-240 + 160} // just below icon
               images={[
                 '/landing/profiledemofinal.webp',
                 '/landing/profileresumetooltestimonial%20(1).webp',
               ]}
               start={start}
-              w={300}                 // bigger
+              w={300} // bigger
               h={180}
               periodMs={4000}
               delay={1.25}
