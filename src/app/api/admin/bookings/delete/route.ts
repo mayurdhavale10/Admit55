@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteBooking } from "@src/lib/models/SessionBooking";
+import { deleteBooking } from "@src/models/bookings/SessionBooking";
 
 export async function POST(req: Request) {
   try {

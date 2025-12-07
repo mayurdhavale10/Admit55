@@ -1,7 +1,7 @@
 // src/app/api/admin/users/route.ts
 import { NextResponse } from "next/server";
 import { getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
-import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
+import type { LoggedInUser } from "@src/models/auth/UserLoggedIn";
 
 // 🚨 TEMP: no admin check – always allow
 // When you’re ready, wire this into your real auth.

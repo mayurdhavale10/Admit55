@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 
 import { getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
-import { getBookingsForUser } from "@src/lib/models/SessionBooking";
+import { getBookingsForUser } from "@src/models/bookings/SessionBooking";
 
 export async function GET() {
   try {

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { getSessionBookingsCollection } from "@src/lib/db/loggedinuser/connectDB";
-import type { SessionBooking } from "@src/lib/models/SessionBooking";
+import type { SessionBooking } from "@src/models/bookings/SessionBooking";
 
 export async function GET(req: Request) {
   try {

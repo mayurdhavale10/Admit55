@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import { createBooking } from "@src/lib/models/SessionBooking";
+import { createBooking } from "@src/models/bookings/SessionBooking";
 
 export async function POST(req: Request) {
   try {

@@ -3,7 +3,7 @@ import NextAuth, { type AuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
 import { connectDB } from "@src/lib/db/loggedinuser/connectDB";
-import { upsertLoggedInUser } from "@src/lib/models/UserLoggedIn";
+import { upsertLoggedInUser } from "@src/models/auth/UserLoggedIn";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 

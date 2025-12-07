@@ -1,7 +1,7 @@
 // src/app/api/admin/users/export/route.ts
 import { NextResponse } from "next/server";
 import { getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
-import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
+import type { LoggedInUser } from "@src/models/auth/UserLoggedIn";
 
 // 🚨 TEMP: disable admin check
 async function ensureAdmin(_req: Request) {

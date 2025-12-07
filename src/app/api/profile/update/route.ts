@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { connectDB, getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
-import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
+import type { LoggedInUser } from "@src/models/auth/UserLoggedIn";
 
 export async function POST(req: Request) {
   try {

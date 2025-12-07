@@ -1,20 +1,40 @@
 "use client";
 
+import LeftSidebar from "./components/LeftSidebar";
+import RightSidebar from "./components/RightSidebar";
+import PostFeed from "./components/PostFeed";
+
 export default function CommunityToolPage() {
   return (
-    <main className="max-w-3xl mx-auto p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Community & Network</h1>
-      <p className="text-gray-700">
-        Join focused peer groups (e.g., Entrepreneurs, Part-Time Applicants) and share targeted advice.
-      </p>
-      <ul className="list-disc pl-5 space-y-2 text-gray-700">
-        <li>Topic-based rooms</li>
-        <li>AMA sessions with mentors</li>
-        <li>Curated resources & success stories</li>
-      </ul>
-      <div className="mt-4 text-sm text-gray-500">
-        Minimal UI placeholder — real-time chat/invites to be added later.
+    <div className="relative overflow-x-hidden h-screen flex flex-col">
+      {/* 🔵 BLUE SLATE BEHIND NAVBAR */}
+      <div className="fixed top-0 left-0 right-0 h-[84px] bg-[#002b5b] z-40" />
+
+      {/* MAIN PAGE WRAPPER */}
+      <div className="pt-[110px] px-4 md:px-8 flex-1 overflow-hidden">
+        {/* PAGE TITLE */}
+        <h1 className="text-3xl font-bold text-[#002b5b] mb-6">
+          MBA Community
+        </h1>
+
+        {/* 3–COLUMN LAYOUT */}
+        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr_280px] gap-6 h-[calc(100vh-220px)]">
+          {/* LEFT SIDEBAR - SCROLLABLE COLUMN */}
+          <div className="hidden md:block overflow-y-auto">
+            <LeftSidebar />
+          </div>
+
+          {/* CENTER FEED - SCROLLABLE ONLY */}
+          <div className="overflow-y-auto overflow-x-hidden">
+            <PostFeed />
+          </div>
+
+          {/* RIGHT SIDEBAR - SCROLLABLE COLUMN */}
+          <div className="hidden md:block overflow-y-auto">
+            <RightSidebar />
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

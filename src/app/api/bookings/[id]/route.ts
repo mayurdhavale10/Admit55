@@ -1,6 +1,6 @@
 // src/app/api/admin/bookings/[id]/route.ts
 import { NextResponse } from "next/server";
-import { updateBooking, deleteBooking } from "@src/lib/models/SessionBooking";
+import { updateBooking, deleteBooking } from "@src/models/bookings/SessionBooking";
 
 type RouteContext = {
   params: { id: string };

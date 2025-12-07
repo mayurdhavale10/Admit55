@@ -7,8 +7,8 @@ import {
   connectDB,
   getLoggedInUsersCollection,
 } from "@src/lib/db/loggedinuser/connectDB";
-import type { LoggedInUser } from "@src/lib/models/UserLoggedIn";
-import { getBookingsForUser } from "@src/lib/models/SessionBooking";
+import type { LoggedInUser } from "@src/models/auth/UserLoggedIn";
+import { getBookingsForUser } from "@src/models/bookings/SessionBooking";
 
 import ProfileSummaryCard from "./components/ProfileSummaryCard";
 import ProfileDetailsPanel from "./components/ProfileDetailsPanel";
