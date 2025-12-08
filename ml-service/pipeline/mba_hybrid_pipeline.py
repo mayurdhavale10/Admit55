@@ -1,22 +1,7 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v5.1.0 (Groq 2-Call)
--------------------------------------------
-Architecture:
-
-- Groq ONLY (no Gemini / OpenAI).
-- Call 1: Structured JSON analysis.
-- Call 2: Narrative enrichment (Aviral-level detail).
-
-ENV REQUIRED:
-  GROQ_API_KEY        = your Groq key
-  GROQ_MODEL          = llama-3.3-70b-versatile   (or any Groq chat model)
-
-Exports used by FastAPI:
-  - PDF_SUPPORT
-  - extract_text_from_pdf(pdf_path: str) -> str
-  - run_pipeline(resume_text: str, include_improvement: bool = False) -> dict
-  - improve_resume(resume_text: str) -> str
+mba_groq_detailed_pipeline.py v5.2.0
+Enhanced Groq pipeline with multi-call architecture for detailed, specific outputs
 """
 
 import os
@@ -25,653 +10,537 @@ import time
 import json
 import re
 from typing import Any, Dict, List, Optional
-
 from dotenv import load_dotenv
+import requests
 
 load_dotenv()
 
-import requests
-
-# ============================================================
-# PDF SUPPORT
-# ============================================================
+# PDF Support
 try:
     import PyPDF2
     PDF_SUPPORT = True
-    print("[PDF] PyPDF2 loaded successfully", file=sys.stderr)
 except ImportError:
     PDF_SUPPORT = False
-    print("[PDF] PyPDF2 not installed. PDF support disabled. Run: pip install PyPDF2", file=sys.stderr)
 
-
-def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extract text from PDF file using PyPDF2."""
-    if not PDF_SUPPORT:
-        raise RuntimeError("PyPDF2 not installed. Run: pip install PyPDF2")
-
-    print(f"[PDF] Extracting text from: {pdf_path}", file=sys.stderr)
-    try:
-        with open(pdf_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            text = ""
-            num_pages = len(reader.pages)
-            print(f"[PDF] Processing {num_pages} pages...", file=sys.stderr)
-
-            for i, page in enumerate(reader.pages, 1):
-                page_text = page.extract_text() or ""
-                text += page_text + "\n\n"
-                print(f"[PDF] Page {i}/{num_pages} extracted", file=sys.stderr)
-
-        text = text.strip()
-        if not text:
-            raise RuntimeError("No text extracted from PDF (might be scanned images).")
-
-        print(f"[PDF] [OK] Extracted {len(text)} characters total", file=sys.stderr)
-        return text
-    except Exception as e:
-        print(f"[PDF] [FAIL] Extraction error: {e}", file=sys.stderr)
-        raise RuntimeError(f"Failed to extract PDF: {e}")
-
-
-# ============================================================
-# ENV & CONFIG (GROQ ONLY)
-# ============================================================
+# Configuration
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-print("[CONFIG] Groq configuration loaded:", file=sys.stderr)
-print(f"  GROQ_MODEL: {GROQ_MODEL}", file=sys.stderr)
+print(f"[CONFIG] Using Groq model: {GROQ_MODEL}", file=sys.stderr)
 
 
 # ============================================================
-# JSON UTILS
+# ENTITY EXTRACTION (for specificity validation)
 # ============================================================
-def normalize_scores_to_0_10(scores_dict: Dict[str, Any]) -> Dict[str, float]:
-    """Normalize scores to 0–10. If >10, assume 0–100 and scale down."""
-    out: Dict[str, float] = {}
-    for k, v in scores_dict.items():
-        try:
-            n = float(v)
-        except Exception:
-            n = 5.0
-
-        if n > 10:
-            n = n / 10.0
-        n = max(0.0, min(10.0, n))
-        out[k] = round(n, 2)
-    return out
-
-
-def validate_scores(scores: Dict[str, Any]) -> bool:
-    """Ensure we have all 8 keys and each is 0–10."""
-    required_keys = [
-        "academics",
-        "test_readiness",
-        "leadership",
-        "extracurriculars",
-        "international",
-        "work_impact",
-        "impact",
-        "industry",
+def extract_resume_entities(resume_text: str) -> Dict[str, set]:
+    """Extract key entities from resume for validation."""
+    text = resume_text.lower()
+    
+    entities = {
+        'companies': set(),
+        'numbers': set(),
+        'percentages': set(),
+        'currencies': set(),
+        'schools': set(),
+        'roles': set()
+    }
+    
+    # Extract numbers and metrics
+    entities['numbers'] = set(re.findall(r'\b\d+\b', text))
+    entities['percentages'] = set(re.findall(r'\d+%', text))
+    entities['currencies'] = set(re.findall(r'(?:rs\.?|inr|usd|\$|₹)\s*\d+', text))
+    
+    # Extract company names (common patterns)
+    company_keywords = ['pvt', 'ltd', 'inc', 'corp', 'llc', 'technologies', 'solutions', 'services']
+    words = text.split()
+    for i, word in enumerate(words):
+        if any(kw in word for kw in company_keywords) and i > 0:
+            entities['companies'].add(words[i-1])
+    
+    # Common roles
+    role_patterns = [
+        r'\b(manager|director|analyst|engineer|consultant|lead|head|vp|ceo|cto|cfo|coordinator|associate)\b',
+        r'\b(senior|junior|staff|principal|chief)\b'
     ]
+    for pattern in role_patterns:
+        entities['roles'].update(re.findall(pattern, text))
+    
+    print(f"[entities] Found: {len(entities['companies'])} companies, "
+          f"{len(entities['numbers'])} numbers, {len(entities['roles'])} roles", 
+          file=sys.stderr)
+    
+    return entities
 
-    if not all(k in scores for k in required_keys):
-        missing = set(required_keys) - set(scores.keys())
-        print(f"[validate] Missing score keys: {missing}", file=sys.stderr)
+
+def is_specific(text: str, resume_entities: Dict[str, set], min_score: int = 2) -> bool:
+    """Check if text references actual resume content."""
+    if not text:
         return False
-
-    for k in required_keys:
-        v = scores.get(k)
-        if not isinstance(v, (int, float)):
-            print(f"[validate] Non-numeric score for {k}: {v}", file=sys.stderr)
-            return False
-        if v < 0 or v > 10:
-            print(f"[validate] Score out of range for {k}: {v}", file=sys.stderr)
-            return False
-
-    return True
-
-
-# ============================================================
-# MASTER PROMPTS
-# ============================================================
-MASTER_JSON_PROMPT = """
-You are an elite MBA admissions evaluator.
-
-Given the resume below, produce ONE JSON object with the following exact structure (no extra keys):
-
-{
-  "scores": {
-    "academics": 0-10,
-    "test_readiness": 0-10,
-    "leadership": 0-10,
-    "extracurriculars": 0-10,
-    "international": 0-10,
-    "work_impact": 0-10,
-    "impact": 0-10,
-    "industry": 0-10
-  },
-  "strengths": [
-    {
-      "title": "string",
-      "summary": "1-3 sentences, highly specific to this candidate",
-      "score": 0-100
-    }
-  ],
-  "improvements": [
-    {
-      "area": "string",
-      "suggestion": "1-3 sentences, concrete and specific action",
-      "score": 0-100
-    }
-  ],
-  "recommendations": [
-    {
-      "id": "string",
-      "type": "skill | test | extracurricular | career | resume | networking | other",
-      "area": "string",
-      "priority": "high | medium | low",
-      "action": "1-3 sentences, very specific action steps",
-      "estimated_impact": "1-2 sentences, why this matters for MBA admissions",
-      "score": 0-100
-    }
-  ],
-  "improved_resume": "string"
-}
-
-SCORING:
-- All scores must be numeric.
-- "scores" must be 0–10.
-- Other "score" fields (strengths/improvements/recommendations) must be 0–100.
-
-CONTENT RULES:
-1. Be VERY SPECIFIC to this person:
-   - Use company names, role titles, industries, metrics and numbers from the resume.
-   - Avoid generic advice like "improve leadership" without context.
-2. "strengths": 3–6 items, each with a strong title + 1–3 sentence summary.
-3. "improvements": 3–6 items with clear, actionable suggestions.
-4. "recommendations": 3–8 items, prioritized, with clear actions and impact.
-5. "improved_resume":
-   - Re-write the resume for MBA applications.
-   - Keep all facts consistent (do NOT invent achievements or dates).
-   - Use bullet points with strong impact verbs and metrics where available.
-   - Keep a clean, ATS-friendly text format.
-
-VERY IMPORTANT:
-- If the resume already mentions a strong GMAT (>=700) or GRE (>=325) or MBA/PGP from IIM/ISB/top school,
-  do NOT suggest "take GMAT/GRE" as a recommendation.
-- Output MUST be valid JSON with EXACTLY those top-level keys:
-  "scores", "strengths", "improvements", "recommendations", "improved_resume".
-- DO NOT wrap the JSON in markdown, DO NOT add commentary.
-
-Resume:
---------------------
-{resume}
---------------------
-Return ONLY the JSON object.
-"""
-
-NARRATIVE_PROMPT_TEMPLATE = """
-You are an elite MBA admissions consultant.
-
-You are given:
-1) The candidate's original resume.
-2) A JSON analysis of their profile (scores, strengths, improvements, recommendations).
-
-Using BOTH, write a detailed, highly specific report in THREE sections:
-
-### Top Strengths
-- 3–6 bullet points.
-- Each bullet 2–3 lines.
-- Explicitly reference company names, roles, industries, and numbers from the resume.
-- Make each bullet feel like a sharp, admissions-ready comment.
-
-### Improvement Areas
-- 3–6 bullet points.
-- Each bullet 2–3 lines.
-- Explain what is missing or weak and how to fix it with concrete steps.
-
-### Actionable Recommendations
-- 4–8 bullet points.
-- Use tags like [HIGH], [MEDIUM], [LOW] at the start of each bullet.
-- Each bullet 2–3 lines.
-- Explain exactly what to do and why it matters for MBA admissions (link to their profile, not generic advice).
-
-Rules:
-- Be very specific to THIS candidate.
-- Never use generic advice without linking to their actual experience.
-- Do NOT invent achievements. Only use what appears in the resume or what is a reasonable extension of it.
-- Return PLAIN MARKDOWN TEXT ONLY. No JSON.
-
-Candidate Resume:
---------------------
-{resume}
---------------------
-
-Analysis JSON:
---------------------
-{analysis_json}
---------------------
-"""
+    
+    text_lower = text.lower()
+    score = 0
+    
+    # Check for numbers/percentages/currencies
+    if any(num in text_lower for num in resume_entities.get('numbers', [])):
+        score += 2
+    if any(pct in text_lower for pct in resume_entities.get('percentages', [])):
+        score += 2
+    if any(curr in text_lower for curr in resume_entities.get('currencies', [])):
+        score += 2
+    
+    # Check for companies/roles
+    if any(company in text_lower for company in resume_entities.get('companies', [])):
+        score += 3
+    if any(role in text_lower for role in resume_entities.get('roles', [])):
+        score += 1
+    
+    return score >= min_score
 
 
 # ============================================================
-# GROQ CALLS
+# GROQ API CALLS
 # ============================================================
 class GroqError(Exception):
     pass
 
 
-def _groq_post(payload: Dict[str, Any], timeout: int = 60) -> Dict[str, Any]:
+def call_groq(
+    prompt: str, 
+    max_tokens: int = 4096, 
+    temperature: float = 0.2,
+    response_format: Optional[str] = None,
+    timeout: int = 60
+) -> str:
+    """Call Groq API with error handling."""
     if not GROQ_API_KEY:
         raise GroqError("Missing GROQ_API_KEY")
-
+    
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": int(max_tokens),
+        "temperature": float(temperature),
+    }
+    
+    if response_format == "json":
+        payload["response_format"] = {"type": "json_object"}
+    
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
-
+    
     try:
-        print(f"[groq] Calling model={payload.get('model')} max_tokens={payload.get('max_tokens')}", file=sys.stderr)
+        print(f"[groq] Calling (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
         r = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=timeout)
-        status = r.status_code
-
-        if status != 200:
-            text = r.text[:500]
-            if status == 429:
-                raise GroqError(f"Rate limit (429): {text}")
-            elif 500 <= status < 600:
-                raise GroqError(f"Server error {status}: {text}")
-            else:
-                raise GroqError(f"HTTP {status}: {text}")
-
+        
+        if r.status_code != 200:
+            raise GroqError(f"HTTP {r.status_code}: {r.text[:500]}")
+        
         data = r.json()
-        return data
+        content = data["choices"][0]["message"]["content"]
+        
+        if not content:
+            raise GroqError("Empty response from Groq")
+        
+        print(f"[groq] ✓ Response: {len(content)} chars", file=sys.stderr)
+        return content.strip()
+        
     except requests.exceptions.Timeout:
-        raise GroqError(f"Request timed out after {timeout}s")
-    except requests.exceptions.RequestException as e:
+        raise GroqError(f"Timeout after {timeout}s")
+    except Exception as e:
         raise GroqError(f"Request failed: {e}")
 
 
-def call_groq_json(prompt: str, max_tokens: int = 4096, temperature: float = 0.2, timeout: int = 60) -> Dict[str, Any]:
-    """
-    Call Groq expecting STRICT JSON (uses response_format=json_object).
-    Returns parsed JSON dict.
-    """
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "max_tokens": int(max_tokens),
-        "temperature": float(temperature),
-        "response_format": {"type": "json_object"},
-    }
-
-    data = _groq_post(payload, timeout=timeout)
-    try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError) as e:
-        raise GroqError(f"Unexpected response structure: {data}") from e
-
-    if not content:
-        raise GroqError("Empty JSON content from Groq")
-
-    content = content.strip()
-    print(f"[groq-json] Raw length={len(content)} chars", file=sys.stderr)
-
-    # It SHOULD be pure JSON because of response_format=json_object
-    try:
-        parsed = json.loads(content)
-        return parsed
-    except json.JSONDecodeError as e:
-        print(f"[groq-json] JSON decode failed, trying minor cleanup: {e}", file=sys.stderr)
-        # Basic cleanup fallback
-        cleaned = content.replace("```json", "").replace("```", "").strip()
-        return json.loads(cleaned)
-
-
-def call_groq_text(prompt: str, max_tokens: int = 4096, temperature: float = 0.4, timeout: int = 60) -> str:
-    """
-    Call Groq for free-form text (no JSON enforcement).
-    """
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "max_tokens": int(max_tokens),
-        "temperature": float(temperature),
-    }
-
-    data = _groq_post(payload, timeout=timeout)
-    try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError) as e:
-        raise GroqError(f"Unexpected response structure (text): {data}") from e
-
-    content = (content or "").strip()
-    if not content:
-        raise GroqError("Empty text response from Groq")
-
-    print(f"[groq-text] Response length={len(content)} chars", file=sys.stderr)
-    return content
-
-
 # ============================================================
-# MAIN PIPELINE (2-CALL)
+# PROMPTS (Specialized for each call)
 # ============================================================
-def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[str, Any]:
-    """
-    Execute the full MBA analysis with TWO Groq calls:
 
-    1) JSON analysis (scores, strengths, improvements, recommendations, improved_resume)
-    2) Narrative enrichment (detailed strengths/improvements/recommendations) as 'narrative' field.
-
-    Returns dict used by FastAPI /analyze endpoint.
-    """
-    print("\n" + "=" * 60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v5.1.0 (Groq 2-call)", file=sys.stderr)
-    print(f"[LLM] Using Groq model: {GROQ_MODEL}", file=sys.stderr)
-    print("=" * 60 + "\n", file=sys.stderr)
-
-    cleaned_resume = (resume_text or "").strip()
-    if len(cleaned_resume) > 50000:
-        print(f"[pipeline] Truncating resume from {len(cleaned_resume)} to 50000 chars", file=sys.stderr)
-        cleaned_resume = cleaned_resume[:50000]
-
-    # ---------------------------
-    # Call 1: JSON analysis
-    # ---------------------------
-    json_prompt = MASTER_JSON_PROMPT.replace("{resume}", cleaned_resume)
-
-    try:
-        analysis_raw = call_groq_json(json_prompt, max_tokens=4096, temperature=0.2)
-        print("[pipeline] ✓ JSON analysis call succeeded", file=sys.stderr)
-    except Exception as e:
-        print(f"[pipeline] ✗ JSON analysis failed: {e}", file=sys.stderr)
-        # Hard fallback
-        return {
-            "original_resume": cleaned_resume,
-            "scores": {
-                "academics": 5.0,
-                "test_readiness": 5.0,
-                "leadership": 5.0,
-                "extracurriculars": 5.0,
-                "international": 5.0,
-                "work_impact": 5.0,
-                "impact": 5.0,
-                "industry": 5.0,
-            },
-            "strengths": [],
-            "improvements": [],
-            "recommendations": [],
-            "improved_resume": "[Pipeline failed – returning original resume]\n\n" + cleaned_resume,
-            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "pipeline_version": "5.1.0-groq-2call-error-json",
-            "error": str(e),
-        }
-
-    # Extract + normalize
-    scores = analysis_raw.get("scores", {}) or {}
-    strengths = analysis_raw.get("strengths", []) or []
-    improvements = analysis_raw.get("improvements", []) or []
-    recommendations = analysis_raw.get("recommendations", []) or []
-    improved_resume = analysis_raw.get("improved_resume", "") or ""
-
-    # Normalize scores
-    scores = normalize_scores_to_0_10(scores)
-    if not validate_scores(scores):
-        print("[pipeline] ⚠ Invalid score structure; falling back to 5.0s", file=sys.stderr)
-        scores = {
-            "academics": 5.0,
-            "test_readiness": 5.0,
-            "leadership": 5.0,
-            "extracurriculars": 5.0,
-            "international": 5.0,
-            "work_impact": 5.0,
-            "impact": 5.0,
-            "industry": 5.0,
-        }
-
-    # Normalize strengths
-    norm_strengths: List[Dict[str, Any]] = []
-    for s in strengths:
-        title = s.get("title") or "Strength"
-        summary = s.get("summary") or ""
-        sc = s.get("score", 70)
-        try:
-            sc = float(sc)
-        except Exception:
-            sc = 70.0
-        norm_strengths.append(
-            {
-                "title": title,
-                "summary": summary,
-                "score": int(max(0, min(100, round(sc)))),
-            }
-        )
-
-    # Normalize improvements
-    norm_improvements: List[Dict[str, Any]] = []
-    for imp in improvements:
-        area = imp.get("area") or "Area"
-        suggestion = imp.get("suggestion") or ""
-        sc = imp.get("score", 50)
-        try:
-            sc = float(sc)
-        except Exception:
-            sc = 50.0
-        norm_improvements.append(
-            {
-                "area": area,
-                "suggestion": suggestion,
-                "score": int(max(0, min(100, round(sc)))),
-            }
-        )
-
-    # Normalize recommendations
-    norm_recs: List[Dict[str, Any]] = []
-    for i, rec in enumerate(recommendations):
-        sc = rec.get("score", None)
-        sc_norm: Optional[int] = None
-        if sc is not None:
-            try:
-                sc_norm = int(max(0, min(100, round(float(sc)))))
-            except Exception:
-                sc_norm = None
-
-        norm_recs.append(
-            {
-                "id": rec.get("id") or f"rec_{i+1}",
-                "type": rec.get("type") or "other",
-                "area": rec.get("area") or "General",
-                "priority": rec.get("priority") or "medium",
-                "action": rec.get("action") or "",
-                "estimated_impact": rec.get("estimated_impact") or "",
-                "score": sc_norm,
-            }
-        )
-
-    improved_resume = improved_resume.strip()
-    if not improved_resume:
-        improved_resume = "[No improved resume generated]\n\n" + cleaned_resume
-
-    result: Dict[str, Any] = {
-        "original_resume": cleaned_resume,
-        "scores": scores,
-        "strengths": norm_strengths,
-        "improvements": norm_improvements,
-        "recommendations": norm_recs,
-        "improved_resume": improved_resume,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "5.1.0-groq-2call",
-    }
-
-    # ---------------------------
-    # Call 2: Narrative enrichment
-    # ---------------------------
-    try:
-        analysis_json_for_prompt = json.dumps(
-            {
-                "scores": scores,
-                "strengths": norm_strengths,
-                "improvements": norm_improvements,
-                "recommendations": norm_recs,
-            },
-            ensure_ascii=False,
-        )
-        narrative_prompt = NARRATIVE_PROMPT_TEMPLATE.format(
-            resume=cleaned_resume,
-            analysis_json=analysis_json_for_prompt,
-        )
-
-        narrative_text = call_groq_text(
-            narrative_prompt,
-            max_tokens=2048,
-            temperature=0.4,
-        )
-
-        # Optional: split into sections using headings
-        strengths_text = ""
-        improvements_text = ""
-        recommendations_text = ""
-        current_section = None
-        lines = narrative_text.splitlines()
-        buf: List[str] = []
-
-        def flush_buffer(section_name: Optional[str]):
-            nonlocal strengths_text, improvements_text, recommendations_text, buf
-            joined = "\n".join(buf).strip()
-            if not section_name or not joined:
-                return
-            if section_name == "strengths":
-                strengths_text = joined
-            elif section_name == "improvements":
-                improvements_text = joined
-            elif section_name == "recommendations":
-                recommendations_text = joined
-            buf = []
-
-        for line in lines:
-            stripped = line.strip()
-            lower = stripped.lower()
-            if lower.startswith("### top strengths"):
-                flush_buffer(current_section)
-                current_section = "strengths"
-                buf.append(stripped)
-            elif lower.startswith("### improvement areas"):
-                flush_buffer(current_section)
-                current_section = "improvements"
-                buf.append(stripped)
-            elif lower.startswith("### actionable recommendations"):
-                flush_buffer(current_section)
-                current_section = "recommendations"
-                buf.append(stripped)
-            else:
-                buf.append(line)
-
-        flush_buffer(current_section)
-
-        result["narrative"] = {
-            "raw": narrative_text,
-            "strengths": strengths_text or narrative_text,
-            "improvements": improvements_text or "",
-            "recommendations": recommendations_text or "",
-        }
-
-        print("[pipeline] ✓ Narrative enrichment call succeeded", file=sys.stderr)
-    except Exception as e:
-        print(f"[pipeline] ⚠ Narrative enrichment failed: {e}", file=sys.stderr)
-        result["narrative_error"] = str(e)
-
-    print("[pipeline] ✓ Full 2-call pipeline completed", file=sys.stderr)
-    return result
-
-
-# ============================================================
-# /rewrite SUPPORT
-# ============================================================
-def improve_resume(resume_text: str) -> str:
-    """
-    Improve resume text using Groq (plain text, no JSON).
-    Used by FastAPI /rewrite endpoint.
-    """
-    cleaned = (resume_text or "").strip()
-    if len(cleaned) > 50000:
-        print(f"[improve_resume] Truncating from {len(cleaned)} to 50000 chars", file=sys.stderr)
-        cleaned = cleaned[:50000]
-
-    prompt = f"""
-You are an expert MBA resume editor.
-
-Rewrite the following resume into a sharper, MBA-ready resume:
-- Keep all facts consistent (no invention).
-- Use strong action verbs.
-- Use bullet points.
-- Add metrics and impact where already present, but do NOT fabricate numbers.
-- Make it ATS-friendly and clean.
-
-Return ONLY the improved resume text.
+SCORING_PROMPT = """You are an MBA admissions expert. Analyze this resume and score it on 8 dimensions (0-10 scale).
 
 Resume:
---------------------
-{cleaned}
---------------------
-"""
+{resume}
 
-    print(f"[improve_resume] Calling Groq for {len(cleaned)} characters", file=sys.stderr)
-    raw = call_groq_text(prompt, max_tokens=4096, temperature=0.3)
-    print(f"[improve_resume] Raw output (first 200 chars): {raw[:200]}...", file=sys.stderr)
-    return raw.strip()
+Return ONLY valid JSON with this exact structure:
+{{
+  "academics": <0-10>,
+  "test_readiness": <0-10>,
+  "leadership": <0-10>,
+  "extracurriculars": <0-10>,
+  "international": <0-10>,
+  "work_impact": <0-10>,
+  "impact": <0-10>,
+  "industry": <0-10>
+}}
+
+Scoring guidelines:
+- academics: GPA, coursework, academic honors
+- test_readiness: Quantitative skills, analytical capability
+- leadership: Team management, initiative ownership
+- extracurriculars: Non-work activities, volunteering
+- international: Global experience, languages
+- work_impact: Career progression, promotions
+- impact: Measurable business outcomes
+- industry: Domain expertise, sector experience
+
+Return ONLY the JSON, no explanation."""
+
+
+STRENGTHS_PROMPT = """You are an MBA admissions expert analyzing a resume.
+
+CRITICAL REQUIREMENT: You MUST reference SPECIFIC details from the resume in EVERY point:
+- Company names (e.g., "at Google", "while at Goldman Sachs")
+- Exact metrics (e.g., "increased revenue by 40%", "managed $2M budget")
+- Project names, team sizes, specific technologies
+- Role titles, time periods, locations
+
+Resume:
+{resume}
+
+Extract 4-6 TOP STRENGTHS. For each strength:
+1. title: Specific 5-8 word headline (e.g., "Exceptional Revenue Growth at Amazon Web Services")
+2. summary: 2-3 sentences with SPECIFIC facts/numbers/companies from resume
+3. score: 0-100 rating
+
+BAD EXAMPLE (too generic):
+- "Strong leadership skills demonstrated through various initiatives"
+
+GOOD EXAMPLE (specific):
+- "Led 15-person engineering team at Google to ship YouTube feature used by 2M+ users, resulting in 40% increase in user engagement and promotion to Senior Manager within 18 months"
+
+Return JSON:
+{{
+  "strengths": [
+    {{"title": "...", "summary": "...", "score": 85}}
+  ]
+}}
+
+If you cannot find specific details, YOU MUST say so rather than being generic."""
+
+
+IMPROVEMENTS_PROMPT = """You are an MBA admissions expert analyzing gaps in this candidate's profile.
+
+Resume:
+{resume}
+
+Current Scores:
+{scores}
+
+Identify 4-6 IMPROVEMENT AREAS. For each:
+1. area: Short label (e.g., "International Experience")
+2. suggestion: 2-3 sentences with SPECIFIC, ACTIONABLE advice TAILORED to their background
+   - Reference their actual industry/role/company
+   - Provide concrete next steps
+3. score: 0-100 current rating
+
+CRITICAL: Every suggestion must be SPECIFIC to their profile.
+
+BAD EXAMPLE:
+- "Improve leadership skills by taking on more responsibilities"
+
+GOOD EXAMPLE:
+- "Given your 5 years in fintech at JPMorgan, seek rotational assignment in Asia-Pacific markets to gain international exposure. Target Hong Kong or Singapore offices where your derivatives expertise would be valuable."
+
+Return JSON:
+{{
+  "improvements": [
+    {{"area": "...", "suggestion": "...", "score": 60}}
+  ]
+}}"""
+
+
+RECOMMENDATIONS_PROMPT = """You are an MBA admissions strategist creating an action plan for this candidate.
+
+Resume:
+{resume}
+
+Scores:
+{scores}
+
+Strengths:
+{strengths}
+
+Improvements:
+{improvements}
+
+Create 5-8 PRIORITIZED RECOMMENDATIONS. Each must:
+1. Be HIGHLY SPECIFIC to their background (reference companies, industries, roles)
+2. Include concrete action steps
+3. Explain WHY it matters for MBA admissions
+4. Be categorized by priority (high/medium/low)
+
+Format:
+{{
+  "recommendations": [
+    {{
+      "id": "rec_1",
+      "type": "skill|test|extracurricular|career|resume|networking|other",
+      "area": "Short label",
+      "priority": "high|medium|low",
+      "action": "2-3 sentences with SPECIFIC steps tailored to their profile",
+      "estimated_impact": "1-2 sentences explaining the MBA admissions benefit",
+      "score": 70
+    }}
+  ]
+}}
+
+BAD EXAMPLE:
+- "Improve your resume by adding more metrics"
+
+GOOD EXAMPLE:
+- "Leverage your 40% revenue growth achievement at Amazon in your essays. Frame it as: 'How did you identify the growth opportunity? What obstacles did you overcome? How did you influence cross-functional teams?' This demonstrates strategic thinking AND leadership—key MBA traits."
+
+IMPORTANT: If resume shows GMAT ≥700 or GRE ≥325 or MBA from IIM/ISB, do NOT recommend test prep."""
+
+
+NARRATIVE_PROMPT = """You are an MBA admissions consultant writing a detailed profile assessment.
+
+Resume:
+{resume}
+
+Analysis:
+{analysis}
+
+Write a comprehensive assessment in THREE sections using this EXACT format:
+
+### Top Strengths
+[4-6 bullet points, each 2-3 sentences, with SPECIFIC company names, metrics, and achievements]
+
+### Improvement Areas  
+[4-6 bullet points, each 2-3 sentences, with SPECIFIC actionable advice tailored to their background]
+
+### Actionable Recommendations
+[5-8 bullet points with [HIGH]/[MEDIUM]/[LOW] tags, each 2-3 sentences, with SPECIFIC steps and MBA relevance]
+
+CRITICAL RULES:
+1. EVERY bullet must reference specific details from resume (companies, numbers, roles)
+2. Zero generic advice - everything must be tailored
+3. Use the candidate's actual achievements to illustrate points
+4. Make it read like you personally reviewed their resume in detail
+
+Return ONLY the markdown text, no JSON."""
 
 
 # ============================================================
-# CLI MAIN (for local testing)
+# PIPELINE STEPS (Multi-call with validation)
 # ============================================================
+
+def score_resume(resume_text: str, entities: Dict) -> Dict[str, float]:
+    """Step 1: Score the resume."""
+    prompt = SCORING_PROMPT.format(resume=resume_text)
+    
+    try:
+        raw = call_groq(prompt, max_tokens=500, temperature=0.1, response_format="json")
+        scores = json.loads(raw)
+        
+        # Normalize to 0-10
+        normalized = {}
+        for k, v in scores.items():
+            n = float(v)
+            if n > 10:
+                n = n / 10.0
+            normalized[k] = round(max(0.0, min(10.0, n)), 2)
+        
+        print(f"[scoring] ✓ Scored: {normalized}", file=sys.stderr)
+        return normalized
+        
+    except Exception as e:
+        print(f"[scoring] ✗ Failed: {e}", file=sys.stderr)
+        return {
+            "academics": 5.0, "test_readiness": 5.0, "leadership": 5.0,
+            "extracurriculars": 5.0, "international": 5.0, "work_impact": 5.0,
+            "impact": 5.0, "industry": 5.0
+        }
+
+
+def extract_strengths(resume_text: str, entities: Dict, max_retries: int = 2) -> List[Dict]:
+    """Step 2: Extract strengths with retry if too generic."""
+    prompt = STRENGTHS_PROMPT.format(resume=resume_text)
+    
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                prompt += f"\n\nWARNING: Previous attempt was too generic. You MUST include specific company names, metrics, and details from the resume. Generic responses will be REJECTED."
+            
+            raw = call_groq(prompt, max_tokens=2000, temperature=0.2, response_format="json")
+            data = json.loads(raw)
+            strengths = data.get("strengths", [])
+            
+            # Validate specificity
+            specific_count = sum(1 for s in strengths if is_specific(
+                f"{s.get('title', '')} {s.get('summary', '')}", entities, min_score=3
+            ))
+            
+            generic_ratio = 1 - (specific_count / len(strengths)) if strengths else 1
+            print(f"[strengths] Attempt {attempt+1}: {specific_count}/{len(strengths)} specific (generic ratio: {generic_ratio:.0%})", file=sys.stderr)
+            
+            if generic_ratio > 0.5 and attempt < max_retries - 1:
+                print(f"[strengths] Too generic, retrying...", file=sys.stderr)
+                continue
+            
+            print(f"[strengths] ✓ Extracted {len(strengths)} strengths", file=sys.stderr)
+            return strengths
+            
+        except Exception as e:
+            print(f"[strengths] ✗ Attempt {attempt+1} failed: {e}", file=sys.stderr)
+            if attempt == max_retries - 1:
+                return []
+    
+    return []
+
+
+def extract_improvements(resume_text: str, scores: Dict, entities: Dict) -> List[Dict]:
+    """Step 3: Extract improvement areas."""
+    prompt = IMPROVEMENTS_PROMPT.format(
+        resume=resume_text,
+        scores=json.dumps(scores, indent=2)
+    )
+    
+    try:
+        raw = call_groq(prompt, max_tokens=2000, temperature=0.2, response_format="json")
+        data = json.loads(raw)
+        improvements = data.get("improvements", [])
+        
+        print(f"[improvements] ✓ Extracted {len(improvements)} areas", file=sys.stderr)
+        return improvements
+        
+    except Exception as e:
+        print(f"[improvements] ✗ Failed: {e}", file=sys.stderr)
+        return []
+
+
+def extract_recommendations(
+    resume_text: str, 
+    scores: Dict, 
+    strengths: List, 
+    improvements: List,
+    entities: Dict
+) -> List[Dict]:
+    """Step 4: Generate recommendations."""
+    prompt = RECOMMENDATIONS_PROMPT.format(
+        resume=resume_text,
+        scores=json.dumps(scores, indent=2),
+        strengths=json.dumps(strengths, indent=2),
+        improvements=json.dumps(improvements, indent=2)
+    )
+    
+    try:
+        raw = call_groq(prompt, max_tokens=3000, temperature=0.3, response_format="json")
+        data = json.loads(raw)
+        recommendations = data.get("recommendations", [])
+        
+        print(f"[recommendations] ✓ Generated {len(recommendations)} items", file=sys.stderr)
+        return recommendations
+        
+    except Exception as e:
+        print(f"[recommendations] ✗ Failed: {e}", file=sys.stderr)
+        return []
+
+
+def generate_narrative(
+    resume_text: str,
+    scores: Dict,
+    strengths: List,
+    improvements: List,
+    recommendations: List
+) -> str:
+    """Step 5: Generate detailed narrative assessment."""
+    analysis = {
+        "scores": scores,
+        "strengths": strengths,
+        "improvements": improvements,
+        "recommendations": recommendations
+    }
+    
+    prompt = NARRATIVE_PROMPT.format(
+        resume=resume_text,
+        analysis=json.dumps(analysis, indent=2, ensure_ascii=False)
+    )
+    
+    try:
+        narrative = call_groq(prompt, max_tokens=3000, temperature=0.4)
+        print(f"[narrative] ✓ Generated {len(narrative)} chars", file=sys.stderr)
+        return narrative
+        
+    except Exception as e:
+        print(f"[narrative] ✗ Failed: {e}", file=sys.stderr)
+        return "Narrative generation failed."
+
+
+# ============================================================
+# MAIN PIPELINE
+# ============================================================
+
+def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[str, Any]:
+    """Execute enhanced multi-call pipeline."""
+    print("\n" + "="*60, file=sys.stderr)
+    print("MBA ANALYSIS PIPELINE v5.2.0 (Enhanced Groq Multi-Call)", file=sys.stderr)
+    print("="*60 + "\n", file=sys.stderr)
+    
+    # Step 0: Extract entities for validation
+    print("Step 0: Extracting resume entities...", file=sys.stderr)
+    entities = extract_resume_entities(resume_text)
+    
+    # Step 1: Score
+    print("\nStep 1: Scoring resume...", file=sys.stderr)
+    scores = score_resume(resume_text, entities)
+    
+    # Step 2: Strengths (with retry)
+    print("\nStep 2: Extracting strengths...", file=sys.stderr)
+    strengths = extract_strengths(resume_text, entities)
+    
+    # Step 3: Improvements
+    print("\nStep 3: Identifying improvements...", file=sys.stderr)
+    improvements = extract_improvements(resume_text, scores, entities)
+    
+    # Step 4: Recommendations
+    print("\nStep 4: Generating recommendations...", file=sys.stderr)
+    recommendations = extract_recommendations(resume_text, scores, strengths, improvements, entities)
+    
+    # Step 5: Narrative
+    print("\nStep 5: Creating detailed narrative...", file=sys.stderr)
+    narrative = generate_narrative(resume_text, scores, strengths, improvements, recommendations)
+    
+    print("\n" + "="*60, file=sys.stderr)
+    print("PIPELINE COMPLETE", file=sys.stderr)
+    print("="*60 + "\n", file=sys.stderr)
+    
+    return {
+        "original_resume": resume_text,
+        "scores": scores,
+        "strengths": strengths,
+        "improvements": improvements,
+        "recommendations": recommendations,
+        "narrative": narrative,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "pipeline_version": "5.2.0-groq-enhanced"
+    }
+
+
+# ============================================================
+# CLI
+# ============================================================
+
 def main():
     import argparse
-
-    parser = argparse.ArgumentParser(description="MBA Resume Groq 2-Call Pipeline v5.1.0")
+    
+    parser = argparse.ArgumentParser(description="Enhanced Groq MBA Pipeline v5.2.0")
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text or file path")
     args = parser.parse_args()
-
-    resume_input = args.resume_text
-
-    if not resume_input:
-        print("Usage:", file=sys.stderr)
-        print("  python mba_hybrid_pipeline.py \"resume text...\"", file=sys.stderr)
-        print("  python mba_hybrid_pipeline.py resume.pdf", file=sys.stderr)
-        print("  python mba_hybrid_pipeline.py resume.txt", file=sys.stderr)
+    
+    if not args.resume_text:
+        print("Usage: python script.py <resume_text_or_file>", file=sys.stderr)
         sys.exit(1)
-
-    if os.path.isfile(resume_input):
-        try:
-            if resume_input.lower().endswith(".pdf"):
-                print(f"[main] Reading PDF: {resume_input}", file=sys.stderr)
-                resume_text = extract_text_from_pdf(resume_input)
-            else:
-                print(f"[main] Reading text file: {resume_input}", file=sys.stderr)
-                with open(resume_input, "r", encoding="utf-8") as f:
-                    resume_text = f.read()
-            print(f"[main] ✓ Loaded {len(resume_text)} characters", file=sys.stderr)
-        except Exception as e:
-            print(f"[main] ✗ Failed to read file: {e}", file=sys.stderr)
-            sys.exit(1)
+    
+    if os.path.isfile(args.resume_text):
+        with open(args.resume_text, 'r', encoding='utf-8') as f:
+            resume_text = f.read()
     else:
-        resume_text = resume_input
-        print(f"[main] Using direct text input ({len(resume_text)} chars)", file=sys.stderr)
-
-    result = run_pipeline(resume_text, include_improvement=False)
-    sys.stdout.write(json.dumps(result, ensure_ascii=False))
-    sys.stdout.flush()
+        resume_text = args.resume_text
+    
+    result = run_pipeline(resume_text)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
