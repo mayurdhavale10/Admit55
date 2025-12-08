@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v5.0 (DeepSeek-only)
-Pipeline: DeepSeek (chat) for ALL LLM steps
-- PDF extraction
-- 8-key scoring (0–10)
-- Strengths, gaps, recommendations
-- Optional resume rewrite
+mba_hybrid_pipeline.py v5.0 (Groq)
+Single-provider pipeline: Groq (llama-3.3-70b-versatile by default)
+
+- Replaces Gemini/OpenAI with Groq chat-completions
+- Keeps your 8-key scoring, strengths/improvements, resume improvement
+- Still supports PDF input
 """
 
 import os
@@ -60,16 +60,14 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         raise RuntimeError(f"Failed to extract PDF: {e}")
 
 # -------------------------------------------------------
-# DEEPSEEK CONFIGURATION
+# GROQ CONFIGURATION
 # -------------------------------------------------------
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-DEEPSEEK_PRIMARY_MODEL = os.environ.get("DEEPSEEK_PRIMARY_MODEL", "deepseek-chat")
-DEEPSEEK_SECONDARY_MODEL = os.environ.get("DEEPSEEK_SECONDARY_MODEL", DEEPSEEK_PRIMARY_MODEL)
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-print("[CONFIG] DeepSeek configuration loaded:", file=sys.stderr)
-print(f"  DeepSeek Primary:   {DEEPSEEK_PRIMARY_MODEL}", file=sys.stderr)
-print(f"  DeepSeek Secondary: {DEEPSEEK_SECONDARY_MODEL}", file=sys.stderr)
+print("[CONFIG] Groq configuration loaded:", file=sys.stderr)
+print(f"  GROQ_MODEL: {GROQ_MODEL}", file=sys.stderr)
 
 # -------------------------------------------------------
 # JSON Extraction Utility
@@ -134,14 +132,8 @@ class LLMProviderError(Exception):
     """Base exception for LLM provider errors."""
     pass
 
-
-class DeepSeekError(LLMProviderError):
-    """DeepSeek API specific errors."""
-    pass
-
-
 class GroqError(LLMProviderError):
-    """Legacy exception name for backward compatibility."""
+    """Groq API specific errors."""
     pass
 
 # -------------------------------------------------------
@@ -173,7 +165,7 @@ def extract_resume_entities(resume_text: str) -> dict:
     Returns dict with companies, numbers, roles, schools found.
     """
     text = resume_text.lower()
-
+    
     entities = {
         'companies': set(),
         'numbers': set(),
@@ -181,11 +173,11 @@ def extract_resume_entities(resume_text: str) -> dict:
         'schools': set(),
         'roles': set()
     }
-
+    
     # Extract numbers and percentages
     entities['numbers'] = set(re.findall(r'\b\d+\b', text))
     entities['percentages'] = set(re.findall(r'\d+%', text))
-
+    
     # Common company indicators
     company_patterns = [
         r'\b(google|microsoft|amazon|facebook|meta|apple|netflix|uber|airbnb)\b',
@@ -195,7 +187,7 @@ def extract_resume_entities(resume_text: str) -> dict:
     ]
     for pattern in company_patterns:
         entities['companies'].update(re.findall(pattern, text))
-
+    
     # Common B-schools
     school_patterns = [
         r'\b(iim|isb|xlri|spjimr|fms|mdi|iift)\b',
@@ -203,20 +195,18 @@ def extract_resume_entities(resume_text: str) -> dict:
     ]
     for pattern in school_patterns:
         entities['schools'].update(re.findall(pattern, text))
-
+    
     # Common roles
     role_patterns = [
         r'\b(manager|director|analyst|engineer|consultant|lead|head|vp|ceo|cto|cfo)\b',
     ]
     for pattern in role_patterns:
         entities['roles'].update(re.findall(pattern, text))
-
-    print(
-        f"[entities] Found: {len(entities['companies'])} companies, "
-        f"{len(entities['numbers'])} numbers, {len(entities['schools'])} schools",
-        file=sys.stderr
-    )
-
+    
+    print(f"[entities] Found: {len(entities['companies'])} companies, "
+          f"{len(entities['numbers'])} numbers, {len(entities['schools'])} schools", 
+          file=sys.stderr)
+    
     return entities
 
 # -------------------------------------------------------
@@ -229,30 +219,33 @@ def is_specific(text: str, resume_entities: dict, min_specificity_score: int = 2
     """
     if not text:
         return False
-
+    
     text_lower = text.lower()
     specificity_score = 0
-
+    
+    # Check for numbers/percentages
     if any(num in text_lower for num in resume_entities.get('numbers', [])):
         specificity_score += 1
     if any(pct in text_lower for pct in resume_entities.get('percentages', [])):
         specificity_score += 1
-
+    
+    # Check for companies
     if any(company in text_lower for company in resume_entities.get('companies', [])):
         specificity_score += 2
-
+    
+    # Check for schools
     if any(school in text_lower for school in resume_entities.get('schools', [])):
         specificity_score += 2
-
+    
+    # Check for roles
     if any(role in text_lower for role in resume_entities.get('roles', [])):
         specificity_score += 1
-
+    
     return specificity_score >= min_specificity_score
 
-
 def validate_output_specificity(
-    strengths: list,
-    improvements: list,
+    strengths: list, 
+    improvements: list, 
     recommendations: list,
     resume_entities: dict
 ) -> dict:
@@ -268,28 +261,28 @@ def validate_output_specificity(
         'recommendations_specific': 0,
         'recommendations_generic': 0,
     }
-
+    
     for s in strengths:
         text = f"{s.get('title', '')} {s.get('summary', '')}"
         if is_specific(text, resume_entities):
             stats['strengths_specific'] += 1
         else:
             stats['strengths_generic'] += 1
-
+    
     for imp in improvements:
         text = f"{imp.get('area', '')} {imp.get('suggestion', '')}"
         if is_specific(text, resume_entities):
             stats['improvements_specific'] += 1
         else:
             stats['improvements_generic'] += 1
-
+    
     for rec in recommendations:
         text = f"{rec.get('area', '')} {rec.get('action', '')} {rec.get('estimated_impact', '')}"
         if is_specific(text, resume_entities):
             stats['recommendations_specific'] += 1
         else:
             stats['recommendations_generic'] += 1
-
+    
     print(f"[validation] Specificity stats: {stats}", file=sys.stderr)
     return stats
 
@@ -304,11 +297,18 @@ def has_strong_test_score(resume_text: str) -> bool:
     text = resume_text.lower()
 
     patterns = [
+        # Strong GMAT
         r"gmat\s*[:\-]?\s*(7[0-9]{2}|8[0-9]{2}|9[0-9]{2})",
+        
+        # Strong GRE
         r"gre\s*[:\-]?\s*(32[5-9]|33[0-9]|34[0-9])",
+        
+        # MBA/PGDM patterns
         r"\bmba\b",
         r"\bpgdm?\b",
         r"\bpgp\b",
+        
+        # Top Indian B-schools
         r"\biim\b",
         r"\bisb\b",
         r"\bindian\s+school\s+of\s+business\b",
@@ -316,6 +316,8 @@ def has_strong_test_score(resume_text: str) -> bool:
         r"\bspjimr\b",
         r"\bfms\b.*\bdelhi\b",
         r"\bmdi\b.*\bgurgaon\b",
+        
+        # International top schools
         r"\bharvard\s+business\s+school\b",
         r"\bstanford\s+gsb\b",
         r"\bwharton\b",
@@ -333,109 +335,109 @@ def has_strong_test_score(resume_text: str) -> bool:
     return False
 
 # -------------------------------------------------------
-# DEEPSEEK API FUNCTION
+# GROQ API FUNCTION
 # -------------------------------------------------------
-def call_deepseek(
-    model: str,
+def call_groq(
     prompt: str,
     max_tokens: int = 300,
     temperature: float = 0.1,
     timeout: int = 40,
 ) -> str:
-    """Call DeepSeek chat completion API."""
-    if not DEEPSEEK_API_KEY:
-        raise DeepSeekError("Missing DEEPSEEK_API_KEY")
+    """Call Groq chat-completions API."""
+    if not GROQ_API_KEY:
+        raise GroqError("Missing GROQ_API_KEY")
 
     headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
 
     payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "model": GROQ_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
         "max_tokens": int(max_tokens),
-        "temperature": temperature,
+        "temperature": float(temperature),
     }
 
     try:
-        print(f"[deepseek] Calling model={model}, max_tokens={max_tokens}", file=sys.stderr)
-        r = requests.post(DEEPSEEK_API_URL, json=payload, headers=headers, timeout=timeout)
+        print(f"[groq] Calling model={GROQ_MODEL}, max_tokens={max_tokens}", file=sys.stderr)
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=timeout)
         status = r.status_code
 
         if status != 200:
             error_msg = f"HTTP {status}: {r.text[:500]}"
             if status == 429:
-                raise DeepSeekError(f"Rate limit exceeded: {error_msg}")
+                raise GroqError(f"Rate limit exceeded: {error_msg}")
             elif 500 <= status < 600:
-                raise DeepSeekError(f"Server error: {error_msg}")
+                raise GroqError(f"Server error: {error_msg}")
             else:
-                raise DeepSeekError(error_msg)
+                raise GroqError(error_msg)
 
         data = r.json()
         try:
             text = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as e:
-            raise DeepSeekError(f"Unexpected DeepSeek response: {data}") from e
+            raise GroqError(f"Unexpected Groq response: {data}") from e
 
         text = (text or "").strip()
         if not text:
-            raise DeepSeekError("Empty text from DeepSeek")
+            raise GroqError("Empty text from Groq")
 
-        print(f"[deepseek] ✓ Response length={len(text)} chars", file=sys.stderr)
+        print(f"[groq] ✓ Response length={len(text)} chars", file=sys.stderr)
         return text
 
     except requests.exceptions.Timeout:
-        raise DeepSeekError(f"Request timed out after {timeout}s")
+        raise GroqError(f"Request timed out after {timeout}s")
     except requests.exceptions.RequestException as e:
-        raise DeepSeekError(f"Request failed: {e}")
+        raise GroqError(f"Request failed: {e}")
 
 # -------------------------------------------------------
-# LLM ROUTER (DEEPSEEK ONLY)
+# LLM ROUTER (GROQ-ONLY, WITH RETRIES)
 # -------------------------------------------------------
 def call_llm_with_fallback(
     prompt: str,
     max_tokens: int = 300,
     temperature: float = 0.1,
     timeout: int = 40,
-    retry_transient: bool = True,
+    retry_transient: bool = True
 ) -> str:
     """
-    Simple router: always uses DeepSeek, with retry on transient errors.
+    Call LLM with Groq only + retry logic for transient errors.
     """
+    if not GROQ_API_KEY:
+        raise LLMProviderError("GROQ_API_KEY not configured")
+
     errors = []
     max_attempts = 3 if retry_transient else 1
 
     for attempt in range(max_attempts):
         try:
-            print(f"[llm-router] Trying DeepSeek (attempt {attempt + 1}/{max_attempts})...", file=sys.stderr)
-            result = call_deepseek(DEEPSEEK_PRIMARY_MODEL, prompt, max_tokens, temperature, timeout)
-            print("[llm-router] ✓ Success with DeepSeek", file=sys.stderr)
+            print(f"[llm-router] Trying Groq (attempt {attempt + 1}/{max_attempts})...", file=sys.stderr)
+            result = call_groq(prompt, max_tokens=max_tokens, temperature=temperature, timeout=timeout)
+            print("[llm-router] ✓ Success with Groq", file=sys.stderr)
             return result
-        except DeepSeekError as e:
+        except GroqError as e:
             error_str = str(e)
             is_transient = "rate limit" in error_str.lower() or "server error" in error_str.lower()
-
             if is_transient and attempt < max_attempts - 1:
                 wait_time = 2 ** attempt
-                print(
-                    f"[llm-router] Transient error, retrying in {wait_time}s: {error_str[:120]}",
-                    file=sys.stderr,
-                )
+                print(f"[llm-router] Transient error, retrying in {wait_time}s: {error_str[:120]}", file=sys.stderr)
                 time.sleep(wait_time)
                 continue
-
-            error_msg = f"DeepSeek: {error_str}"
-            print(f"[llm-router] ✗ Failed: {error_msg[:200]}", file=sys.stderr)
-            errors.append(error_msg)
+            print(f"[llm-router] ✗ Failed: {error_str[:200]}", file=sys.stderr)
+            errors.append(error_str)
             break
 
-    raise LLMProviderError(f"All LLM attempts failed. Errors: {'; '.join(errors)}")
+    raise LLMProviderError(f"Groq failed after {max_attempts} attempts. Errors: {'; '.join(errors)}")
 
-
-def call_groq(prompt: str, max_tokens: int = 300, retry_count: int = 2, timeout: int = 40) -> str:
-    """Backward-compatible wrapper. Now routes through DeepSeek."""
-    print("[call_groq] Using DeepSeek (legacy wrapper)", file=sys.stderr)
+# Backward compatibility wrapper name (if other code calls call_groq)
+def call_groq_legacy(prompt: str, max_tokens: int = 300, retry_count: int = 2, timeout: int = 40) -> str:
+    print("[call_groq_legacy] Using Groq-only router", file=sys.stderr)
     return call_llm_with_fallback(prompt, max_tokens=max_tokens, timeout=timeout)
 
 # -------------------------------------------------------
@@ -547,14 +549,14 @@ Original Resume:
 Return ONLY the improved resume text based strictly on the original content. No explanations, no preamble, just the improved resume."""
 
 # -------------------------------------------------------
-# Pipeline Steps
+# Pipeline Steps (GROQ)
 # -------------------------------------------------------
 def score_resume(resume_text: str) -> dict:
-    """Score resume using DeepSeek."""
+    """Score resume using Groq."""
     prompt = SCORER_PROMPT.replace("{resume}", resume_text)
 
     try:
-        print("[score] Scoring resume using DeepSeek...", file=sys.stderr)
+        print("[score] Scoring resume using Groq...", file=sys.stderr)
         raw = call_llm_with_fallback(prompt, max_tokens=500, temperature=0.1)
         print(f"[score] Raw output: {raw[:200]}...", file=sys.stderr)
 
@@ -578,21 +580,15 @@ def score_resume(resume_text: str) -> dict:
         "international": 5.0,
         "work_impact": 5.0,
         "impact": 5.0,
-        "industry": 5.0,
+        "industry": 5.0
     }
 
 
 def validate_scores(scores: dict) -> bool:
     """Validate that scores are in expected format and range with 8-key system."""
     required_keys = [
-        "academics",
-        "test_readiness",
-        "leadership",
-        "extracurriculars",
-        "international",
-        "work_impact",
-        "impact",
-        "industry",
+        "academics", "test_readiness", "leadership", "extracurriculars",
+        "international", "work_impact", "impact", "industry"
     ]
 
     if not all(key in scores for key in required_keys):
@@ -614,8 +610,8 @@ def validate_scores(scores: dict) -> bool:
 
 def extract_strengths_and_improvements(resume_text: str, max_retries: int = 2) -> dict:
     """
-    Extract strengths, improvements and recommendations using DeepSeek,
-    with retry if output is too generic.
+    Extract strengths, improvements and recommendations using Groq.
+    Includes specificity validation and retry if too generic.
     """
     resume_entities = extract_resume_entities(resume_text)
     base_prompt = STRENGTHS_PROMPT.replace("{resume}", resume_text)
@@ -623,14 +619,14 @@ def extract_strengths_and_improvements(resume_text: str, max_retries: int = 2) -
     for attempt in range(max_retries):
         try:
             print(f"[strengths] Extracting (attempt {attempt + 1}/{max_retries})...", file=sys.stderr)
-
+            
             current_prompt = base_prompt
             if attempt > 0:
-                current_prompt = base_prompt + (
-                    "\n\nWARNING: Previous attempt was too generic. "
-                    "You MUST include specific company names, metrics, and projects from the resume."
+                current_prompt += (
+                    "\n\nWARNING: Previous attempt was too generic. You MUST include specific company names, "
+                    "metrics, and projects from the resume. Generic advice will be REJECTED."
                 )
-
+            
             out = call_llm_with_fallback(current_prompt, max_tokens=2500, temperature=0.1, timeout=60)
             print(f"[strengths] Raw output: {out[:400]}...", file=sys.stderr)
 
@@ -640,30 +636,26 @@ def extract_strengths_and_improvements(resume_text: str, max_retries: int = 2) -
             improvements = result.get("improvements", [])
             recommendations = result.get("recommendations", [])
 
-            # Filter GMAT/GRE recs if strong score/MBA
+            # Filter GMAT/GRE if already has strong score/MBA
             if has_strong_test_score(resume_text):
                 print("[strengths] Strong test/MBA detected – filtering GMAT/GRE items", file=sys.stderr)
 
                 def is_test_related(text: str) -> bool:
-                    return bool(
-                        re.search(
-                            r"\b(gmat|gre|test score|standardized test|exam preparation|test prep|retake)\b",
-                            (text or ""),
-                            re.IGNORECASE,
-                        )
-                    )
+                    return bool(re.search(
+                        r"\b(gmat|gre|test score|standardized test|exam preparation|test prep|retake)\b",
+                        (text or ""),
+                        re.IGNORECASE,
+                    ))
 
                 improvements = [
-                    imp
-                    for imp in improvements
+                    imp for imp in improvements
                     if not is_test_related(
                         f"{imp.get('area','')} {imp.get('suggestion','')} {imp.get('recommendation','')}"
                     )
                 ]
 
                 recommendations = [
-                    rec
-                    for rec in recommendations
+                    rec for rec in recommendations
                     if not is_test_related(
                         f"{rec.get('area','')} {rec.get('action','')} "
                         f"{rec.get('estimated_impact','')} {rec.get('title','')}"
@@ -691,7 +683,8 @@ def extract_strengths_and_improvements(resume_text: str, max_retries: int = 2) -
             for imp in improvements:
                 imp["area"] = imp.get("area", "Area")
                 imp["suggestion"] = imp.get(
-                    "suggestion", imp.get("recommendation", "Consider strengthening this area")
+                    "suggestion",
+                    imp.get("recommendation", "Consider strengthening this area")
                 )
                 sc = imp.get("score", 50)
                 try:
@@ -710,7 +703,7 @@ def extract_strengths_and_improvements(resume_text: str, max_retries: int = 2) -
                     "priority": rec.get("priority") or "medium",
                     "action": rec.get("action") or rec.get("recommendation") or "",
                     "estimated_impact": rec.get("estimated_impact") or "",
-                    "score": None,
+                    "score": None
                 }
                 if "score" in rec:
                     try:
@@ -719,55 +712,60 @@ def extract_strengths_and_improvements(resume_text: str, max_retries: int = 2) -
                         nr["score"] = None
                 normalized_recs.append(nr)
 
-            # Specificity validation
+            # Validate specificity
             validation_stats = validate_output_specificity(
                 strengths, improvements, normalized_recs, resume_entities
             )
-
+            
             total_items = len(strengths) + len(improvements) + len(normalized_recs)
             generic_items = (
-                validation_stats["strengths_generic"]
-                + validation_stats["improvements_generic"]
-                + validation_stats["recommendations_generic"]
+                validation_stats['strengths_generic'] + 
+                validation_stats['improvements_generic'] + 
+                validation_stats['recommendations_generic']
             )
-
+            
             if total_items > 0:
                 generic_ratio = generic_items / total_items
-                print(
-                    f"[strengths] Generic ratio: {generic_ratio:.2%} ({generic_items}/{total_items})",
-                    file=sys.stderr,
-                )
-
+                print(f"[strengths] Generic ratio: {generic_ratio:.2%} ({generic_items}/{total_items})", file=sys.stderr)
+                
                 if generic_ratio > 0.5 and attempt < max_retries - 1:
-                    print("[strengths] Output too generic, retrying...", file=sys.stderr)
+                    print(f"[strengths] Output too generic, retrying...", file=sys.stderr)
                     continue
 
             print(
                 f"[strengths] ✓ Extracted {len(strengths)} strengths, "
                 f"{len(improvements)} improvements, {len(normalized_recs)} recommendations",
-                file=sys.stderr,
+                file=sys.stderr
             )
             return {
                 "strengths": strengths,
                 "improvements": improvements,
-                "recommendations": normalized_recs,
+                "recommendations": normalized_recs
             }
-
+            
         except Exception as e:
             print(f"[strengths] ✗ Attempt {attempt + 1} failed: {e}", file=sys.stderr)
             if attempt == max_retries - 1:
-                print("[strengths] ✗ All attempts failed", file=sys.stderr)
-                return {"strengths": [], "improvements": [], "recommendations": []}
+                print(f"[strengths] ✗ All attempts failed", file=sys.stderr)
+                return {
+                    "strengths": [],
+                    "improvements": [],
+                    "recommendations": []
+                }
 
-    return {"strengths": [], "improvements": [], "recommendations": []}
+    return {
+        "strengths": [],
+        "improvements": [],
+        "recommendations": []
+    }
 
 
 def verify_scores(resume_text: str, scores: dict) -> dict:
-    """Verify scores using DeepSeek with robust error handling."""
+    """Verify scores using Groq with robust error handling."""
     prompt = (
-        VERIFY_PROMPT.replace("{resume}", resume_text).replace(
-            "{scores}", json.dumps(scores, indent=2)
-        )
+        VERIFY_PROMPT
+        .replace("{resume}", resume_text)
+        .replace("{scores}", json.dumps(scores, indent=2))
     )
 
     try:
@@ -791,7 +789,7 @@ def verify_scores(resume_text: str, scores: dict) -> dict:
         print(f"[verify] ✗ Failed: {e}", file=sys.stderr)
         return {
             "ok": True,
-            "explanation": f"Verification completed with fallback (error: {str(e)[:100]})",
+            "explanation": f"Verification completed with fallback (error: {str(e)[:100]})"
         }
 
 
@@ -808,28 +806,24 @@ def analyze_gaps(scores: dict) -> list:
         "international": "Highlight international work experience, cross-cultural projects, foreign language skills, or global team collaboration.",
         "work_impact": "Quantify career achievements with metrics, percentages, revenue impact, or user growth. Show clear progression and promotions.",
         "impact": "Add measurable outcomes and results. Use the format: 'Action verb + what you did + quantified result'. Focus on business impact.",
-        "industry": "Emphasize domain expertise, industry-specific challenges solved, and relevant sector experience. Mention any specialized training or certifications.",
+        "industry": "Emphasize domain expertise, industry-specific challenges solved, and relevant sector experience. Mention any specialized training or certifications."
     }
 
     for key, suggestion in gap_suggestions.items():
         score = scores.get(key, 0)
         if score < threshold:
-            gaps.append(
-                {
-                    "area": key.replace("_", " ").title(),
-                    "score": score,
-                    "suggestion": suggestion,
-                }
-            )
+            gaps.append({
+                "area": key.replace("_", " ").title(),
+                "score": score,
+                "suggestion": suggestion
+            })
 
     if not gaps:
-        gaps.append(
-            {
-                "area": "Overall Profile",
-                "score": sum(scores.values()) / len(scores),
-                "suggestion": "Strong profile overall. Consider adding C-suite exposure, P&L responsibility, or strategic initiatives to reach elite MBA programs.",
-            }
-        )
+        gaps.append({
+            "area": "Overall Profile",
+            "score": sum(scores.values()) / len(scores),
+            "suggestion": "Strong profile overall. Consider adding C-suite exposure, P&L responsibility, or strategic initiatives to reach elite MBA programs."
+        })
 
     return gaps
 
@@ -841,22 +835,20 @@ def recommend_actions(gaps: list) -> list:
         score = g.get("score", 0)
         score_100 = int(max(0, min(100, round(float(score) * 10))))
 
-        recs.append(
-            {
-                "id": f"rec_fallback_{i+1}",
-                "type": "improvement",
-                "area": g.get("area", "Overall"),
-                "priority": "high" if score < 4 else "medium",
-                "action": g.get("suggestion", ""),
-                "estimated_impact": "Moderate — strengthens profile and competitiveness",
-                "score": score_100,
-            }
-        )
+        recs.append({
+            "id": f"rec_fallback_{i+1}",
+            "type": "improvement",
+            "area": g.get("area", "Overall"),
+            "priority": "high" if score < 4 else "medium",
+            "action": g.get("suggestion", ""),
+            "estimated_impact": "Moderate — strengthens profile and competitiveness",
+            "score": score_100
+        })
     return recs
 
 
 def improve_resume(resume_text: str) -> str:
-    """Generate improved version of resume using DeepSeek."""
+    """Generate improved version of resume using Groq."""
     prompt = IMPROVE_PROMPT.replace("{resume}", resume_text)
 
     try:
@@ -893,9 +885,9 @@ def build_report(
     recs: list,
     improved: str,
     strengths: list,
-    improvements: list,
+    improvements: list
 ) -> dict:
-    """Build final report dictionary (backwards-compatible JSON shape)."""
+    """Build final report dictionary."""
     return {
         "original_resume": resume_text,
         "scores": scores,
@@ -906,23 +898,22 @@ def build_report(
         "recommendations": recs,
         "improved_resume": improved,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "5.0.0",
+        "pipeline_version": "5.0-groq",
     }
 
 # -------------------------------------------------------
 # Main Runner
 # -------------------------------------------------------
 def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
-    """Execute full pipeline with optional resume improvement."""
-    print("\n" + "=" * 60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v5.0 (DeepSeek)", file=sys.stderr)
-    print("LLM: DeepSeek Chat (deepseek-chat)", file=sys.stderr)
+    """Execute full pipeline with Groq."""
+    print("\n" + "="*60, file=sys.stderr)
+    print("MBA RESUME ANALYSIS PIPELINE v5.0 (Groq)", file=sys.stderr)
+    print("LLM Provider: Groq", file=sys.stderr)
     print("8-Key Scoring (0-10) + Specificity Validation", file=sys.stderr)
-    print("=" * 60 + "\n", file=sys.stderr)
+    print("="*60 + "\n", file=sys.stderr)
 
     print("Inference Configuration:", file=sys.stderr)
-    print(f"  DeepSeek Primary:   {DEEPSEEK_PRIMARY_MODEL} {'✓' if DEEPSEEK_API_KEY else '✗'}", file=sys.stderr)
-    print(f"  DeepSeek Secondary: {DEEPSEEK_SECONDARY_MODEL}", file=sys.stderr)
+    print(f"  GROQ_MODEL: {GROQ_MODEL} {'✓' if GROQ_API_KEY else '✗'}", file=sys.stderr)
     print(f"  Include Improvement: {'Yes' if include_improvement else 'No'}", file=sys.stderr)
     print("", file=sys.stderr)
 
@@ -939,23 +930,21 @@ def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
         print("\nStep 2b: No recommendations from model, generating from gaps...", file=sys.stderr)
         print("\nStep 3: Analyzing gaps...", file=sys.stderr)
         gaps = analyze_gaps(scores)
-        recs = []
 
+        recs = []
         for idx, g in enumerate(gaps[:5]):
             score = g.get("score", 0)
             score_100 = int(max(0, min(100, round(float(score) * 10))))
 
-            recs.append(
-                {
-                    "id": f"rec_gap_{idx+1}",
-                    "type": "improvement",
-                    "area": g.get("area", "Overall Profile"),
-                    "priority": "high" if score < 4 else "medium",
-                    "action": g.get("suggestion", ""),
-                    "estimated_impact": "Moderate — should improve your competitiveness",
-                    "score": score_100,
-                }
-            )
+            recs.append({
+                "id": f"rec_gap_{idx+1}",
+                "type": "improvement",
+                "area": g.get("area", "Overall Profile"),
+                "priority": "high" if score < 4 else "medium",
+                "action": g.get("suggestion", ""),
+                "estimated_impact": "Moderate — should improve your competitiveness",
+                "score": score_100
+            })
     else:
         print("\nStep 3: Analyzing gaps (optional)...", file=sys.stderr)
         gaps = analyze_gaps(scores)
@@ -970,9 +959,9 @@ def run_pipeline(resume_text: str, include_improvement: bool = True) -> dict:
         print("\nStep 5: Skipping resume improvement (not requested)...", file=sys.stderr)
         improved = ""
 
-    print("\n" + "=" * 60, file=sys.stderr)
+    print("\n" + "="*60, file=sys.stderr)
     print("PIPELINE COMPLETE", file=sys.stderr)
-    print("=" * 60 + "\n", file=sys.stderr)
+    print("="*60 + "\n", file=sys.stderr)
 
     return build_report(resume_text, scores, verification, gaps, recs, improved, strengths, improvements)
 
@@ -981,18 +970,13 @@ def main():
     """Main entry point with file reading support including PDF."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v5.0 (DeepSeek)")
-    parser.add_argument("resume_text", nargs="?", default="", help="Resume text or file path to analyze")
-    parser.add_argument(
-        "--rewrite-only",
-        action="store_true",
-        help="Only improve resume, skip analysis",
-    )
-    parser.add_argument(
-        "--no-improvement",
-        action="store_true",
-        help="Skip resume improvement step",
-    )
+    parser = argparse.ArgumentParser(description="MBA Resume Analysis Pipeline v5.0 (Groq)")
+    parser.add_argument("resume_text", nargs="?", default="",
+                        help="Resume text or file path to analyze")
+    parser.add_argument("--rewrite-only", action="store_true",
+                        help="Only improve resume, skip analysis")
+    parser.add_argument("--no-improvement", action="store_true",
+                        help="Skip resume improvement step")
     args = parser.parse_args()
 
     resume_input = args.resume_text
@@ -1012,7 +996,7 @@ def main():
     if os.path.isfile(resume_input):
         print(f"[main] Reading resume from file: {resume_input}", file=sys.stderr)
         try:
-            if resume_input.lower().endswith(".pdf"):
+            if resume_input.lower().endswith('.pdf'):
                 resume_text = extract_text_from_pdf(resume_input)
                 print(f"[main] ✓ Loaded {len(resume_text)} characters from PDF", file=sys.stderr)
             else:
