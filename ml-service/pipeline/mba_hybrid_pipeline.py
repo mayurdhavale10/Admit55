@@ -18,6 +18,12 @@ This script:
    - recommendations[]
    - improved_resume (string)
 4) Returns a clean JSON report
+
+Backwards compatible exports for FastAPI:
+  - run_pipeline(resume_text, include_improvement=False)
+  - improve_resume(resume_text)
+  - extract_text_from_pdf(...)
+  - PDF_SUPPORT
 """
 
 import os
@@ -129,11 +135,11 @@ def extract_first_json(text: str) -> Any:
         if end == -1 or end <= start:
             raise ValueError("No complete JSON object found")
 
-    json_str = text[start:end+1]
+    json_str = text[start:end + 1]
 
     try:
         return json.loads(json_str)
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError:
         # Try minor cleanup
         json_str = json_str.replace("'", '"')
         json_str = re.sub(r",\s*}", "}", json_str)
@@ -191,7 +197,7 @@ def validate_scores(scores: Dict[str, Any]) -> bool:
 
 
 # ============================================================
-# MASTER PROMPT (ONE-CALL PIPELINE)
+# MASTER PROMPTS (ONE-CALL + IMPROVE)
 # ============================================================
 MASTER_PROMPT = """
 You are an elite MBA admissions evaluator.
@@ -269,6 +275,30 @@ Resume:
 Return ONLY the JSON object.
 """
 
+IMPROVE_PROMPT_TEMPLATE = """
+You are an elite MBA resume editor.
+
+Task:
+Rewrite the resume below to be strong for top MBA programs (ISB / IIMs / INSEAD / US M7).
+
+Rules:
+- Keep ALL facts accurate. Do NOT invent achievements, companies, dates, or scores.
+- Use strong action verbs and, where possible, metrics (%, Rs, $, etc.) already present.
+- Group bullet points by role and company.
+- Make it ATS-friendly, plain text (no markdown, no tables).
+- Focus on leadership, impact, quantifiable outcomes, and clarity.
+- Remove obvious redundancies and weak fillers.
+
+Return:
+- ONLY the improved resume, as plain text.
+- NO JSON, NO commentary.
+
+Resume:
+--------------------
+{resume}
+--------------------
+"""
+
 
 # ============================================================
 # GROQ CALL (ONE LLM CALL)
@@ -277,7 +307,12 @@ class GroqError(Exception):
     pass
 
 
-def call_groq_single(prompt: str, max_tokens: int = 4096, temperature: float = 0.2, timeout: int = 60) -> str:
+def call_groq_single(
+    prompt: str,
+    max_tokens: int = 4096,
+    temperature: float = 0.2,
+    timeout: int = 60,
+) -> str:
     """Call Groq (OpenAI-compatible chat API) once."""
     if not GROQ_API_KEY:
         raise GroqError("Missing GROQ_API_KEY")
@@ -333,7 +368,7 @@ def call_groq_single(prompt: str, max_tokens: int = 4096, temperature: float = 0
 
 
 # ============================================================
-# SINGLE-CALL PIPELINE
+# SINGLE-CALL ANALYSIS PIPELINE
 # ============================================================
 def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
     """
@@ -426,7 +461,7 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
 
             norm_recs.append(
                 {
-                    "id": rec.get("id") or f"rec_{i+1}",
+                    "id": rec.get("id") or f"rec_{i + 1}",
                     "type": rec.get("type") or "other",
                     "area": rec.get("area") or "General",
                     "priority": rec.get("priority") or "medium",
@@ -478,6 +513,38 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
             "pipeline_version": "5.0.0-groq-single-error-fallback",
             "error": str(e),
         }
+
+
+# ============================================================
+# IMPROVE-ONLY PIPELINE (for /rewrite endpoint)
+# ============================================================
+def improve_resume(resume_text: str) -> str:
+    """
+    Used by /rewrite endpoint in FastAPI.
+    Returns ONLY improved resume text (no JSON).
+    """
+    prompt = IMPROVE_PROMPT_TEMPLATE.replace("{resume}", resume_text)
+
+    try:
+        raw = call_groq_single(prompt, max_tokens=4096, temperature=0.4, timeout=90)
+        print(f"[improve_resume] Raw output (first 200 chars): {raw[:200]}...", file=sys.stderr)
+        return raw.strip() or resume_text
+    except Exception as e:
+        print(f"[improve_resume] ✗ Failed: {e}", file=sys.stderr)
+        return "[Resume improvement failed – returning original resume]\n\n" + resume_text
+
+
+# ============================================================
+# BACKWARDS-COMPATIBLE ENTRY POINT
+# ============================================================
+def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[str, Any]:
+    """
+    Backwards-compatible function for FastAPI app.
+
+    - Ignores include_improvement (we always compute improved_resume inside the single call).
+    - Returns the same structure that /analyze expects.
+    """
+    return run_pipeline_single_call(resume_text)
 
 
 # ============================================================

@@ -536,7 +536,7 @@ def call_llm_with_fallback(
     errors = []
 
     for provider_name, provider_func in providers:
-        max_attempts = 3 if retry_transient else 1
+        max_attempts = 1 if retry_transient else 1
 
         for attempt in range(max_attempts):
             try:
