@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v5.0.0 (Groq Single-Call)
-------------------------------------------------
-Single-call pipeline using Groq (OpenAI-compatible API).
+mba_hybrid_pipeline.py v5.1.0 (Groq 2-Call)
+-------------------------------------------
+Architecture:
+
+- Groq ONLY (no Gemini / OpenAI).
+- Call 1: Structured JSON analysis.
+- Call 2: Narrative enrichment (Aviral-level detail).
 
 ENV REQUIRED:
   GROQ_API_KEY        = your Groq key
   GROQ_MODEL          = llama-3.3-70b-versatile   (or any Groq chat model)
 
-This script:
-1) Extracts text (supports PDF via PyPDF2)
-2) Calls Groq ONCE with a master prompt
-3) Expects a single JSON with:
-   - scores (8 keys, 0–10)
-   - strengths[]
-   - improvements[]
-   - recommendations[]
-   - improved_resume (string)
-4) Returns a clean JSON report
+Exports used by FastAPI:
+  - PDF_SUPPORT
+  - extract_text_from_pdf(pdf_path: str) -> str
+  - run_pipeline(resume_text: str, include_improvement: bool = False) -> dict
+  - improve_resume(resume_text: str) -> str
 """
 
 import os
@@ -38,15 +37,11 @@ import requests
 # ============================================================
 try:
     import PyPDF2
-
     PDF_SUPPORT = True
     print("[PDF] PyPDF2 loaded successfully", file=sys.stderr)
 except ImportError:
     PDF_SUPPORT = False
-    print(
-        "[PDF] PyPDF2 not installed. PDF support disabled. Run: pip install PyPDF2",
-        file=sys.stderr,
-    )
+    print("[PDF] PyPDF2 not installed. PDF support disabled. Run: pip install PyPDF2", file=sys.stderr)
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
@@ -90,108 +85,7 @@ print(f"  GROQ_MODEL: {GROQ_MODEL}", file=sys.stderr)
 
 
 # ============================================================
-# JSON EXTRACTION UTILITY (ROBUST, WITH CONTROL-CHAR FIX)
-# ============================================================
-def extract_first_json(text: str) -> Any:
-    """Extract and parse the first valid JSON object from text with robust cleanup."""
-    if not isinstance(text, str):
-        text = str(text)
-
-    # Strip markdown fences
-    text = re.sub(r"```json\s*", "", text)
-    text = re.sub(r"```\s*", "", text)
-    text = text.strip()
-
-    # Drop common prefixes
-    prefixes_to_remove = [
-        "Here is the JSON:",
-        "Here's the JSON:",
-        "JSON output:",
-        "Result:",
-        "Output:",
-    ]
-    for prefix in prefixes_to_remove:
-        if text.lower().startswith(prefix.lower()):
-            text = text[len(prefix) :].strip()
-
-    # Find first JSON object by braces
-    start = text.find("{")
-    if start == -1:
-        raise ValueError("No JSON object found in text")
-
-    brace_count = 0
-    end = -1
-    for i in range(start, len(text)):
-        if text[i] == "{":
-            brace_count += 1
-        elif text[i] == "}":
-            brace_count -= 1
-            if brace_count == 0:
-                end = i
-                break
-
-    if end == -1:
-        end = text.rfind("}")
-        if end == -1 or end <= start:
-            raise ValueError("No complete JSON object found")
-
-    json_str = text[start : end + 1]
-
-    # --- helper: clean raw control chars INSIDE quoted strings ---
-    def _escape_control_chars_inside_strings(s: str) -> str:
-        out: List[str] = []
-        in_string = False
-        escape = False
-
-        for ch in s:
-            if escape:
-                out.append(ch)
-                escape = False
-                continue
-
-            if ch == "\\":
-                out.append(ch)
-                escape = True
-                continue
-
-            if ch == '"':
-                in_string = not in_string
-                out.append(ch)
-                continue
-
-            # If we're *inside* a JSON string and see a control char, escape it
-            if in_string and ord(ch) < 32:
-                if ch == "\n":
-                    out.append("\\n")
-                elif ch == "\r":
-                    out.append("\\r")
-                elif ch == "\t":
-                    out.append("\\t")
-                else:
-                    out.append(" ")
-            else:
-                out.append(ch)
-
-        return "".join(out)
-
-    # First attempt: direct parse
-    try:
-        return json.loads(json_str)
-    except json.JSONDecodeError as e:
-        # If it's a control-char problem, try cleaning inside strings
-        if "Invalid control character" in str(e):
-            cleaned = _escape_control_chars_inside_strings(json_str)
-            return json.loads(cleaned)
-
-        # Generic fallback: simple fixes
-        fixed = json_str.replace("'", '"')
-        fixed = re.sub(r",\s*}", "}", fixed)
-        fixed = re.sub(r",\s*]", "]", fixed)
-        return json.loads(fixed)
-
-
-# ============================================================
-# SCORE NORMALIZATION
+# JSON UTILS
 # ============================================================
 def normalize_scores_to_0_10(scores_dict: Dict[str, Any]) -> Dict[str, float]:
     """Normalize scores to 0–10. If >10, assume 0–100 and scale down."""
@@ -240,9 +134,9 @@ def validate_scores(scores: Dict[str, Any]) -> bool:
 
 
 # ============================================================
-# MASTER PROMPT (ONE-CALL PIPELINE)
+# MASTER PROMPTS
 # ============================================================
-MASTER_PROMPT = """
+MASTER_JSON_PROMPT = """
 You are an elite MBA admissions evaluator.
 
 Given the resume below, produce ONE JSON object with the following exact structure (no extra keys):
@@ -261,14 +155,14 @@ Given the resume below, produce ONE JSON object with the following exact structu
   "strengths": [
     {
       "title": "string",
-      "summary": "string",
+      "summary": "1-3 sentences, highly specific to this candidate",
       "score": 0-100
     }
   ],
   "improvements": [
     {
       "area": "string",
-      "suggestion": "string",
+      "suggestion": "1-3 sentences, concrete and specific action",
       "score": 0-100
     }
   ],
@@ -278,8 +172,8 @@ Given the resume below, produce ONE JSON object with the following exact structu
       "type": "skill | test | extracurricular | career | resume | networking | other",
       "area": "string",
       "priority": "high | medium | low",
-      "action": "string",
-      "estimated_impact": "string",
+      "action": "1-3 sentences, very specific action steps",
+      "estimated_impact": "1-2 sentences, why this matters for MBA admissions",
       "score": 0-100
     }
   ],
@@ -292,10 +186,10 @@ SCORING:
 - Other "score" fields (strengths/improvements/recommendations) must be 0–100.
 
 CONTENT RULES:
-1. Be SPECIFIC to this person:
+1. Be VERY SPECIFIC to this person:
    - Use company names, role titles, industries, metrics and numbers from the resume.
    - Avoid generic advice like "improve leadership" without context.
-2. "strengths": 3–6 items, each with a strong title + one specific sentence.
+2. "strengths": 3–6 items, each with a strong title + 1–3 sentence summary.
 3. "improvements": 3–6 items with clear, actionable suggestions.
 4. "recommendations": 3–8 items, prioritized, with clear actions and impact.
 5. "improved_resume":
@@ -303,16 +197,13 @@ CONTENT RULES:
    - Keep all facts consistent (do NOT invent achievements or dates).
    - Use bullet points with strong impact verbs and metrics where available.
    - Keep a clean, ATS-friendly text format.
-   - Escape newlines as \\n inside the JSON string (no raw newlines inside the JSON).
 
 VERY IMPORTANT:
 - If the resume already mentions a strong GMAT (>=700) or GRE (>=325) or MBA/PGP from IIM/ISB/top school,
   do NOT suggest "take GMAT/GRE" as a recommendation.
-- Output MUST be valid JSON with EXACTLY these top-level keys:
+- Output MUST be valid JSON with EXACTLY those top-level keys:
   "scores", "strengths", "improvements", "recommendations", "improved_resume".
-- DO NOT wrap the JSON in markdown.
-- DO NOT add commentary before or after the JSON.
-- DO NOT include ```json fences.
+- DO NOT wrap the JSON in markdown, DO NOT add commentary.
 
 Resume:
 --------------------
@@ -321,18 +212,58 @@ Resume:
 Return ONLY the JSON object.
 """
 
+NARRATIVE_PROMPT_TEMPLATE = """
+You are an elite MBA admissions consultant.
+
+You are given:
+1) The candidate's original resume.
+2) A JSON analysis of their profile (scores, strengths, improvements, recommendations).
+
+Using BOTH, write a detailed, highly specific report in THREE sections:
+
+### Top Strengths
+- 3–6 bullet points.
+- Each bullet 2–3 lines.
+- Explicitly reference company names, roles, industries, and numbers from the resume.
+- Make each bullet feel like a sharp, admissions-ready comment.
+
+### Improvement Areas
+- 3–6 bullet points.
+- Each bullet 2–3 lines.
+- Explain what is missing or weak and how to fix it with concrete steps.
+
+### Actionable Recommendations
+- 4–8 bullet points.
+- Use tags like [HIGH], [MEDIUM], [LOW] at the start of each bullet.
+- Each bullet 2–3 lines.
+- Explain exactly what to do and why it matters for MBA admissions (link to their profile, not generic advice).
+
+Rules:
+- Be very specific to THIS candidate.
+- Never use generic advice without linking to their actual experience.
+- Do NOT invent achievements. Only use what appears in the resume or what is a reasonable extension of it.
+- Return PLAIN MARKDOWN TEXT ONLY. No JSON.
+
+Candidate Resume:
+--------------------
+{resume}
+--------------------
+
+Analysis JSON:
+--------------------
+{analysis_json}
+--------------------
+"""
+
 
 # ============================================================
-# GROQ CALL (ONE LLM CALL)
+# GROQ CALLS
 # ============================================================
 class GroqError(Exception):
     pass
 
 
-def call_groq_single(
-    prompt: str, max_tokens: int = 4096, temperature: float = 0.2, timeout: int = 60
-) -> str:
-    """Call Groq (OpenAI-compatible chat API) once."""
+def _groq_post(payload: Dict[str, Any], timeout: int = 60) -> Dict[str, Any]:
     if not GROQ_API_KEY:
         raise GroqError("Missing GROQ_API_KEY")
 
@@ -341,23 +272,8 @@ def call_groq_single(
         "Content-Type": "application/json",
     }
 
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "max_tokens": int(max_tokens),
-        "temperature": float(temperature),
-    }
-
     try:
-        print(
-            f"[groq] Calling model={GROQ_MODEL}, max_tokens={max_tokens}",
-            file=sys.stderr,
-        )
+        print(f"[groq] Calling model={payload.get('model')} max_tokens={payload.get('max_tokens')}", file=sys.stderr)
         r = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=timeout)
         status = r.status_code
 
@@ -371,169 +287,119 @@ def call_groq_single(
                 raise GroqError(f"HTTP {status}: {text}")
 
         data = r.json()
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as e:
-            raise GroqError(f"Unexpected response: {data}") from e
-
-        content = (content or "").strip()
-        if not content:
-            raise GroqError("Empty response from Groq")
-
-        print(
-            f"[groq] ✓ Response length={len(content)} chars",
-            file=sys.stderr,
-        )
-        return content
-
+        return data
     except requests.exceptions.Timeout:
         raise GroqError(f"Request timed out after {timeout}s")
     except requests.exceptions.RequestException as e:
         raise GroqError(f"Request failed: {e}")
 
 
-# ============================================================
-# SINGLE-CALL PIPELINE (GROQ)
-# ============================================================
-def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
+def call_groq_json(prompt: str, max_tokens: int = 4096, temperature: float = 0.2, timeout: int = 60) -> Dict[str, Any]:
     """
-    Execute the full MBA analysis with ONE Groq call.
+    Call Groq expecting STRICT JSON (uses response_format=json_object).
+    Returns parsed JSON dict.
+    """
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "max_tokens": int(max_tokens),
+        "temperature": float(temperature),
+        "response_format": {"type": "json_object"},
+    }
 
-    Returns a dict with:
-      scores, strengths, improvements, recommendations, improved_resume,
-      original_resume, generated_at, pipeline_version
+    data = _groq_post(payload, timeout=timeout)
+    try:
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError) as e:
+        raise GroqError(f"Unexpected response structure: {data}") from e
+
+    if not content:
+        raise GroqError("Empty JSON content from Groq")
+
+    content = content.strip()
+    print(f"[groq-json] Raw length={len(content)} chars", file=sys.stderr)
+
+    # It SHOULD be pure JSON because of response_format=json_object
+    try:
+        parsed = json.loads(content)
+        return parsed
+    except json.JSONDecodeError as e:
+        print(f"[groq-json] JSON decode failed, trying minor cleanup: {e}", file=sys.stderr)
+        # Basic cleanup fallback
+        cleaned = content.replace("```json", "").replace("```", "").strip()
+        return json.loads(cleaned)
+
+
+def call_groq_text(prompt: str, max_tokens: int = 4096, temperature: float = 0.4, timeout: int = 60) -> str:
+    """
+    Call Groq for free-form text (no JSON enforcement).
+    """
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "max_tokens": int(max_tokens),
+        "temperature": float(temperature),
+    }
+
+    data = _groq_post(payload, timeout=timeout)
+    try:
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError) as e:
+        raise GroqError(f"Unexpected response structure (text): {data}") from e
+
+    content = (content or "").strip()
+    if not content:
+        raise GroqError("Empty text response from Groq")
+
+    print(f"[groq-text] Response length={len(content)} chars", file=sys.stderr)
+    return content
+
+
+# ============================================================
+# MAIN PIPELINE (2-CALL)
+# ============================================================
+def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[str, Any]:
+    """
+    Execute the full MBA analysis with TWO Groq calls:
+
+    1) JSON analysis (scores, strengths, improvements, recommendations, improved_resume)
+    2) Narrative enrichment (detailed strengths/improvements/recommendations) as 'narrative' field.
+
+    Returns dict used by FastAPI /analyze endpoint.
     """
     print("\n" + "=" * 60, file=sys.stderr)
-    print(
-        "MBA RESUME ANALYSIS PIPELINE v5.0.0 (Groq single-call)",
-        file=sys.stderr,
-    )
+    print("MBA RESUME ANALYSIS PIPELINE v5.1.0 (Groq 2-call)", file=sys.stderr)
     print(f"[LLM] Using Groq model: {GROQ_MODEL}", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
 
-    print("=" * 60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v5.0 (Groq Single-Call)", file=sys.stderr)
-    print("=" * 60, file=sys.stderr)
+    cleaned_resume = (resume_text or "").strip()
+    if len(cleaned_resume) > 50000:
+        print(f"[pipeline] Truncating resume from {len(cleaned_resume)} to 50000 chars", file=sys.stderr)
+        cleaned_resume = cleaned_resume[:50000]
 
-    prompt = MASTER_PROMPT.replace("{resume}", resume_text)
+    # ---------------------------
+    # Call 1: JSON analysis
+    # ---------------------------
+    json_prompt = MASTER_JSON_PROMPT.replace("{resume}", cleaned_resume)
 
     try:
-        raw = call_groq_single(prompt)
-        print(
-            f"[pipeline] Raw model output (first 300 chars): {raw[:300]}...",
-            file=sys.stderr,
-        )
-
-        parsed = extract_first_json(raw)
-
-        # Ensure keys exist
-        scores = parsed.get("scores", {}) or {}
-        strengths = parsed.get("strengths", []) or []
-        improvements = parsed.get("improvements", []) or []
-        recommendations = parsed.get("recommendations", []) or []
-        improved_resume = parsed.get("improved_resume", "") or ""
-
-        # Normalize scores
-        scores = normalize_scores_to_0_10(scores)
-        if not validate_scores(scores):
-            print(
-                "[pipeline] ⚠ Invalid score structure; falling back to 5.0s",
-                file=sys.stderr,
-            )
-            scores = {
-                "academics": 5.0,
-                "test_readiness": 5.0,
-                "leadership": 5.0,
-                "extracurriculars": 5.0,
-                "international": 5.0,
-                "work_impact": 5.0,
-                "impact": 5.0,
-                "industry": 5.0,
-            }
-
-        # Normalize strengths
-        norm_strengths: List[Dict[str, Any]] = []
-        for s in strengths:
-            title = s.get("title") or "Strength"
-            summary = s.get("summary") or ""
-            sc = s.get("score", 70)
-            try:
-                sc = float(sc)
-            except Exception:
-                sc = 70.0
-            norm_strengths.append(
-                {
-                    "title": title,
-                    "summary": summary,
-                    "score": int(max(0, min(100, round(sc)))),
-                }
-            )
-
-        # Normalize improvements
-        norm_improvements: List[Dict[str, Any]] = []
-        for imp in improvements:
-            area = imp.get("area") or "Area"
-            suggestion = imp.get("suggestion") or ""
-            sc = imp.get("score", 50)
-            try:
-                sc = float(sc)
-            except Exception:
-                sc = 50.0
-            norm_improvements.append(
-                {
-                    "area": area,
-                    "suggestion": suggestion,
-                    "score": int(max(0, min(100, round(sc)))),
-                }
-            )
-
-        # Normalize recommendations
-        norm_recs: List[Dict[str, Any]] = []
-        for i, rec in enumerate(recommendations):
-            sc = rec.get("score", None)
-            sc_norm: Optional[int] = None
-            if sc is not None:
-                try:
-                    sc_norm = int(max(0, min(100, round(float(sc)))))
-                except Exception:
-                    sc_norm = None
-
-            norm_recs.append(
-                {
-                    "id": rec.get("id") or f"rec_{i+1}",
-                    "type": rec.get("type") or "other",
-                    "area": rec.get("area") or "General",
-                    "priority": rec.get("priority") or "medium",
-                    "action": rec.get("action") or "",
-                    "estimated_impact": rec.get("estimated_impact") or "",
-                    "score": sc_norm,
-                }
-            )
-
-        # Improved resume fallback
-        improved_resume = improved_resume.strip()
-        if not improved_resume:
-            improved_resume = "[No improved resume generated]\n\n" + resume_text
-
-        result: Dict[str, Any] = {
-            "original_resume": resume_text,
-            "scores": scores,
-            "strengths": norm_strengths,
-            "improvements": norm_improvements,
-            "recommendations": norm_recs,
-            "improved_resume": improved_resume,
-            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "pipeline_version": "5.0.0-groq-single",
-        }
-
-        print("[pipeline] ✓ Single-call pipeline completed", file=sys.stderr)
-        return result
-
+        analysis_raw = call_groq_json(json_prompt, max_tokens=4096, temperature=0.2)
+        print("[pipeline] ✓ JSON analysis call succeeded", file=sys.stderr)
     except Exception as e:
-        print(f"[pipeline] ✗ Pipeline failed: {e}", file=sys.stderr)
-        # Hard fallback: empty result + default scores
+        print(f"[pipeline] ✗ JSON analysis failed: {e}", file=sys.stderr)
+        # Hard fallback
         return {
-            "original_resume": resume_text,
+            "original_resume": cleaned_resume,
             "scores": {
                 "academics": 5.0,
                 "test_readiness": 5.0,
@@ -547,71 +413,233 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
             "strengths": [],
             "improvements": [],
             "recommendations": [],
-            "improved_resume": "[Pipeline failed – returning original resume]\n\n"
-            + resume_text,
+            "improved_resume": "[Pipeline failed – returning original resume]\n\n" + cleaned_resume,
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "pipeline_version": "5.0.0-groq-single-error-fallback",
+            "pipeline_version": "5.1.0-groq-2call-error-json",
             "error": str(e),
         }
 
+    # Extract + normalize
+    scores = analysis_raw.get("scores", {}) or {}
+    strengths = analysis_raw.get("strengths", []) or []
+    improvements = analysis_raw.get("improvements", []) or []
+    recommendations = analysis_raw.get("recommendations", []) or []
+    improved_resume = analysis_raw.get("improved_resume", "") or ""
+
+    # Normalize scores
+    scores = normalize_scores_to_0_10(scores)
+    if not validate_scores(scores):
+        print("[pipeline] ⚠ Invalid score structure; falling back to 5.0s", file=sys.stderr)
+        scores = {
+            "academics": 5.0,
+            "test_readiness": 5.0,
+            "leadership": 5.0,
+            "extracurriculars": 5.0,
+            "international": 5.0,
+            "work_impact": 5.0,
+            "impact": 5.0,
+            "industry": 5.0,
+        }
+
+    # Normalize strengths
+    norm_strengths: List[Dict[str, Any]] = []
+    for s in strengths:
+        title = s.get("title") or "Strength"
+        summary = s.get("summary") or ""
+        sc = s.get("score", 70)
+        try:
+            sc = float(sc)
+        except Exception:
+            sc = 70.0
+        norm_strengths.append(
+            {
+                "title": title,
+                "summary": summary,
+                "score": int(max(0, min(100, round(sc)))),
+            }
+        )
+
+    # Normalize improvements
+    norm_improvements: List[Dict[str, Any]] = []
+    for imp in improvements:
+        area = imp.get("area") or "Area"
+        suggestion = imp.get("suggestion") or ""
+        sc = imp.get("score", 50)
+        try:
+            sc = float(sc)
+        except Exception:
+            sc = 50.0
+        norm_improvements.append(
+            {
+                "area": area,
+                "suggestion": suggestion,
+                "score": int(max(0, min(100, round(sc)))),
+            }
+        )
+
+    # Normalize recommendations
+    norm_recs: List[Dict[str, Any]] = []
+    for i, rec in enumerate(recommendations):
+        sc = rec.get("score", None)
+        sc_norm: Optional[int] = None
+        if sc is not None:
+            try:
+                sc_norm = int(max(0, min(100, round(float(sc)))))
+            except Exception:
+                sc_norm = None
+
+        norm_recs.append(
+            {
+                "id": rec.get("id") or f"rec_{i+1}",
+                "type": rec.get("type") or "other",
+                "area": rec.get("area") or "General",
+                "priority": rec.get("priority") or "medium",
+                "action": rec.get("action") or "",
+                "estimated_impact": rec.get("estimated_impact") or "",
+                "score": sc_norm,
+            }
+        )
+
+    improved_resume = improved_resume.strip()
+    if not improved_resume:
+        improved_resume = "[No improved resume generated]\n\n" + cleaned_resume
+
+    result: Dict[str, Any] = {
+        "original_resume": cleaned_resume,
+        "scores": scores,
+        "strengths": norm_strengths,
+        "improvements": norm_improvements,
+        "recommendations": norm_recs,
+        "improved_resume": improved_resume,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "pipeline_version": "5.1.0-groq-2call",
+    }
+
+    # ---------------------------
+    # Call 2: Narrative enrichment
+    # ---------------------------
+    try:
+        analysis_json_for_prompt = json.dumps(
+            {
+                "scores": scores,
+                "strengths": norm_strengths,
+                "improvements": norm_improvements,
+                "recommendations": norm_recs,
+            },
+            ensure_ascii=False,
+        )
+        narrative_prompt = NARRATIVE_PROMPT_TEMPLATE.format(
+            resume=cleaned_resume,
+            analysis_json=analysis_json_for_prompt,
+        )
+
+        narrative_text = call_groq_text(
+            narrative_prompt,
+            max_tokens=2048,
+            temperature=0.4,
+        )
+
+        # Optional: split into sections using headings
+        strengths_text = ""
+        improvements_text = ""
+        recommendations_text = ""
+        current_section = None
+        lines = narrative_text.splitlines()
+        buf: List[str] = []
+
+        def flush_buffer(section_name: Optional[str]):
+            nonlocal strengths_text, improvements_text, recommendations_text, buf
+            joined = "\n".join(buf).strip()
+            if not section_name or not joined:
+                return
+            if section_name == "strengths":
+                strengths_text = joined
+            elif section_name == "improvements":
+                improvements_text = joined
+            elif section_name == "recommendations":
+                recommendations_text = joined
+            buf = []
+
+        for line in lines:
+            stripped = line.strip()
+            lower = stripped.lower()
+            if lower.startswith("### top strengths"):
+                flush_buffer(current_section)
+                current_section = "strengths"
+                buf.append(stripped)
+            elif lower.startswith("### improvement areas"):
+                flush_buffer(current_section)
+                current_section = "improvements"
+                buf.append(stripped)
+            elif lower.startswith("### actionable recommendations"):
+                flush_buffer(current_section)
+                current_section = "recommendations"
+                buf.append(stripped)
+            else:
+                buf.append(line)
+
+        flush_buffer(current_section)
+
+        result["narrative"] = {
+            "raw": narrative_text,
+            "strengths": strengths_text or narrative_text,
+            "improvements": improvements_text or "",
+            "recommendations": recommendations_text or "",
+        }
+
+        print("[pipeline] ✓ Narrative enrichment call succeeded", file=sys.stderr)
+    except Exception as e:
+        print(f"[pipeline] ⚠ Narrative enrichment failed: {e}", file=sys.stderr)
+        result["narrative_error"] = str(e)
+
+    print("[pipeline] ✓ Full 2-call pipeline completed", file=sys.stderr)
+    return result
+
 
 # ============================================================
-# BACKWARDS-COMPATIBLE ENTRY POINT (for FastAPI import)
-# ============================================================
-def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[str, Any]:
-    """
-    Backwards-compatible wrapper so FastAPI code that calls `run_pipeline(...)`
-    still works. We ignore include_improvement and just return the single-call result.
-    """
-    return run_pipeline_single_call(resume_text)
-
-
-# ============================================================
-# RESUME IMPROVEMENT (USED BY /rewrite ENDPOINT)
+# /rewrite SUPPORT
 # ============================================================
 def improve_resume(resume_text: str) -> str:
     """
-    Use Groq to rewrite/improve the resume only (no JSON).
-    Returns plain text (no markdown fences).
+    Improve resume text using Groq (plain text, no JSON).
+    Used by FastAPI /rewrite endpoint.
     """
+    cleaned = (resume_text or "").strip()
+    if len(cleaned) > 50000:
+        print(f"[improve_resume] Truncating from {len(cleaned)} to 50000 chars", file=sys.stderr)
+        cleaned = cleaned[:50000]
+
     prompt = f"""
 You are an expert MBA resume editor.
 
-Rewrite the following resume to make it suitable for top global MBA programs
-(US, Europe, India). Rules:
-
-- Keep all facts truthful: DO NOT invent companies, titles, or achievements.
-- Use strong action verbs and quantify impact where numbers exist.
-- Keep an ATS-friendly structure (no tables, no fancy formatting).
-- Use clean bullet points and section headings.
-- Tailor tone for MBA / business schools.
+Rewrite the following resume into a sharper, MBA-ready resume:
+- Keep all facts consistent (no invention).
+- Use strong action verbs.
+- Use bullet points.
+- Add metrics and impact where already present, but do NOT fabricate numbers.
+- Make it ATS-friendly and clean.
 
 Return ONLY the improved resume text.
-Do NOT add commentary.
-Do NOT wrap in ```markdown``` fences.
 
 Resume:
 --------------------
-{resume_text}
+{cleaned}
 --------------------
 """
 
-    raw = call_groq_single(prompt, max_tokens=4096, temperature=0.3)
-
-    # Strip possible fences anyway, just in case
-    cleaned = re.sub(r"```[a-zA-Z]*\s*", "", raw).strip()
-    return cleaned
+    print(f"[improve_resume] Calling Groq for {len(cleaned)} characters", file=sys.stderr)
+    raw = call_groq_text(prompt, max_tokens=4096, temperature=0.3)
+    print(f"[improve_resume] Raw output (first 200 chars): {raw[:200]}...", file=sys.stderr)
+    return raw.strip()
 
 
 # ============================================================
-# CLI MAIN (for testing on Render / local)
+# CLI MAIN (for local testing)
 # ============================================================
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="MBA Resume Groq Single-Call Pipeline v5.0.0"
-    )
+    parser = argparse.ArgumentParser(description="MBA Resume Groq 2-Call Pipeline v5.1.0")
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text or file path")
     args = parser.parse_args()
 
@@ -619,7 +647,7 @@ def main():
 
     if not resume_input:
         print("Usage:", file=sys.stderr)
-        print('  python mba_hybrid_pipeline.py "resume text..."', file=sys.stderr)
+        print("  python mba_hybrid_pipeline.py \"resume text...\"", file=sys.stderr)
         print("  python mba_hybrid_pipeline.py resume.pdf", file=sys.stderr)
         print("  python mba_hybrid_pipeline.py resume.txt", file=sys.stderr)
         sys.exit(1)
@@ -633,21 +661,15 @@ def main():
                 print(f"[main] Reading text file: {resume_input}", file=sys.stderr)
                 with open(resume_input, "r", encoding="utf-8") as f:
                     resume_text = f.read()
-            print(
-                f"[main] ✓ Loaded {len(resume_text)} characters",
-                file=sys.stderr,
-            )
+            print(f"[main] ✓ Loaded {len(resume_text)} characters", file=sys.stderr)
         except Exception as e:
             print(f"[main] ✗ Failed to read file: {e}", file=sys.stderr)
             sys.exit(1)
     else:
         resume_text = resume_input
-        print(
-            f"[main] Using direct text input ({len(resume_text)} chars)",
-            file=sys.stderr,
-        )
+        print(f"[main] Using direct text input ({len(resume_text)} chars)", file=sys.stderr)
 
-    result = run_pipeline_single_call(resume_text)
+    result = run_pipeline(resume_text, include_improvement=False)
     sys.stdout.write(json.dumps(result, ensure_ascii=False))
     sys.stdout.flush()
 
