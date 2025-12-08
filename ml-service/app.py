@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 FastAPI wrapper for:
-- MBA Resume Analysis Pipeline
+- MBA Resume Analysis Pipeline (Groq single-call v5.0)
 - B-School Match Pipeline
 
 Deployed on Render.com
@@ -26,10 +26,12 @@ from pipeline.mba_hybrid_pipeline import (
 )
 from pipeline.bschool_match_pipeline import run_bschool_match
 
+APP_VERSION = "5.0.0"
+
 app = FastAPI(
     title="MBA Tools API",
     description="AI-powered resume analysis + B-school match for MBA admissions",
-    version="4.1.0",
+    version=APP_VERSION,
 )
 
 # CORS - Allow Vercel domains (you can restrict later)
@@ -47,7 +49,7 @@ async def root():
     return {
         "status": "healthy",
         "service": "MBA Tools",
-        "version": "4.1.0",
+        "version": APP_VERSION,
         "endpoints": {
             "analyze": "POST /analyze",
             "rewrite": "POST /rewrite",
@@ -64,15 +66,12 @@ async def health():
     return {
         "status": "healthy",
         "pdf_support": PDF_SUPPORT,
-        "gemini_configured": bool(os.getenv("GEMINI_API_KEY")),
-        "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        # 🔥 Groq-only config
+        "groq_configured": bool(os.getenv("GROQ_API_KEY")),
         "models": {
-            "gemini_primary": os.getenv("GEMINI_PRIMARY_MODEL", "not_set"),
-            "gemini_secondary": os.getenv("GEMINI_SECONDARYFALLBACK_MODEL", "not_set"),
-            "gemini_tertiary": os.getenv("GEMINI_THIRDFALLBACK_MODEL", "not_set"),
-            "openai_fallback": os.getenv("OPENAI_FOURTHFALLBACK_MODEL", "not_set"),
+            "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
         },
-        "pipeline_version": "4.1.0",
+        "pipeline_version": APP_VERSION,
         "extra": {
             "bschool_match_pipeline": True,
         },
@@ -164,18 +163,34 @@ async def analyze_resume(
         )
         resume_text = resume_text[:50000]
 
-    # Run ML pipeline
+    # Run ML pipeline (Groq single-call)
     try:
         print(
             f"[API] Starting analysis for {len(resume_text)} character resume",
             file=sys.stderr,
         )
+        print(
+            "============================================================",
+            file=sys.stderr,
+        )
+        print(
+            f"MBA RESUME ANALYSIS PIPELINE v{APP_VERSION} (Groq single-call)",
+            file=sys.stderr,
+        )
+        print(
+            f"[LLM] Using Groq model: {os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
+            file=sys.stderr,
+        )
+        print(
+            "============================================================",
+            file=sys.stderr,
+        )
 
-        # IMPORTANT: no improved_resume here – that’s /rewrite
+        # 🔥 New pipeline v5.0 – still keep include_improvement flag for compatibility
         result = run_pipeline(resume_text, include_improvement=False)
 
         # Extra safety: drop improved_resume if pipeline still sends it
-        if "improved_resume" in result:
+        if isinstance(result, dict) and "improved_resume" in result:
             del result["improved_resume"]
 
         print("[API] Analysis complete", file=sys.stderr)
@@ -234,7 +249,7 @@ async def rewrite_resume(
         )
         trimmed = trimmed[:50000]
 
-    # Call improve_resume function
+    # Call improve_resume function (Groq inside)
     try:
         print(
             f"[Rewrite API] Starting improvement for {len(trimmed)} character resume",
@@ -252,7 +267,7 @@ async def rewrite_resume(
                 "source": "pipeline.mba_hybrid_pipeline.improve_resume",
                 "original_length": len(trimmed),
                 "improved_length": len(improved),
-                "pipeline_version": "4.1.0",
+                "pipeline_version": APP_VERSION,
             },
         }
 
