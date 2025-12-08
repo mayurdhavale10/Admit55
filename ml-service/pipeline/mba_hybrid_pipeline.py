@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-mba_hybrid_pipeline.py v5.0 (Groq Single-Call)
-----------------------------------------------
+mba_hybrid_pipeline.py v5.0.0 (Groq Single-Call)
+------------------------------------------------
 Single-call pipeline using Groq (OpenAI-compatible API).
 
 ENV REQUIRED:
@@ -18,12 +18,6 @@ This script:
    - recommendations[]
    - improved_resume (string)
 4) Returns a clean JSON report
-
-Backwards compatible exports for FastAPI:
-  - run_pipeline(resume_text, include_improvement=False)
-  - improve_resume(resume_text)
-  - extract_text_from_pdf(...)
-  - PDF_SUPPORT
 """
 
 import os
@@ -32,6 +26,7 @@ import time
 import json
 import re
 from typing import Any, Dict, List, Optional
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -43,11 +38,15 @@ import requests
 # ============================================================
 try:
     import PyPDF2
+
     PDF_SUPPORT = True
     print("[PDF] PyPDF2 loaded successfully", file=sys.stderr)
 except ImportError:
     PDF_SUPPORT = False
-    print("[PDF] PyPDF2 not installed. PDF support disabled. Run: pip install PyPDF2", file=sys.stderr)
+    print(
+        "[PDF] PyPDF2 not installed. PDF support disabled. Run: pip install PyPDF2",
+        file=sys.stderr,
+    )
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
@@ -91,7 +90,7 @@ print(f"  GROQ_MODEL: {GROQ_MODEL}", file=sys.stderr)
 
 
 # ============================================================
-# JSON EXTRACTION UTILITY
+# JSON EXTRACTION UTILITY (ROBUST, WITH CONTROL-CHAR FIX)
 # ============================================================
 def extract_first_json(text: str) -> Any:
     """Extract and parse the first valid JSON object from text with robust cleanup."""
@@ -113,8 +112,9 @@ def extract_first_json(text: str) -> Any:
     ]
     for prefix in prefixes_to_remove:
         if text.lower().startswith(prefix.lower()):
-            text = text[len(prefix):].strip()
+            text = text[len(prefix) :].strip()
 
+    # Find first JSON object by braces
     start = text.find("{")
     if start == -1:
         raise ValueError("No JSON object found in text")
@@ -135,16 +135,59 @@ def extract_first_json(text: str) -> Any:
         if end == -1 or end <= start:
             raise ValueError("No complete JSON object found")
 
-    json_str = text[start:end + 1]
+    json_str = text[start : end + 1]
 
+    # --- helper: clean raw control chars INSIDE quoted strings ---
+    def _escape_control_chars_inside_strings(s: str) -> str:
+        out: List[str] = []
+        in_string = False
+        escape = False
+
+        for ch in s:
+            if escape:
+                out.append(ch)
+                escape = False
+                continue
+
+            if ch == "\\":
+                out.append(ch)
+                escape = True
+                continue
+
+            if ch == '"':
+                in_string = not in_string
+                out.append(ch)
+                continue
+
+            # If we're *inside* a JSON string and see a control char, escape it
+            if in_string and ord(ch) < 32:
+                if ch == "\n":
+                    out.append("\\n")
+                elif ch == "\r":
+                    out.append("\\r")
+                elif ch == "\t":
+                    out.append("\\t")
+                else:
+                    out.append(" ")
+            else:
+                out.append(ch)
+
+        return "".join(out)
+
+    # First attempt: direct parse
     try:
         return json.loads(json_str)
-    except json.JSONDecodeError:
-        # Try minor cleanup
-        json_str = json_str.replace("'", '"')
-        json_str = re.sub(r",\s*}", "}", json_str)
-        json_str = re.sub(r",\s*]", "]", json_str)
-        return json.loads(json_str)
+    except json.JSONDecodeError as e:
+        # If it's a control-char problem, try cleaning inside strings
+        if "Invalid control character" in str(e):
+            cleaned = _escape_control_chars_inside_strings(json_str)
+            return json.loads(cleaned)
+
+        # Generic fallback: simple fixes
+        fixed = json_str.replace("'", '"')
+        fixed = re.sub(r",\s*}", "}", fixed)
+        fixed = re.sub(r",\s*]", "]", fixed)
+        return json.loads(fixed)
 
 
 # ============================================================
@@ -197,7 +240,7 @@ def validate_scores(scores: Dict[str, Any]) -> bool:
 
 
 # ============================================================
-# MASTER PROMPTS (ONE-CALL + IMPROVE)
+# MASTER PROMPT (ONE-CALL PIPELINE)
 # ============================================================
 MASTER_PROMPT = """
 You are an elite MBA admissions evaluator.
@@ -260,43 +303,22 @@ CONTENT RULES:
    - Keep all facts consistent (do NOT invent achievements or dates).
    - Use bullet points with strong impact verbs and metrics where available.
    - Keep a clean, ATS-friendly text format.
+   - Escape newlines as \\n inside the JSON string (no raw newlines inside the JSON).
 
 VERY IMPORTANT:
 - If the resume already mentions a strong GMAT (>=700) or GRE (>=325) or MBA/PGP from IIM/ISB/top school,
   do NOT suggest "take GMAT/GRE" as a recommendation.
-- Output MUST be valid JSON with EXACTLY those top-level keys:
+- Output MUST be valid JSON with EXACTLY these top-level keys:
   "scores", "strengths", "improvements", "recommendations", "improved_resume".
-- DO NOT wrap the JSON in markdown, DO NOT add commentary.
+- DO NOT wrap the JSON in markdown.
+- DO NOT add commentary before or after the JSON.
+- DO NOT include ```json fences.
 
 Resume:
 --------------------
 {resume}
 --------------------
 Return ONLY the JSON object.
-"""
-
-IMPROVE_PROMPT_TEMPLATE = """
-You are an elite MBA resume editor.
-
-Task:
-Rewrite the resume below to be strong for top MBA programs (ISB / IIMs / INSEAD / US M7).
-
-Rules:
-- Keep ALL facts accurate. Do NOT invent achievements, companies, dates, or scores.
-- Use strong action verbs and, where possible, metrics (%, Rs, $, etc.) already present.
-- Group bullet points by role and company.
-- Make it ATS-friendly, plain text (no markdown, no tables).
-- Focus on leadership, impact, quantifiable outcomes, and clarity.
-- Remove obvious redundancies and weak fillers.
-
-Return:
-- ONLY the improved resume, as plain text.
-- NO JSON, NO commentary.
-
-Resume:
---------------------
-{resume}
---------------------
 """
 
 
@@ -308,10 +330,7 @@ class GroqError(Exception):
 
 
 def call_groq_single(
-    prompt: str,
-    max_tokens: int = 4096,
-    temperature: float = 0.2,
-    timeout: int = 60,
+    prompt: str, max_tokens: int = 4096, temperature: float = 0.2, timeout: int = 60
 ) -> str:
     """Call Groq (OpenAI-compatible chat API) once."""
     if not GROQ_API_KEY:
@@ -335,7 +354,10 @@ def call_groq_single(
     }
 
     try:
-        print(f"[groq] Calling model={GROQ_MODEL}, max_tokens={max_tokens}", file=sys.stderr)
+        print(
+            f"[groq] Calling model={GROQ_MODEL}, max_tokens={max_tokens}",
+            file=sys.stderr,
+        )
         r = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=timeout)
         status = r.status_code
 
@@ -358,7 +380,10 @@ def call_groq_single(
         if not content:
             raise GroqError("Empty response from Groq")
 
-        print(f"[groq] ✓ Response length={len(content)} chars", file=sys.stderr)
+        print(
+            f"[groq] ✓ Response length={len(content)} chars",
+            file=sys.stderr,
+        )
         return content
 
     except requests.exceptions.Timeout:
@@ -368,7 +393,7 @@ def call_groq_single(
 
 
 # ============================================================
-# SINGLE-CALL ANALYSIS PIPELINE
+# SINGLE-CALL PIPELINE (GROQ)
 # ============================================================
 def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
     """
@@ -379,14 +404,25 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
       original_resume, generated_at, pipeline_version
     """
     print("\n" + "=" * 60, file=sys.stderr)
-    print("MBA RESUME ANALYSIS PIPELINE v5.0 (Groq Single-Call)", file=sys.stderr)
+    print(
+        "MBA RESUME ANALYSIS PIPELINE v5.0.0 (Groq single-call)",
+        file=sys.stderr,
+    )
+    print(f"[LLM] Using Groq model: {GROQ_MODEL}", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
+
+    print("=" * 60, file=sys.stderr)
+    print("MBA RESUME ANALYSIS PIPELINE v5.0 (Groq Single-Call)", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
 
     prompt = MASTER_PROMPT.replace("{resume}", resume_text)
 
     try:
         raw = call_groq_single(prompt)
-        print(f"[pipeline] Raw model output (first 300 chars): {raw[:300]}...", file=sys.stderr)
+        print(
+            f"[pipeline] Raw model output (first 300 chars): {raw[:300]}...",
+            file=sys.stderr,
+        )
 
         parsed = extract_first_json(raw)
 
@@ -400,7 +436,10 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
         # Normalize scores
         scores = normalize_scores_to_0_10(scores)
         if not validate_scores(scores):
-            print("[pipeline] ⚠ Invalid score structure; falling back to 5.0s", file=sys.stderr)
+            print(
+                "[pipeline] ⚠ Invalid score structure; falling back to 5.0s",
+                file=sys.stderr,
+            )
             scores = {
                 "academics": 5.0,
                 "test_readiness": 5.0,
@@ -461,7 +500,7 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
 
             norm_recs.append(
                 {
-                    "id": rec.get("id") or f"rec_{i + 1}",
+                    "id": rec.get("id") or f"rec_{i+1}",
                     "type": rec.get("type") or "other",
                     "area": rec.get("area") or "General",
                     "priority": rec.get("priority") or "medium",
@@ -476,7 +515,7 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
         if not improved_resume:
             improved_resume = "[No improved resume generated]\n\n" + resume_text
 
-        result = {
+        result: Dict[str, Any] = {
             "original_resume": resume_text,
             "scores": scores,
             "strengths": norm_strengths,
@@ -508,7 +547,8 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
             "strengths": [],
             "improvements": [],
             "recommendations": [],
-            "improved_resume": "[Pipeline failed – returning original resume]\n\n" + resume_text,
+            "improved_resume": "[Pipeline failed – returning original resume]\n\n"
+            + resume_text,
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "pipeline_version": "5.0.0-groq-single-error-fallback",
             "error": str(e),
@@ -516,35 +556,51 @@ def run_pipeline_single_call(resume_text: str) -> Dict[str, Any]:
 
 
 # ============================================================
-# IMPROVE-ONLY PIPELINE (for /rewrite endpoint)
-# ============================================================
-def improve_resume(resume_text: str) -> str:
-    """
-    Used by /rewrite endpoint in FastAPI.
-    Returns ONLY improved resume text (no JSON).
-    """
-    prompt = IMPROVE_PROMPT_TEMPLATE.replace("{resume}", resume_text)
-
-    try:
-        raw = call_groq_single(prompt, max_tokens=4096, temperature=0.4, timeout=90)
-        print(f"[improve_resume] Raw output (first 200 chars): {raw[:200]}...", file=sys.stderr)
-        return raw.strip() or resume_text
-    except Exception as e:
-        print(f"[improve_resume] ✗ Failed: {e}", file=sys.stderr)
-        return "[Resume improvement failed – returning original resume]\n\n" + resume_text
-
-
-# ============================================================
-# BACKWARDS-COMPATIBLE ENTRY POINT
+# BACKWARDS-COMPATIBLE ENTRY POINT (for FastAPI import)
 # ============================================================
 def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[str, Any]:
     """
-    Backwards-compatible function for FastAPI app.
-
-    - Ignores include_improvement (we always compute improved_resume inside the single call).
-    - Returns the same structure that /analyze expects.
+    Backwards-compatible wrapper so FastAPI code that calls `run_pipeline(...)`
+    still works. We ignore include_improvement and just return the single-call result.
     """
     return run_pipeline_single_call(resume_text)
+
+
+# ============================================================
+# RESUME IMPROVEMENT (USED BY /rewrite ENDPOINT)
+# ============================================================
+def improve_resume(resume_text: str) -> str:
+    """
+    Use Groq to rewrite/improve the resume only (no JSON).
+    Returns plain text (no markdown fences).
+    """
+    prompt = f"""
+You are an expert MBA resume editor.
+
+Rewrite the following resume to make it suitable for top global MBA programs
+(US, Europe, India). Rules:
+
+- Keep all facts truthful: DO NOT invent companies, titles, or achievements.
+- Use strong action verbs and quantify impact where numbers exist.
+- Keep an ATS-friendly structure (no tables, no fancy formatting).
+- Use clean bullet points and section headings.
+- Tailor tone for MBA / business schools.
+
+Return ONLY the improved resume text.
+Do NOT add commentary.
+Do NOT wrap in ```markdown``` fences.
+
+Resume:
+--------------------
+{resume_text}
+--------------------
+"""
+
+    raw = call_groq_single(prompt, max_tokens=4096, temperature=0.3)
+
+    # Strip possible fences anyway, just in case
+    cleaned = re.sub(r"```[a-zA-Z]*\s*", "", raw).strip()
+    return cleaned
 
 
 # ============================================================
@@ -553,7 +609,9 @@ def run_pipeline(resume_text: str, include_improvement: bool = False) -> Dict[st
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="MBA Resume Groq Single-Call Pipeline v5.0")
+    parser = argparse.ArgumentParser(
+        description="MBA Resume Groq Single-Call Pipeline v5.0.0"
+    )
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text or file path")
     args = parser.parse_args()
 
@@ -561,7 +619,7 @@ def main():
 
     if not resume_input:
         print("Usage:", file=sys.stderr)
-        print("  python mba_hybrid_pipeline.py \"resume text...\"", file=sys.stderr)
+        print('  python mba_hybrid_pipeline.py "resume text..."', file=sys.stderr)
         print("  python mba_hybrid_pipeline.py resume.pdf", file=sys.stderr)
         print("  python mba_hybrid_pipeline.py resume.txt", file=sys.stderr)
         sys.exit(1)
@@ -575,13 +633,19 @@ def main():
                 print(f"[main] Reading text file: {resume_input}", file=sys.stderr)
                 with open(resume_input, "r", encoding="utf-8") as f:
                     resume_text = f.read()
-            print(f"[main] ✓ Loaded {len(resume_text)} characters", file=sys.stderr)
+            print(
+                f"[main] ✓ Loaded {len(resume_text)} characters",
+                file=sys.stderr,
+            )
         except Exception as e:
             print(f"[main] ✗ Failed to read file: {e}", file=sys.stderr)
             sys.exit(1)
     else:
         resume_text = resume_input
-        print(f"[main] Using direct text input ({len(resume_text)} chars)", file=sys.stderr)
+        print(
+            f"[main] Using direct text input ({len(resume_text)} chars)",
+            file=sys.stderr,
+        )
 
     result = run_pipeline_single_call(resume_text)
     sys.stdout.write(json.dumps(result, ensure_ascii=False))
