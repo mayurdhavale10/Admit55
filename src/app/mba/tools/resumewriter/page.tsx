@@ -240,7 +240,7 @@ export default function ResumeWriterPage() {
     setError(null);
 
     try {
-      // 🔥 Transform form data into ResumeWriterAnswers structure
+      // Transform form data into ResumeWriterAnswers structure
       const apiPayload: ResumeWriterAnswers = {
         basic_info: {
           full_name: formData.basic_info.full_name,
@@ -486,80 +486,79 @@ export default function ResumeWriterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">
-                MBA Resume Writer
-              </h1>
-              <p className="mt-1 text-sm text-slate-600">
-                Create a professional, ATS-friendly resume tailored for MBA
-                recruiting
-              </p>
-            </div>
-          </div>
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Navy Blue Slate Behind Navbar */}
+      <div className="fixed top-0 left-0 right-0 h-[84px] bg-[#002b5b] z-40" />
+
+      {/* Page Content with Top Padding */}
+      <div className="pt-[110px] px-4 md:px-8">
+        {/* Page Title */}
+        <div className="mx-auto max-w-7xl mb-6">
+          <h1 className="text-3xl font-bold text-[#002b5b]">
+            MBA Resume Writer
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Create a professional, ATS-friendly resume tailored for MBA recruiting
+          </p>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Stepper */}
-        <Stepper
-          steps={STEPS}
-          currentStep={currentStep}
-          onStepClick={handleStepClick}
-          allowClickNavigation={true}
-        />
+        {/* Main Content */}
+        <main className="mx-auto max-w-7xl">
+          {/* Stepper */}
+          <Stepper
+            steps={STEPS}
+            currentStep={currentStep}
+            onStepClick={handleStepClick}
+            allowClickNavigation={true}
+          />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-            <div className="flex gap-3">
-              <svg
-                className="w-5 h-5 text-red-600 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div>
-                <h4 className="text-sm font-semibold text-red-900">Error</h4>
-                <p className="mt-1 text-sm text-red-800">{error}</p>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+              <div className="flex gap-3">
+                <svg
+                  className="w-5 h-5 text-red-600 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <h4 className="text-sm font-semibold text-red-900">Error</h4>
+                  <p className="mt-1 text-sm text-red-800">{error}</p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Two-column layout */}
-        <BuilderLayout
-          left={<div className="max-w-3xl">{renderStep()}</div>}
-          right={
-            <div>
-              <ResumePreview
-                data={getPreviewData()}
-                loading={isGenerating}
-              />
-              {generatedResume && (
-                <div className="mt-6">
-                  <DownloadButtons
-                    resumeData={getPreviewData()}
-                    candidateName={formData.basic_info.full_name}
-                  />
-                </div>
-              )}
-            </div>
-          }
-        />
-      </main>
+          {/* Two-column layout */}
+          <BuilderLayout
+            left={<div className="max-w-3xl">{renderStep()}</div>}
+            right={
+              <div>
+                <ResumePreview
+                  data={getPreviewData()}
+                  loading={isGenerating}
+                />
+                {generatedResume && (
+                  <div className="mt-6">
+                    <DownloadButtons
+                      resumeData={getPreviewData()}
+                      candidateName={formData.basic_info.full_name}
+                    />
+                  </div>
+                )}
+              </div>
+            }
+          />
+        </main>
+      </div>
     </div>
   );
 }
