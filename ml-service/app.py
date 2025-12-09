@@ -19,10 +19,33 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add pipeline to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Import pipeline functions
-from pipeline.mba_hybrid_pipeline import run_pipeline, improve_resume, PDF_SUPPORT
-from pipeline.bschool_match_pipeline import run_bschool_match
-from pipeline.resume_writer_pipeline import generate_resume
+# Import pipeline functions with fallbacks
+try:
+    from pipeline.mba_hybrid_pipeline import run_pipeline
+except ImportError as e:
+    print(f"[IMPORT ERROR] mba_hybrid_pipeline: {e}", file=sys.stderr)
+    def run_pipeline(text, **kwargs):
+        raise HTTPException(500, "Resume analysis pipeline not available")
+
+try:
+    from pipeline.mba_hybrid_pipeline import PDF_SUPPORT
+except ImportError:
+    PDF_SUPPORT = False
+    print("[IMPORT] PDF_SUPPORT not found, setting to False", file=sys.stderr)
+
+try:
+    from pipeline.bschool_match_pipeline import run_bschool_match
+except ImportError as e:
+    print(f"[IMPORT ERROR] bschool_match_pipeline: {e}", file=sys.stderr)
+    def run_bschool_match(profile):
+        raise HTTPException(500, "B-school match pipeline not available")
+
+try:
+    from pipeline.resume_writer_pipeline import generate_resume
+except ImportError as e:
+    print(f"[IMPORT ERROR] resume_writer_pipeline: {e}", file=sys.stderr)
+    def generate_resume(payload):
+        raise HTTPException(500, "Resume writer pipeline not available")
 
 # PDF extraction - only needed for /analyze endpoint
 try:
@@ -224,70 +247,14 @@ async def rewrite_resume(
 ):
     """
     Improve resume text (on-demand, separate from analysis).
-
-    Args:
-        resume_text: Original resume text to improve (required)
-
-    Returns:
-        {
-            "improved_resume": "...",
-            "meta": { ... }
-        }
+    
+    NOTE: This endpoint is currently disabled as improve_resume
+    function is not available in the pipeline.
     """
-
-    # Validate input
-    if not resume_text or not isinstance(resume_text, str):
-        raise HTTPException(
-            status_code=400,
-            detail="resume_text is required and must be a string",
-        )
-
-    trimmed = resume_text.strip()
-
-    if len(trimmed) < 50:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Resume text too short. Minimum 50 characters required. "
-                f"Received: {len(trimmed)}"
-            ),
-        )
-
-    if len(trimmed) > 50000:
-        print(
-            f"[Rewrite API] Truncating from {len(trimmed)} to 50000 chars",
-            file=sys.stderr,
-        )
-        trimmed = trimmed[:50000]
-
-    # Call improve_resume function (Groq inside)
-    try:
-        print(
-            f"[Rewrite API] Starting improvement for {len(trimmed)} character resume",
-            file=sys.stderr,
-        )
-        improved = improve_resume(trimmed)
-        print(
-            f"[Rewrite API] Improvement complete: {len(improved)} characters",
-            file=sys.stderr,
-        )
-
-        return {
-            "improved_resume": improved,
-            "meta": {
-                "source": "pipeline.mba_hybrid_pipeline.improve_resume",
-                "original_length": len(trimmed),
-                "improved_length": len(improved),
-                "pipeline_version": APP_VERSION,
-            },
-        }
-
-    except Exception as e:
-        print(f"[Rewrite API] Improvement failed: {e}", file=sys.stderr)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Resume improvement failed: {str(e)}",
-        )
+    raise HTTPException(
+        status_code=501,
+        detail="Resume rewrite functionality is currently unavailable. This feature is under development."
+    )
 
 
 # ============================================================
