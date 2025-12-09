@@ -29,11 +29,19 @@ const TOOLS = [
     icon: '/logo/essayicon.webp',
   },
   {
+    id: 'resume',
+    name: 'Resume Writer',
+    description:
+      'Create a professional, ATS-friendly resume tailored for MBA recruiting.',
+    href: '/mba/tools/resumewriter',
+    icon: '/logo/resumewriteicon.webp',
+  },
+  {
     id: 'interview',
     name: 'Interview Ready',
     description:
       'Practice MBA-style interview questions and get structured, targeted feedback.',
-    href: '/mba/tools/interview-ready', // create this route when ready
+    href: '/mba/tools/interview-ready',
     icon: '/logo/interviewicon.webp',
   },
 ];
@@ -55,7 +63,7 @@ export default function YourToolsPage() {
           </div>
 
           {/* TOOLS – logos only on blue slate */}
-          <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
             {TOOLS.map((tool) => (
               <Link
                 key={tool.id}
