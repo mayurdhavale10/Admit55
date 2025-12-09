@@ -3,6 +3,7 @@
 FastAPI wrapper for:
 - MBA Resume Analysis Pipeline (Groq single-call v5.0)
 - B-School Match Pipeline
+- Resume Writer Pipeline (Groq)
 
 Deployed on Render.com
 """
@@ -25,12 +26,13 @@ from pipeline.mba_hybrid_pipeline import (
     PDF_SUPPORT,
 )
 from pipeline.bschool_match_pipeline import run_bschool_match
+from pipeline.resume_writer_pipeline import generate_resume  # 🔥 NEW IMPORT
 
 APP_VERSION = "5.0.0"
 
 app = FastAPI(
     title="MBA Tools API",
-    description="AI-powered resume analysis + B-school match for MBA admissions",
+    description="AI-powered resume analysis + B-school match + resume writer for MBA admissions",
     version=APP_VERSION,
 )
 
@@ -54,6 +56,7 @@ async def root():
             "analyze": "POST /analyze",
             "rewrite": "POST /rewrite",
             "bschool_match": "POST /bschool-match",
+            "resumewriter": "POST /resumewriter",  # 🔥 FIXED - removed hyphen
             "health": "GET /health",
             "test": "POST /test",
         },
@@ -66,7 +69,7 @@ async def health():
     return {
         "status": "healthy",
         "pdf_support": PDF_SUPPORT,
-        # 🔥 Groq-only config
+        # Groq-only config
         "groq_configured": bool(os.getenv("GROQ_API_KEY")),
         "models": {
             "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
@@ -74,6 +77,7 @@ async def health():
         "pipeline_version": APP_VERSION,
         "extra": {
             "bschool_match_pipeline": True,
+            "resume_writer_pipeline": True,  # 🔥 NEW FLAG
         },
     }
 
@@ -186,7 +190,7 @@ async def analyze_resume(
             file=sys.stderr,
         )
 
-        # 🔥 New pipeline v5.0 – still keep include_improvement flag for compatibility
+        # v5.0 Groq single-call – include_improvement flag kept for compatibility
         result = run_pipeline(resume_text, include_improvement=False)
 
         # Extra safety: drop improved_resume if pipeline still sends it
@@ -288,27 +292,6 @@ async def bschool_match(
 ):
     """
     B-School Match engine.
-
-    Expects JSON body like:
-      {
-        "name": "Candidate",
-        "work_experience_years": 3,
-        "target_intake_year": 2026,
-        "preferred_regions": [...],
-        "goals": {...},
-        "scores": {...},
-        "constraints": {...},
-        "resume_summary": "...",   # optional
-        "resume_analysis": {...}   # optional, from /analyze
-      }
-
-    Returns:
-      {
-        "summary": {...},
-        "matches": [...],
-        "tiers": {...},
-        "meta": {...}
-      }
     """
 
     if not isinstance(candidate_profile, dict) or not candidate_profile:
@@ -327,6 +310,55 @@ async def bschool_match(
         raise HTTPException(
             status_code=500,
             detail=f"B-school match pipeline failed: {str(e)}",
+        )
+
+
+# ============================================================
+# /resumewriter – Resume Generation from Q&A (NO HYPHEN)
+# ============================================================
+@app.post("/resumewriter")
+async def resume_writer_endpoint(
+    payload: Dict[str, Any] = Body(..., description="Structured answers from resume Q&A form"),
+):
+    """
+    Resume Writer endpoint.
+
+    Expects JSON body with structured answers, e.g.:
+
+    {
+      "basic_info": {...},
+      "work_experience": [...],
+      "education": [...],
+      "projects": [...],
+      "leadership": [...],
+      "skills": {...},
+      "preferences": {...}
+    }
+
+    Returns:
+      {
+        "resume_text": "string",
+        "sections": {...},
+        "meta": {...}
+      }
+    """
+
+    if not isinstance(payload, dict) or not payload:
+        raise HTTPException(
+            status_code=400,
+            detail="Payload must be a non-empty JSON object of answers",
+        )
+
+    try:
+        print("[resumewriter][API] Starting resume generation", file=sys.stderr)
+        result = generate_resume(payload)
+        print("[resumewriter][API] Resume generation complete", file=sys.stderr)
+        return result
+    except Exception as e:
+        print(f"[resumewriter][API] Failed: {e}", file=sys.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Resume writer failed: {str(e)}",
         )
 
 
