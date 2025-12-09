@@ -19,14 +19,30 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add pipeline to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from pipeline.mba_hybrid_pipeline import (
-    run_pipeline,
-    extract_text_from_pdf,
-    improve_resume,
-    PDF_SUPPORT,
-)
+# Import pipeline functions
+from pipeline.mba_hybrid_pipeline import run_pipeline, improve_resume, PDF_SUPPORT
 from pipeline.bschool_match_pipeline import run_bschool_match
-from pipeline.resume_writer_pipeline import generate_resume  # 🔥 NEW IMPORT
+from pipeline.resume_writer_pipeline import generate_resume
+
+# PDF extraction - only needed for /analyze endpoint
+try:
+    import PyPDF2
+    
+    def extract_text_from_pdf(pdf_path: str) -> str:
+        """Extract text from PDF file."""
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+            return text
+except ImportError:
+    def extract_text_from_pdf(pdf_path: str) -> str:
+        """Fallback if PyPDF2 not available."""
+        raise HTTPException(
+            status_code=500,
+            detail="PDF support not available - PyPDF2 not installed"
+        )
 
 APP_VERSION = "5.0.0"
 
@@ -36,10 +52,10 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
-# CORS - Allow Vercel domains (you can restrict later)
+# CORS - Allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production: restrict to your frontend domains
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -56,7 +72,7 @@ async def root():
             "analyze": "POST /analyze",
             "rewrite": "POST /rewrite",
             "bschool_match": "POST /bschool-match",
-            "resumewriter": "POST /resumewriter",  # 🔥 FIXED - removed hyphen
+            "resumewriter": "POST /resumewriter",
             "health": "GET /health",
             "test": "POST /test",
         },
@@ -69,7 +85,6 @@ async def health():
     return {
         "status": "healthy",
         "pdf_support": PDF_SUPPORT,
-        # Groq-only config
         "groq_configured": bool(os.getenv("GROQ_API_KEY")),
         "models": {
             "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
@@ -77,7 +92,7 @@ async def health():
         "pipeline_version": APP_VERSION,
         "extra": {
             "bschool_match_pipeline": True,
-            "resume_writer_pipeline": True,  # 🔥 NEW FLAG
+            "resume_writer_pipeline": True,
         },
     }
 
@@ -145,7 +160,6 @@ async def analyze_resume(
                     os.unlink(tmp_path)
 
         except HTTPException:
-            # Re-raise HTTP errors as-is
             raise
         except Exception as e:
             raise HTTPException(
@@ -173,10 +187,7 @@ async def analyze_resume(
             f"[API] Starting analysis for {len(resume_text)} character resume",
             file=sys.stderr,
         )
-        print(
-            "============================================================",
-            file=sys.stderr,
-        )
+        print("=" * 60, file=sys.stderr)
         print(
             f"MBA RESUME ANALYSIS PIPELINE v{APP_VERSION} (Groq single-call)",
             file=sys.stderr,
@@ -185,12 +196,8 @@ async def analyze_resume(
             f"[LLM] Using Groq model: {os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
             file=sys.stderr,
         )
-        print(
-            "============================================================",
-            file=sys.stderr,
-        )
+        print("=" * 60, file=sys.stderr)
 
-        # v5.0 Groq single-call – include_improvement flag kept for compatibility
         result = run_pipeline(resume_text, include_improvement=False)
 
         # Extra safety: drop improved_resume if pipeline still sends it
@@ -323,17 +330,7 @@ async def resume_writer_endpoint(
     """
     Resume Writer endpoint.
 
-    Expects JSON body with structured answers, e.g.:
-
-    {
-      "basic_info": {...},
-      "work_experience": [...],
-      "education": [...],
-      "projects": [...],
-      "leadership": [...],
-      "skills": {...},
-      "preferences": {...}
-    }
+    Expects JSON body with structured answers.
 
     Returns:
       {
@@ -351,11 +348,16 @@ async def resume_writer_endpoint(
 
     try:
         print("[resumewriter][API] Starting resume generation", file=sys.stderr)
+        print(f"[resumewriter][API] Payload keys: {list(payload.keys())}", file=sys.stderr)
+        
         result = generate_resume(payload)
+        
         print("[resumewriter][API] Resume generation complete", file=sys.stderr)
         return result
     except Exception as e:
         print(f"[resumewriter][API] Failed: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         raise HTTPException(
             status_code=500,
             detail=f"Resume writer failed: {str(e)}",
