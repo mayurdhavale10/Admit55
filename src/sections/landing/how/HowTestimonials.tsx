@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { useEffect, useState, useRef } from 'react';
 import { Quote } from 'lucide-react';
 
 /* ---------- testimonials content ---------- */
@@ -23,7 +24,7 @@ const testimonials = [
 ];
 
 /* ===========================================================
- * HowTestimonials Component (PART 3)
+ * HowTestimonials Component
  * =========================================================== */
 export default function HowTestimonials() {
   const [active, setActive] = useState(0);
@@ -32,7 +33,6 @@ export default function HowTestimonials() {
     const id = setInterval(() => {
       setActive((i) => (i + 1) % testimonials.length);
     }, 5200);
-
     return () => clearInterval(id);
   }, []);
 
@@ -40,17 +40,46 @@ export default function HowTestimonials() {
     <div className="bg-slate-50/70 py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 text-center mb-12">
-          Backed by Results. Proven by Data.
+        {/* Heading with logo + text on one line */}
+        <h3
+          className="
+          text-3xl sm:text-4xl lg:text-5xl 
+          font-extrabold text-slate-900 
+          text-center mb-12 
+          inline-flex items-center justify-center gap-3 
+          whitespace-nowrap
+        "
+        >
+          <Image
+            src="/logo/admit55_final_logo.webp"
+            alt="Admit55 Logo"
+            width={60}
+            height={60}
+            className="object-contain w-12 h-12 sm:w-16 sm:h-16"
+          />
+          <span>Admit55. Backed by Results. Proven by Data.</span>
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-          {/* Stats */}
-          <div className="lg:col-span-5 flex flex-col gap-8">
-            <Stat number="1,000+" label="Students Guided" />
-            <Stat number="100+" label="Admits to ISB, IIM A/B/C/L, XLRI" />
-            <Stat number="4,000+" label="Books Sold | 4.8★ on Amazon" />
+          {/* Stats – animated on scroll + glass UI */}
+          <div className="lg:col-span-5 flex flex-col gap-6">
+            <Stat
+              target={1000}
+              suffix="+"
+              label="Students Guided"
+            />
+            <Stat
+              target={100}
+              suffix="+"
+              label="Admits to ISB, IIM A/B/C/L, XLRI"
+            />
+            <Stat
+              target={4000}
+              suffix="+"
+              label="Books Sold | 4.8★ on Amazon"
+              href="https://www.amazon.in/Successful-ISB-Essays-Their-Analysis/dp/1647606160/ref=sr_1_1?crid=3POHFB7T9U2CI&dib=eyJ2IjoiMSJ9.uN1JYchBfdxHWiFoARzgzw.GcoUXmDVlBq5PHECeX_0kDF2t27WeLauHMWek2s1Wr0&dib_tag=se&keywords=55+successful+isb+essays&qid=1765373501&sprefix=55+essay%2Caps%2C171&sr=8-1"
+            />
           </div>
 
           {/* Testimonial Carousel */}
@@ -94,15 +123,116 @@ export default function HowTestimonials() {
 }
 
 /* ===========================================================
- * Stat Component
+ * Stat Component – scroll-triggered animated counter + glass card
  * =========================================================== */
-function Stat({ number, label }: { number: string; label: string }) {
-  return (
-    <div className="flex items-baseline gap-4">
+function Stat({
+  target,
+  label,
+  suffix = '',
+  href,
+}: {
+  target: number;
+  label: string;
+  suffix?: string;
+  href?: string;
+}) {
+  const [value, setValue] = useState(0);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // Scroll trigger: start animation when stat enters viewport
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasAnimated) {
+            setHasAnimated(true);
+          }
+        });
+      },
+      {
+        threshold: 0.4, // 40% visible
+      }
+    );
+
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [hasAnimated]);
+
+  // Number animation
+  useEffect(() => {
+    if (!hasAnimated) {
+      // Reset to 0 before animation starts
+      setValue(0);
+      return;
+    }
+
+    let frameId: number;
+    let startTime: number | null = null;
+    const duration = 1400; // ms
+
+    const animate = (timestamp: number) => {
+      if (startTime === null) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const current = Math.floor(eased * target);
+      setValue(current);
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+
+    frameId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(frameId);
+  }, [hasAnimated, target]);
+
+  const formatted = value.toLocaleString('en-IN');
+
+  const inner = (
+    <div
+      className="
+        flex items-baseline gap-4 
+        px-5 py-4
+        rounded-2xl
+        bg-white/20 
+        backdrop-blur-xl 
+        border border-white/40 
+        shadow-lg shadow-slate-300/40
+        transition-transform transition-shadow
+        duration-300
+        hover:-translate-y-1 hover:shadow-2xl
+      "
+    >
       <div className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-indigo-600 to-teal-500 bg-clip-text text-transparent">
-        {number}
+        {formatted}
+        {suffix}
       </div>
-      <div className="text-slate-600">{label}</div>
+      <div className="text-slate-700 text-sm sm:text-base">
+        {label}
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={ref}>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="block cursor-pointer"
+        >
+          {inner}
+        </a>
+      ) : (
+        inner
+      )}
     </div>
   );
 }

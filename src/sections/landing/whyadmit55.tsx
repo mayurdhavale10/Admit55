@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { ShieldCheck, GraduationCap, FileText } from 'lucide-react';
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 type Coach = {
   name: string;
@@ -29,6 +31,9 @@ const COACHES: Coach[] = [
 ];
 
 export default function WhyAdmit55() {
+  const { data: session } = useSession();
+  const router = useRouter();
+
   return (
     <section className="relative w-full bg-gradient-to-b from-[#0a3a6a] to-[#0b487f] text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14 sm:py-16 lg:py-20">
@@ -67,15 +72,20 @@ export default function WhyAdmit55() {
           ))}
         </div>
 
-        {/* CTA */}
+        {/* CTA – with login / redirect logic */}
         <div className="mt-8 flex justify-center">
-          <Link
-            href="/book-session"
-            prefetch={false}
+          <button
+            onClick={() => {
+              if (session?.user?.email) {
+                router.push("/profile#booking");
+              } else {
+                router.push("/api/auth/signin?callbackUrl=/profile#booking");
+              }
+            }}
             className="inline-flex items-center justify-center rounded-md bg-red-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-red-900/20 ring-1 ring-red-400/40 transition hover:bg-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             Book a Session
-          </Link>
+          </button>
         </div>
 
         {/* Fine print */}

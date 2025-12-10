@@ -86,6 +86,18 @@ export default function HowTop() {
         Your MBA Journey, Guided by AI and Experience
       </h2>
 
+      {/* Logo directly under the heading */}
+      <div className="mt-4 flex justify-center">
+        <Image
+          src="/logo/admit55_final_logo.webp"
+          alt="Admit55 Logo"
+          width={80}
+          height={80}
+          className="object-contain w-16 h-16 sm:w-20 sm:h-20"
+        />
+      </div>
+
+      {/* Line below logo */}
       <p className="mt-3 text-base sm:text-lg lg:text-xl text-black max-w-2xl mx-auto">
         Comprehensive tools to elevate every aspect of your application
       </p>

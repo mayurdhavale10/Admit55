@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { UploadCloud, BarChart3, Target } from 'lucide-react';
 
 /* ---------- types ---------- */
@@ -9,7 +10,7 @@ type Step = {
   Icon: React.ComponentType<{ className?: string }>;
 };
 
-/* ---------- content (3 steps) ---------- */
+/* ---------- content ---------- */
 const steps: Step[] = [
   {
     title: 'Upload your resume or answer 7 quick questions',
@@ -28,14 +29,22 @@ const steps: Step[] = [
   },
 ];
 
-/* ===========================================================
- * HowSteps Component (PART 2)
- * =========================================================== */
 export default function HowSteps() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-      <h3 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black">
-        How Admit55 Works
+      {/* Heading with logo after "How" */}
+      <h3 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black flex items-center justify-center gap-3 flex-wrap">
+        <span>How</span>
+
+        <Image
+          src="/logo/admit55_final_logo.webp"
+          alt="Admit55 Logo"
+          width={60}
+          height={60}
+          className="object-contain sm:w-16 sm:h-16 w-12 h-12"
+        />
+
+        <span>Admit55 Works</span>
       </h3>
 
       <p className="mt-3 text-base sm:text-lg lg:text-xl text-black max-w-2xl mx-auto">
@@ -51,9 +60,6 @@ export default function HowSteps() {
   );
 }
 
-/* ===========================================================
- * Step Card Component
- * =========================================================== */
 function StepCard({ step, index }: { step: Step; index: number }) {
   return (
     <div className="relative">
