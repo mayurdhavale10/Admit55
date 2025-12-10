@@ -219,7 +219,7 @@ export default function AboveTheFold() {
   const [start, setStart] = useState(false);
   const bp = useBreakpoint();
 
-  /** ICON CONFIG (Responsive Positions + Community Tool replacing Interview) */
+  /** ICON CONFIG - Mobile fixed with better spacing */
   const CHIPS: Chip[] = useMemo(() => {
     if (bp === 'mobile') {
       return [
@@ -227,7 +227,7 @@ export default function AboveTheFold() {
           src: '/logo/profileicon.webp',
           label: 'Profile Snapshot',
           x: -vw(28),
-          y: -vh(24),
+          y: -vh(32),
           size: vw(22),
           href: PROFILE_ROUTE,
         },
@@ -235,7 +235,7 @@ export default function AboveTheFold() {
           src: '/logo/resumewriteicon.webp',
           label: 'Resumewriter',
           x: vw(28),
-          y: -vh(24),
+          y: -vh(32),
           size: vw(24),
           href: RESUMEWRITER_ROUTE,
         },
@@ -243,7 +243,7 @@ export default function AboveTheFold() {
           src: '/logo/communitytoolicon.webp',
           label: 'Community Tool',
           x: -vw(28),
-          y: vh(26),
+          y: vh(34),
           size: vw(24),
           href: COMMUNITY_ROUTE,
         },
@@ -251,7 +251,7 @@ export default function AboveTheFold() {
           src: '/logo/Bschool.webp',
           label: 'B-School Match',
           x: vw(28),
-          y: vh(28),
+          y: vh(36),
           size: vw(24),
           href: BSCHOOL_ROUTE,
         },
@@ -278,7 +278,7 @@ export default function AboveTheFold() {
           src: '/logo/resumewriteicon.webp',
           label: 'Resumewriter',
           x: 300,
-          y: -200,
+          y: -180,
           href: RESUMEWRITER_ROUTE,
         },
         {
@@ -311,7 +311,7 @@ export default function AboveTheFold() {
         src: '/logo/resumewriteicon.webp',
         label: 'Resumewriter',
         x: 420,
-        y: -240,
+        y: -220,
         href: RESUMEWRITER_ROUTE,
       },
       {

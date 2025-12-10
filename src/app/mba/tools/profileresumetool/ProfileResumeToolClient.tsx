@@ -2,6 +2,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import ResumeUploader from "./components/ResumeUploader";
 import QuickForm from "./components/QuickForm";
 import LoadingState from "./components/LoadingState";
@@ -93,12 +94,23 @@ GMAT/GRE: ${formData.gmatScore}
   return (
     <div className="min-h-screen bg-gray-50">
       {/* BIG BLUE SLATE */}
-      <div className="bg-gradient-to-b from-slate-800 to-blue-900 px-4 pt-32 pb-52 md:pb-60 lg:pb-64">
+      <div className="bg-gradient-to-b from-slate-800 to-blue-900 px-4 pt-32 pb-32 md:pb-36 lg:pb-40">
         <div className="max-w-4xl mx-auto">
-          {/* Title */}
-          <h1 className="text-4xl md:text-6xl font-bold text-white text-center mb-6">
+          {/* Title with Logo */}
+          <h1 className="text-4xl md:text-6xl font-bold text-white text-center mb-4">
             Review Your MBA Profile
           </h1>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-4xl md:text-6xl font-bold text-white">With</span>
+            <Image
+              src="/logo/admit55_final_logo.webp"
+              alt="Admit55 Logo"
+              width={50}
+              height={50}
+              className="opacity-95 w-[50px] h-[50px] md:w-[70px] md:h-[70px]"
+            />
+            <span className="text-4xl md:text-6xl font-bold text-white">Admit55</span>
+          </div>
           <p className="text-center text-blue-100 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
             Get an AI-powered analysis of your MBA readiness in minutes. Upload
             your resume or answer a few questions.
@@ -156,7 +168,7 @@ GMAT/GRE: ${formData.gmatScore}
           </div>
 
           {/* AI Badge */}
-          <div className="flex justify-center">
+          <div className="flex justify-center mb-6">
             <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/15 backdrop-blur-md rounded-full text-white text-sm font-medium border border-white/20">
               <svg
                 className="w-4 h-4"
