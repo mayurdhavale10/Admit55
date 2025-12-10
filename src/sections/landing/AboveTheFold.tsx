@@ -6,15 +6,17 @@ import { motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 
 const PROFILE_ROUTE = '/mba/tools/profileresumetool';
-const ESSAY_ROUTE = '/mba/tools/essaytool';
+const RESUMEWRITER_ROUTE = '/mba/tools/resumewriter';
+const BSCHOOL_ROUTE = '/mba/tools/bschool-match';
+const COMMUNITY_ROUTE = '/mba/tools/communitytool';
 
 type Chip = {
   src: string;
   label: string;
-  x: number; // offset from hero center (px)
-  y: number; // offset from hero center (px)
-  size?: number; // optional per-chip icon size
-  href?: string; // optional link
+  x: number;
+  y: number;
+  size?: number;
+  href?: string;
 };
 
 type BP = 'mobile' | 'tablet' | 'desktop';
@@ -35,7 +37,17 @@ function useBreakpoint(): BP {
   return bp;
 }
 
-/** Single floating icon + optional trail label */
+function vw(p: number) {
+  if (typeof window === 'undefined') return 0;
+  return (window.innerWidth * p) / 100;
+}
+
+function vh(p: number) {
+  if (typeof window === 'undefined') return 0;
+  return (window.innerHeight * p) / 100;
+}
+
+/** Floating Icons (with hover scale + premium label) */
 function FloatingChip({
   chip,
   i,
@@ -54,6 +66,59 @@ function FloatingChip({
   const delay = 1 + i * 0.14;
   const s = chip.size ?? iconSize;
 
+  const content = (
+    <div className="relative flex items-center gap-3">
+      {/* Icon */}
+      <motion.img
+        src={chip.src}
+        alt={chip.label}
+        width={s}
+        height={s}
+        whileHover={{ scale: 1.12 }}
+        transition={{ duration: 0.25 }}
+        className="
+          object-contain rounded-xl
+          drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)]
+        "
+      />
+
+      {/* PREMIUM LABEL - Now clickable */}
+      {showTrail && (
+        <motion.div
+          whileHover={{ scale: 1.06, boxShadow: '0 8px 24px rgba(255,255,255,0.25)' }}
+          transition={{ duration: 0.25 }}
+          className="
+            inline-flex items-center
+            px-2 py-1
+            sm:px-3 sm:py-1.5
+            md:px-4 md:py-2
+            lg:px-5 lg:py-2.5
+            rounded-md sm:rounded-lg md:rounded-xl
+            backdrop-blur-xl
+            bg-white/15
+            border border-white/25
+            shadow-[0_4px_16px_rgba(0,0,0,0.35)]
+            text-white/95
+            select-none
+          "
+        >
+          <span
+            className="
+              font-semibold tracking-wide
+              text-[10px]
+              sm:text-xs
+              md:text-sm
+              lg:text-base
+              xl:text-lg
+            "
+          >
+            {chip.label}
+          </span>
+        </motion.div>
+      )}
+    </div>
+  );
+
   return (
     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
       <motion.div
@@ -63,76 +128,39 @@ function FloatingChip({
             ? {
                 opacity: 1,
                 scale: 1,
-                x: chip.x + drift, // subtle slide on load
+                x: chip.x + drift,
                 y: chip.y,
                 transition: { duration: 0.55, ease: 'easeOut', delay },
               }
             : {}
         }
       >
-        <div className="relative flex items-center">
-          {chip.href ? (
-            <Link
-              href={chip.href}
-              className="block pointer-events-auto"
-              aria-label={chip.label}
-              prefetch={false}
-            >
-              <Image
-                src={chip.src}
-                alt={chip.label}
-                width={s}
-                height={s}
-                className="object-contain rounded-lg drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)] scale-110 md:scale-125"
-                priority={false}
-              />
-            </Link>
-          ) : (
-            <Image
-              src={chip.src}
-              alt={chip.label}
-              width={s}
-              height={s}
-              className="object-contain rounded-lg drop-shadow-[0_12px_24px_rgba(0,0,0,0.45)] scale-110 md:scale-125 pointer-events-auto"
-              priority={false}
-            />
-          )}
-
-          {showTrail && (
-            <motion.div
-              className="ml-3 pointer-events-none"
-              initial={{ opacity: 0, clipPath: 'inset(0 100% 0 0)' }}
-              animate={{
-                opacity: 1,
-                clipPath: 'inset(0 0% 0 0)',
-                transition: { delay: delay + 0.25, duration: 0.55, ease: 'easeOut' },
-              }}
-            >
-              <div className="inline-flex items-center px-4 py-2 rounded-md bg-white/12 backdrop-blur-md border border-white/20 text-white/95">
-                <span className="text-sm font-medium">{chip.label}</span>
-              </div>
-            </motion.div>
-          )}
-        </div>
+        {chip.href ? (
+          <Link href={chip.href} className="pointer-events-auto" prefetch={false}>
+            {content}
+          </Link>
+        ) : (
+          <div className="pointer-events-auto">{content}</div>
+        )}
       </motion.div>
     </div>
   );
 }
 
-/** Desktop-only tiny thumbnail that sits under an icon and crossfades every 4s (no glass effect) */
+/** Desktop Thumbnail (Restored) */
 function CyclingThumb({
   x,
   y,
   images,
   start,
-  w = 300, // bigger size
+  w = 300,
   h = 180,
   periodMs = 4000,
   delay = 1.2,
 }: {
   x: number;
   y: number;
-  images: string[]; // [img1, img2]
+  images: string[];
   start: boolean;
   w?: number;
   h?: number;
@@ -143,8 +171,11 @@ function CyclingThumb({
 
   useEffect(() => {
     if (!start) return;
-    const id = setInterval(() => setIdx((p) => (p === 0 ? 1 : 0)), periodMs);
-    return () => clearInterval(id);
+    const interval = setInterval(
+      () => setIdx((prev) => (prev === 0 ? 1 : 0)),
+      periodMs
+    );
+    return () => clearInterval(interval);
   }, [start, periodMs]);
 
   return (
@@ -153,42 +184,32 @@ function CyclingThumb({
       style={{ transform: `translate(${x}px, ${y}px)` }}
     >
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={start ? { opacity: 1, y: 0, transition: { delay, duration: 0.4 } } : {}}
-        className="relative rounded-lg overflow-hidden" // no border, no glassy shadow
+        initial={{ opacity: 0, y: 12 }}
+        animate={
+          start
+            ? {
+                opacity: 1,
+                y: 0,
+                transition: { delay, duration: 0.4 },
+              }
+            : {}
+        }
+        className="relative rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
         style={{ width: w, height: h }}
       >
-        {/* frame 1 */}
-        <motion.div
-          className="absolute inset-0"
+        <motion.img
+          src={images[0]}
+          className="absolute inset-0 w-full h-full object-cover"
           animate={{ opacity: idx === 0 ? 1 : 0 }}
-          transition={{ duration: 0.5, ease: 'easeInOut' }}
-        >
-          <Image
-            src={images[0]}
-            alt="demo 1"
-            fill
-            sizes={`${w}px`}
-            className="object-cover"
-            priority={false}
-          />
-        </motion.div>
+          transition={{ duration: 0.5 }}
+        />
 
-        {/* frame 2 */}
-        <motion.div
-          className="absolute inset-0"
+        <motion.img
+          src={images[1]}
+          className="absolute inset-0 w-full h-full object-cover"
           animate={{ opacity: idx === 1 ? 1 : 0 }}
-          transition={{ duration: 0.5, ease: 'easeInOut' }}
-        >
-          <Image
-            src={images[1]}
-            alt="demo 2"
-            fill
-            sizes={`${w}px`}
-            className="object-cover"
-            priority={false}
-          />
-        </motion.div>
+          transition={{ duration: 0.5 }}
+        />
       </motion.div>
     </div>
   );
@@ -198,41 +219,45 @@ export default function AboveTheFold() {
   const [start, setStart] = useState(false);
   const bp = useBreakpoint();
 
+  /** ICON CONFIG (Responsive Positions + Community Tool replacing Interview) */
   const CHIPS: Chip[] = useMemo(() => {
     if (bp === 'mobile') {
       return [
         {
           src: '/logo/profileicon.webp',
           label: 'Profile Snapshot',
-          x: -120,
-          y: -190,
-          size: 88,
+          x: -vw(28),
+          y: -vh(24),
+          size: vw(22),
           href: PROFILE_ROUTE,
         },
         {
-          src: '/logo/essayicon.webp',
-          label: 'Essay Lab',
-          x: 120,
-          y: -190,
-          size: 96,
-          href: ESSAY_ROUTE,
+          src: '/logo/resumewriteicon.webp',
+          label: 'Resumewriter',
+          x: vw(28),
+          y: -vh(24),
+          size: vw(24),
+          href: RESUMEWRITER_ROUTE,
         },
         {
-          src: '/logo/interviewicon.webp',
-          label: 'Interview Ready',
-          x: -120,
-          y: 210,
-          size: 96,
+          src: '/logo/communitytoolicon.webp',
+          label: 'Community Tool',
+          x: -vw(28),
+          y: vh(26),
+          size: vw(24),
+          href: COMMUNITY_ROUTE,
         },
         {
           src: '/logo/Bschool.webp',
           label: 'B-School Match',
-          x: 120,
-          y: 240,
-          size: 96,
+          x: vw(28),
+          y: vh(28),
+          size: vw(24),
+          href: BSCHOOL_ROUTE,
         },
       ];
     }
+
     if (bp === 'tablet') {
       return [
         {
@@ -243,27 +268,30 @@ export default function AboveTheFold() {
           href: PROFILE_ROUTE,
         },
         {
-          src: '/logo/interviewicon.webp',
-          label: 'Interview Ready',
+          src: '/logo/communitytoolicon.webp',
+          label: 'Community Tool',
           x: -360,
           y: 210,
+          href: COMMUNITY_ROUTE,
         },
         {
-          src: '/logo/essayicon.webp',
-          label: 'Essay Lab',
+          src: '/logo/resumewriteicon.webp',
+          label: 'Resumewriter',
           x: 300,
           y: -200,
-          href: ESSAY_ROUTE,
+          href: RESUMEWRITER_ROUTE,
         },
         {
           src: '/logo/Bschool.webp',
           label: 'B-School Match',
           x: 320,
           y: 210,
+          href: BSCHOOL_ROUTE,
         },
       ];
     }
-    // desktop
+
+    // desktop layout
     return [
       {
         src: '/logo/profileicon.webp',
@@ -273,28 +301,30 @@ export default function AboveTheFold() {
         href: PROFILE_ROUTE,
       },
       {
-        src: '/logo/interviewicon.webp',
-        label: 'Interview Ready',
+        src: '/logo/communitytoolicon.webp',
+        label: 'Community Tool',
         x: -560,
         y: 260,
+        href: COMMUNITY_ROUTE,
       },
       {
-        src: '/logo/essayicon.webp',
-        label: 'Essay Lab',
+        src: '/logo/resumewriteicon.webp',
+        label: 'Resumewriter',
         x: 420,
         y: -240,
-        href: ESSAY_ROUTE,
+        href: RESUMEWRITER_ROUTE,
       },
       {
         src: '/logo/Bschool.webp',
         label: 'B-School Match',
         x: 440,
         y: 240,
+        href: BSCHOOL_ROUTE,
       },
     ];
   }, [bp]);
 
-  // Bigger base icon sizes for each breakpoint
+  /** Dynamic Icon Sizing + Movement */
   const iconSize = bp === 'mobile' ? 88 : bp === 'tablet' ? 104 : 124;
   const drift = bp === 'mobile' ? 12 : 48;
   const showTrail = bp !== 'mobile';
@@ -305,88 +335,60 @@ export default function AboveTheFold() {
   }, []);
 
   return (
-    <section
-      className="relative min-h-screen flex items-center justify-center text-center"
-      style={{ overflow: 'hidden' }}
-    >
-      {/* Background */}
+    <section className="relative min-h-screen flex items-center justify-center text-center overflow-hidden">
+      {/* BACKGROUND */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage: `url('/landing/mbaheroschool.webp')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          zIndex: 0,
-        }}
+        style={{ backgroundImage: `url('/landing/mbaheroschool.webp')` }}
       />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45))',
-          zIndex: 1,
-        }}
-      />
-
-      {/* Center content (above everything) */}
+      <div className="absolute inset-0 bg-black/45" />
+      
+      {/* CENTER TEXT */}
       <div className="relative z-20 max-w-2xl px-6">
-        <h1
-          className="text-3xl md:text-5xl font-extrabold mb-4 leading-tight"
-          style={{
-            color: '#FFFFFF',
-            fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-            textShadow: '2px 2px 8px rgba(0,0,0,0.35)',
-          }}
-        >
+        <h1 className="text-3xl md:text-5xl font-extrabold leading-tight text-white mb-4 drop-shadow-xl">
           Your{' '}
           <span
+            className="bg-clip-text text-transparent"
             style={{
               backgroundImage: 'linear-gradient(90deg, #3F37C9 0%, #12D8B5 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              color: 'transparent',
             }}
           >
             AI powered
           </span>{' '}
           MBA Admissions studio
         </h1>
-
         <p
-          className="text-base md:text-xl font-medium mb-6"
-          style={{
-            color: 'rgba(255,255,255,0.92)',
-            fontFamily: `'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`,
-            textShadow: '1px 1px 6px rgba(0,0,0,0.35)',
-          }}
+          className="text-base md:text-xl font-medium mb-6 text-white/95"
+          style={{ textShadow: '1px 1px 6px rgba(0,0,0,0.35)' }}
         >
-          Get a clear, personalised evaluation of your MBA profile in minutes. From ISB to IIMs—clarity
-          starts here.
+          Get a clear, personalised evaluation of your MBA profile in minutes.
         </p>
-
+        
+        {/* BUTTONS */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
             href={PROFILE_ROUTE}
             prefetch={false}
-            className="inline-flex items-center justify-center px-5 md:px-6 py-2.5 rounded-md text-base md:text-lg font-medium transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/60 shadow-[0_5px_20px_rgba(10,60,120,0.28)]"
-            style={{ backgroundColor: '#0B5CAB', color: '#FFFFFF' }}
-            aria-label="Get My Profile Snapshot"
+            className="inline-flex items-center justify-center px-5 md:px-6 py-2.5 rounded-md 
+            text-base md:text-lg font-medium bg-[#0B5CAB] text-white 
+            shadow-[0_5px_20px_rgba(10,60,120,0.28)] hover:-translate-y-0.5 
+            transition-all duration-200"
           >
-            Get My Profile Snapshot <span aria-hidden="true" className="ml-2">→</span>
+            Get My Profile Snapshot →
           </Link>
-
           <Link
-            href="/dream-b-schools"
+            href={BSCHOOL_ROUTE}
             prefetch={false}
-            className="inline-flex items-center justify-center px-5 md:px-6 py-2.5 rounded-md text-base md:text-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white/60 shadow-[0_3px_14px_rgba(0,0,0,0.15)] hover:bg-white/95"
-            style={{ backgroundColor: '#FFFFFF', border: '2px solid #0B5CAB', color: '#0B5CAB' }}
+            className="inline-flex items-center justify-center px-5 md:px-6 py-2.5 rounded-md 
+            text-base md:text-lg font-medium bg-white text-[#0B5CAB] border-2 border-[#0B5CAB]
+            shadow-[0_3px_14px_rgba(0,0,0,0.15)] hover:bg-white/90 transition-all duration-200"
           >
             Explore Dream B-Schools
           </Link>
         </div>
       </div>
-
-      {/* Floating icons + desktop thumbnails */}
+      
+      {/* FLOATING ICONS + LABELS + THUMBNAILS */}
       <div className="absolute inset-0 z-10 pointer-events-none">
         {CHIPS.map((chip, i) => (
           <FloatingChip
@@ -399,37 +401,34 @@ export default function AboveTheFold() {
             drift={drift}
           />
         ))}
-
-        {/* DESKTOP-ONLY tiny cycling thumbnails (bigger & nudged further from center, no glass look) */}
+        
+        {/* DESKTOP THUMBNAILS RESTORED */}
         {bp === 'desktop' && (
           <>
-            {/* Profile icon is at (-560, -200). Thumb: slightly further left & down from icon */}
+            {/* Under Profile Snapshot */}
             <CyclingThumb
-              x={-620} // moved farther from center
-              y={-200 + 150} // just below icon
+              x={-620}
+              y={-50}
               images={[
                 '/landing/profiledemofinal.webp',
-                '/landing/profileresumetooltestimonial%20(1).webp',
+                '/landing/profileresumetooltestimonial (1).webp',
               ]}
               start={start}
-              w={300} // bigger
+              w={300}
               h={180}
-              periodMs={4000}
               delay={1.1}
             />
-
-            {/* Essay icon is at (420, -240). Thumb: slightly further right & down from icon */}
+            {/* Under Resumewriter */}
             <CyclingThumb
-              x={480} // moved farther from center
-              y={-240 + 160} // just below icon
+              x={480}
+              y={-80}
               images={[
                 '/landing/profiledemofinal.webp',
-                '/landing/profileresumetooltestimonial%20(1).webp',
+                '/landing/profileresumetooltestimonial (1).webp',
               ]}
               start={start}
-              w={300} // bigger
+              w={300}
               h={180}
-              periodMs={4000}
               delay={1.25}
             />
           </>
