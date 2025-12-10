@@ -13,6 +13,14 @@ const TOOLS = [
     icon: '/logo/profileicon.webp',
   },
   {
+    id: 'resume',
+    name: 'Resume Writer',
+    description:
+      'Create a professional, ATS-friendly resume tailored for MBA recruiting.',
+    href: '/mba/tools/resumewriter',
+    icon: '/logo/resumewriteicon.webp',
+  },
+  {
     id: 'bschool',
     name: 'B-School Match',
     description:
@@ -27,14 +35,6 @@ const TOOLS = [
       'Draft, refine, and polish winning MBA essays with AI + human guidance.',
     href: '/mba/tools/essaytool',
     icon: '/logo/essayicon.webp',
-  },
-  {
-    id: 'resume',
-    name: 'Resume Writer',
-    description:
-      'Create a professional, ATS-friendly resume tailored for MBA recruiting.',
-    href: '/mba/tools/resumewriter',
-    icon: '/logo/resumewriteicon.webp',
   },
   {
     id: 'interview',

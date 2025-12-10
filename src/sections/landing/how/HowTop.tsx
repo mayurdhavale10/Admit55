@@ -6,7 +6,8 @@ import React, { useState, useEffect } from 'react';
 
 /* ---------- routes ---------- */
 const PROFILE_ROUTE = '/mba/tools/profileresumetool';
-const BSCHOOL_ROUTE = '/dream-b-schools';
+const RESUME_ROUTE = '/mba/tools/resumewriter';
+const BSCHOOL_ROUTE = '/mba/tools/bschool-match';
 
 /* ---------- types ---------- */
 type ToolCard = {
@@ -28,18 +29,26 @@ const toolCards: ToolCard[] = [
     tone: 'blue',
   },
   {
+    title: 'Resume Writer',
+    subtitle:
+      'Create a professional, ATS-friendly resume tailored for MBA recruiting.',
+    src: '/logo/resumewriteicon.webp',
+    href: RESUME_ROUTE,
+    tone: 'green',
+  },
+  {
     title: 'B-School Match',
     subtitle: 'Discover schools that fit your goals.',
     src: '/logo/Bschool.webp',
     href: BSCHOOL_ROUTE,
-    tone: 'green',
+    tone: 'purple',
   },
   {
     title: 'Essay Lab',
     subtitle: 'Coming Soon',
     src: '/logo/essayicon.webp',
     comingSoon: true,
-    tone: 'purple',
+    tone: 'orange',
   },
   {
     title: 'Interview Ready',
@@ -111,10 +120,10 @@ export default function HowTop() {
           {isMobile ? (
             <div className="mt-10 max-w-md mx-auto grid grid-cols-2 gap-x-6 gap-y-10">
               {toolCards.map((t, i) => {
-                const size = 96; // Increased from 72-80 to 96
+                const size = 130; // larger mobile icons
 
                 const Inner = (
-                  <div className="flex flex-col items-center gap-3">
+                  <div className="flex flex-col items-center gap-3 group">
                     <div
                       style={{
                         width: size,
@@ -122,13 +131,14 @@ export default function HowTop() {
                         display: 'grid',
                         placeItems: 'center',
                       }}
+                      className="transition-transform duration-300 group-hover:-translate-y-2"
                     >
                       <Image
                         src={t.src}
                         alt={t.title}
                         width={size}
                         height={size}
-                        className="object-contain"
+                        className="object-contain drop-shadow-md group-hover:drop-shadow-2xl transition-shadow duration-300"
                       />
                     </div>
                     <div className="text-xs font-semibold text-slate-700 text-center">
@@ -152,12 +162,12 @@ export default function HowTop() {
           ) : (
             /* DESKTOP / TABLET: horizontal layout with larger icons */
             <div className="mt-12 relative mx-auto max-w-5xl pb-8">
-              <div className="flex items-end justify-between gap-6 sm:gap-10 px-4">
+              <div className="flex items-start justify-between gap-6 sm:gap-10 px-4">
                 {toolCards.map((t, i) => {
-                  const iconSize = 160; // Increased from 96-128 to 160
+                  const iconSize = 190; // bigger desktop icons
 
                   const Inner = (
-                    <div className="flex flex-col items-center gap-4 flex-1">
+                    <div className="flex flex-col items-center gap-4 flex-1 group">
                       <div
                         style={{
                           width: iconSize,
@@ -165,13 +175,14 @@ export default function HowTop() {
                           display: 'grid',
                           placeItems: 'center',
                         }}
+                        className="transition-transform duration-300 group-hover:-translate-y-3"
                       >
                         <Image
                           src={t.src}
                           alt={t.title}
                           width={iconSize}
                           height={iconSize}
-                          className="object-contain"
+                          className="object-contain drop-shadow-lg group-hover:drop-shadow-2xl transition-shadow duration-300"
                         />
                       </div>
 
@@ -205,21 +216,8 @@ export default function HowTop() {
         </>
       )}
 
-      {/* Follow text only when Tools tab is active */}
-      <div
-        className={`mt-6 text-xs sm:text-sm text-slate-500 ${
-          activeTab === 'tools' ? 'block' : 'hidden'
-        }`}
-      >
-        Follow the journey: Profile → B-School → Essay → Interview
-      </div>
-
       {/* OUR EXPERTS TAB CONTENT */}
-      <div
-        className={`mt-16 ${
-          activeTab === 'experts' ? 'block' : 'hidden'
-        }`}
-      >
+      <div className={`mt-16 ${activeTab === 'experts' ? 'block' : 'hidden'}`}>
         <div className="max-w-6xl mx-auto text-left">
           <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 text-center lg:text-left">
             Admissions Intelligence Engineered by an Ex-ISB MBA and Trained on
