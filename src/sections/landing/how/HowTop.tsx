@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useState, useEffect } from 'react';
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 /* ---------- routes ---------- */
 const PROFILE_ROUTE = '/mba/tools/profileresumetool';
@@ -63,6 +65,9 @@ export default function HowTop() {
   const [activeTab, setActiveTab] = useState<'tools' | 'experts'>('tools');
   const [isMobile, setIsMobile] = useState(false);
 
+  const { data: session } = useSession();
+  const router = useRouter();
+
   /* ---------- detect mobile ---------- */
   useEffect(() => {
     const handleResize = () => {
@@ -120,7 +125,7 @@ export default function HowTop() {
           {isMobile ? (
             <div className="mt-10 max-w-md mx-auto grid grid-cols-2 gap-x-6 gap-y-10">
               {toolCards.map((t, i) => {
-                const size = 130; // larger mobile icons
+                const size = 130;
 
                 const Inner = (
                   <div className="flex flex-col items-center gap-3 group">
@@ -160,7 +165,7 @@ export default function HowTop() {
               })}
             </div>
           ) : (
-            /* DESKTOP / TABLET: horizontal layout with larger icons */
+            /* DESKTOP / TABLET */
             <div className="mt-12 relative mx-auto max-w-5xl pb-8">
               <div className="flex items-start justify-between gap-6 sm:gap-10 px-4">
                 {toolCards.map((t, i) => {
@@ -225,7 +230,7 @@ export default function HowTop() {
           </h3>
 
           <div className="mt-10 flex flex-col lg:flex-row items-center lg:items-start gap-10">
-            {/* Left: credentials + copy + button */}
+            {/* Left side */}
             <div className="w-full lg:w-5/12 flex flex-col items-center lg:items-start gap-6">
               <div className="w-full max-w-sm">
                 <Image
@@ -243,17 +248,24 @@ export default function HowTop() {
                 5 B-Schools, we'll refund you — no questions asked.
               </p>
 
-              {/* UPDATED BUTTON */}
-              <Link
-                href="/api/auth/signin?callbackUrl=/profile#booking"
-                prefetch={false}
+              {/* UPDATED BUTTON WITH LOGIN CHECK */}
+              <button
+                onClick={() => {
+                  if (session?.user?.email) {
+                    router.push("/profile#booking"); // logged in
+                  } else {
+                    router.push(
+                      "/api/auth/signin?callbackUrl=/profile#booking"
+                    ); // login then redirect
+                  }
+                }}
                 className="mt-2 inline-flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 px-7 py-3 text-sm sm:text-base font-semibold text-white shadow-md transition-colors"
               >
                 Grab your seat now
-              </Link>
+              </button>
             </div>
 
-            {/* Right: YouTube video */}
+            {/* Right: YouTube */}
             <div className="w-full lg:w-7/12">
               <div className="relative w-full pt-[56.25%] rounded-2xl overflow-hidden shadow-lg">
                 <iframe
