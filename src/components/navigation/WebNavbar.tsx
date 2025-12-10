@@ -66,7 +66,7 @@ export default function WebNavbar() {
       activeHref={pathname}
       navText="#FFFFFF"
       brand={{
-        name: "ADMIT55",
+        name: "Admit55",
         href: "/",
         logoSrc: "/logo/admit55_final_logo.webp",
         logoAlt: "Admit55 logo",

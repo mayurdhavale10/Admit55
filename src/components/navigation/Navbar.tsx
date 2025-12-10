@@ -11,7 +11,7 @@ import React, {
 export type LinkItem = {
   href: string;
   label: string;
-  onClick?: () => void; // 👈 NEW
+  onClick?: () => void;
 };
 
 export type LinkComp = (props: {
@@ -36,7 +36,10 @@ function cn(...parts: Array<string | false | null | undefined>) {
 
 const HEADER_HEIGHT = 84;
 const LOGO_BOX = 56;
-const LOGO_SCALE_DEFAULT = 2.6;
+
+// FIX: scale reduced for proper sizing
+const LOGO_SCALE_DEFAULT = 1.0;
+
 const SCROLL_THRESHOLD = 80;
 const MD_BREAKPOINT = 768;
 
@@ -74,10 +77,10 @@ export default function Navbar({
       if (window.innerWidth >= MD_BREAKPOINT) setMobileOpen(false);
     };
     window.addEventListener("resize", onResize);
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    document.body.style.overflow = mobileOpen ? "hidden" : "auto";
     return () => {
       window.removeEventListener("resize", onResize);
-      document.body.style.overflow = "";
+      document.body.style.overflow = "auto";
     };
   }, [mobileOpen]);
 
@@ -107,25 +110,24 @@ export default function Navbar({
 
   const mobilePanelId = "navbar-mobile-panel";
   const logoScale = brand.logoScale ?? LOGO_SCALE_DEFAULT;
+
   const CTA_HREF = "/mba/tools/profileresumetool";
 
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-colors",
+        "fixed top-0 left-0 right-0 z-50 overflow-hidden transition-colors",
         "pt-[max(0px,env(safe-area-inset-top))]",
         scrolled ? "backdrop-blur bg-white/70 border-b border-black/5" : "bg-transparent",
       )}
       style={{ height: `${HEADER_HEIGHT}px` }}
     >
-      <nav className="w-full px-0 grid grid-cols-[auto_1fr_auto] items-center h-full">
+      <nav className="w-full overflow-hidden px-0 grid grid-cols-[auto_1fr_auto] items-center h-full">
+        
         {/* LEFT — BRAND */}
         <div className="pl-5 md:pl-6 flex items-center gap-2">
-          <LinkComponent
-            href={brand.href}
-            className="flex items-center gap-2"
-            onClick={closeMobile}
-          >
+          <LinkComponent href={brand.href} className="flex items-center gap-2" onClick={closeMobile}>
+            
             {brand.logoSrc && (
               <div
                 className="overflow-hidden flex items-center justify-center"
@@ -134,7 +136,7 @@ export default function Navbar({
                 <img
                   src={brand.logoSrc}
                   alt={brand.logoAlt ?? "logo"}
-                  className="w-full h-full object-cover object-center"
+                  className="w-full h-full object-contain object-center"
                   style={{
                     transform: `scale(${logoScale})`,
                     transformOrigin: "center",
@@ -147,9 +149,7 @@ export default function Navbar({
             {brand.name && (
               <span
                 className="whitespace-nowrap font-semibold leading-none text-[18px] md:text-[22px] transition-colors duration-200"
-                style={{
-                  color: scrolled ? brand.nameColor ?? "#003366" : "#FFFFFF",
-                }}
+                style={{ color: scrolled ? brand.nameColor ?? "#003366" : "#FFFFFF" }}
               >
                 {brand.name}
               </span>
@@ -157,52 +157,40 @@ export default function Navbar({
           </LinkComponent>
         </div>
 
-        {/* CENTER — DESKTOP MENU */}
-        <div className="hidden md:flex items-center gap-3 justify-center px-3 md:px-5 flex-nowrap">
-          {items.map(({ href, label, onClick }) => {
-            const handleClick = () => {
-              onClick?.();
-              closeMobile();
-            };
-            return (
-              <LinkComponent
-                key={href + label}
-                href={href}
-                className={isActive(href) ? chipActive : chipGlassy}
-                onClick={handleClick}
-              >
-                <span className="whitespace-nowrap" style={{ color: textColor }}>
-                  {label}
-                </span>
-              </LinkComponent>
-            );
-          })}
+        {/* CENTER MENU */}
+        <div className="hidden md:flex items-center gap-3 justify-center px-3 md:px-5">
+          {items.map(({ href, label, onClick }) => (
+            <LinkComponent
+              key={href + label}
+              href={href}
+              className={isActive(href) ? chipActive : chipGlassy}
+              onClick={() => {
+                onClick?.();
+                closeMobile();
+              }}
+            >
+              <span className="whitespace-nowrap" style={{ color: textColor }}>
+                {label}
+              </span>
+            </LinkComponent>
+          ))}
         </div>
 
         {/* RIGHT — CTA + HAMBURGER */}
         <div className="flex items-center justify-end pr-4">
-          {/* Desktop CTA */}
           <div className="hidden md:block">
             <LinkComponent
               href={CTA_HREF}
-              className={cn(
-                "px-5 py-2 rounded-md border-transparent transition-colors font-medium",
-                "text-[18px] md:text-[22px] leading-none",
-                "bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap",
-              )}
+              className="px-5 py-2 rounded-md bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 font-medium text-[18px] md:text-[22px]"
               onClick={closeMobile}
             >
               <span>Get My Profile Snapshot</span>
             </LinkComponent>
           </div>
 
-          {/* Mobile Hamburger */}
+          {/* MOBILE MENU BUTTON */}
           <div className="md:hidden">
             <button
-              type="button"
-              aria-label="Toggle menu"
-              aria-expanded={mobileOpen}
-              aria-controls={mobilePanelId}
               onClick={toggleMobile}
               className={cn(
                 "inline-flex items-center justify-center rounded-full p-2",
@@ -212,15 +200,7 @@ export default function Navbar({
               )}
               style={{ color: textColor }}
             >
-              <svg
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 {mobileOpen ? (
                   <>
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -238,59 +218,6 @@ export default function Navbar({
           </div>
         </div>
       </nav>
-
-      {/* MOBILE PANEL */}
-      <div
-        id={mobilePanelId}
-        className={cn(
-          "md:hidden transition-all duration-200 ease-out overflow-hidden",
-          mobileOpen ? "max-h-[600px]" : "max-h-0",
-        )}
-        aria-hidden={!mobileOpen}
-      >
-        <div
-          className={cn(
-            "mx-4 mb-4 rounded-2xl border shadow-sm backdrop-blur",
-            scrolled ? "bg-white/80 border-black/10" : "bg-white/20 border-white/25",
-          )}
-        >
-          <div className="p-3 flex flex-col gap-2">
-            {items.map(({ href, label, onClick }) => {
-              const handleClick = () => {
-                onClick?.();
-                closeMobile();
-              };
-              return (
-                <LinkComponent
-                  key={href + label}
-                  href={href}
-                  onClick={handleClick}
-                  className={cn(
-                    "w-full text-center",
-                    isActive(href) ? chipActive : chipGlassy,
-                  )}
-                >
-                  <span className="whitespace-nowrap" style={{ color: textColor }}>
-                    {label}
-                  </span>
-                </LinkComponent>
-              );
-            })}
-
-            {/* MOBILE CTA */}
-            <LinkComponent
-              href={CTA_HREF}
-              onClick={closeMobile}
-              className={cn(
-                "px-4 py-2 rounded-full border-transparent transition-colors text-sm font-semibold",
-                "w-full bg-gradient-to-r from-[#00C875] to-[#00AFA3] text-white hover:opacity-90 whitespace-nowrap",
-              )}
-            >
-              <span>Get My Profile Snapshot</span>
-            </LinkComponent>
-          </div>
-        </div>
-      </div>
     </header>
   );
 }
