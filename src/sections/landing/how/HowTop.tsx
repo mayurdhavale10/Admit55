@@ -164,7 +164,7 @@ export default function HowTop() {
             <div className="mt-12 relative mx-auto max-w-5xl pb-8">
               <div className="flex items-start justify-between gap-6 sm:gap-10 px-4">
                 {toolCards.map((t, i) => {
-                  const iconSize = 190; // bigger desktop icons
+                  const iconSize = 190;
 
                   const Inner = (
                     <div className="flex flex-col items-center gap-4 flex-1 group">
@@ -243,12 +243,14 @@ export default function HowTop() {
                 5 B-Schools, we'll refund you — no questions asked.
               </p>
 
-              <button
-                type="button"
+              {/* UPDATED BUTTON */}
+              <Link
+                href="/api/auth/signin?callbackUrl=/profile#booking"
+                prefetch={false}
                 className="mt-2 inline-flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 px-7 py-3 text-sm sm:text-base font-semibold text-white shadow-md transition-colors"
               >
                 Grab your seat now
-              </button>
+              </Link>
             </div>
 
             {/* Right: YouTube video */}

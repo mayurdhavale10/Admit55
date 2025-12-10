@@ -20,8 +20,7 @@ export default async function ProfilePage() {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
-    // If you prefer, redirect to "/"
-    redirect("/api/auth/signin");
+    redirect("/api/auth/signin?callbackUrl=/profile#booking");
   }
 
   const email = session.user.email;
@@ -72,17 +71,17 @@ export default async function ProfilePage() {
 
       {/* CONTENT */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        
         {/* PROFILE DETAILS */}
         <section className="mt-8">
           <ProfileDetailsPanel profile={profile} />
-          {/* NOTE: onProfileUpdated is optional in the component;
-             we don't pass it from a server component */}
         </section>
 
-        {/* BOOKING CARD */}
-        <section className="mt-10">
+        {/* BOOKING CARD — UPDATED WITH ID */}
+        <section id="booking" className="mt-10 scroll-mt-28">
           <ProfileBookingCard bookings={bookings} profileEmail={email} />
         </section>
+
       </div>
     </div>
   );
