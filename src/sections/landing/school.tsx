@@ -233,42 +233,50 @@ function BookFlipCard() {
     <>
       <div className="relative">
         <div className="rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 p-6 shadow-2xl">
-          <div className="relative w-full max-w-sm mx-auto">
+          <div className="relative w-full max-w-xs mx-auto">
             {/* Book Container with realistic 3D perspective */}
             <div 
               className="relative w-full aspect-[2/3] mx-auto"
-              style={{ perspective: '2000px' }}
+              style={{ 
+                perspective: '1200px',
+                perspectiveOrigin: '50% 50%'
+              }}
             >
-              {/* Book Shadow */}
-              <div className="absolute inset-0 bg-black/30 blur-2xl translate-y-6 scale-95 rounded-lg" />
-              
-              {/* Static Book Base */}
-              <div className="absolute inset-0 rounded-lg bg-white shadow-2xl overflow-hidden">
-                <Image
-                  src={pages[currentPage]}
-                  alt={`Page ${currentPage + 1}`}
-                  fill
-                  className="object-contain"
-                />
-              </div>
-
-              {/* Flipping Page Overlay */}
-              {isFlipping && currentPage < pages.length - 1 && (
+              {/* 3D ROTATED PARENT CONTAINER */}
+              <div
+                style={{
+                  transform: 'rotateX(8deg) rotateY(-12deg)',
+                  transformStyle: 'preserve-3d',
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                }}
+              >
+                {/* Book Shadow */}
                 <div 
-                  className="absolute inset-0 origin-left"
-                  style={{
-                    transformStyle: 'preserve-3d',
-                    animation: 'pageFlip 800ms cubic-bezier(0.645, 0.045, 0.355, 1) forwards',
+                  className="absolute inset-0 bg-black/40 blur-xl rounded-lg pointer-events-none"
+                  style={{ 
+                    transform: 'translateY(2rem) translateZ(-20px)',
+                    transformStyle: 'preserve-3d'
                   }}
-                >
-                  {/* Front of flipping page (current page) */}
+                />
+                
+                {/* BOOK CONTENT WRAPPER - NO ROTATION */}
+                <div className="relative w-full h-full">
+                  {/* Static Book Base */}
                   <div 
-                    className="absolute inset-0 rounded-lg overflow-hidden shadow-2xl"
+                    className="absolute inset-0 rounded-lg bg-white overflow-hidden"
                     style={{ 
-                      backfaceVisibility: 'hidden',
-                      backgroundColor: 'white',
+                      boxShadow: '20px 20px 40px rgba(0,0,0,0.3), -5px 0 20px rgba(0,0,0,0.1)',
                     }}
                   >
+                    {/* Book spine effect */}
+                    <div 
+                      className="absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-slate-800 to-slate-700"
+                      style={{ 
+                        boxShadow: 'inset -2px 0 4px rgba(0,0,0,0.4)'
+                      }}
+                    />
                     <Image
                       src={pages[currentPage]}
                       alt={`Page ${currentPage + 1}`}
@@ -277,24 +285,58 @@ function BookFlipCard() {
                     />
                   </div>
 
-                  {/* Back of flipping page (next page, mirrored) */}
-                  <div 
-                    className="absolute inset-0 rounded-lg overflow-hidden shadow-2xl"
-                    style={{ 
-                      backfaceVisibility: 'hidden',
-                      transform: 'rotateY(180deg)',
-                      backgroundColor: 'white',
-                    }}
-                  >
-                    <Image
-                      src={pages[currentPage + 1]}
-                      alt={`Page ${currentPage + 2}`}
-                      fill
-                      className="object-contain scale-x-[-1]"
-                    />
-                  </div>
+                  {/* Flipping Page Overlay */}
+                  {isFlipping && currentPage < pages.length - 1 && (
+                    <div 
+                      className="absolute inset-0 origin-left"
+                      style={{
+                        transformStyle: 'preserve-3d',
+                        animation: 'pageFlip 800ms cubic-bezier(0.645, 0.045, 0.355, 1) forwards',
+                        WebkitTransformStyle: 'preserve-3d',
+                        zIndex: 10
+                      }}
+                    >
+                      {/* Front of flipping page (current page) */}
+                      <div 
+                        className="absolute inset-0 rounded-lg overflow-hidden"
+                        style={{ 
+                          backfaceVisibility: 'hidden',
+                          WebkitBackfaceVisibility: 'hidden',
+                          backgroundColor: 'white',
+                          boxShadow: '5px 5px 15px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        <Image
+                          src={pages[currentPage]}
+                          alt={`Page ${currentPage + 1}`}
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+
+                      {/* Back of flipping page (next page, mirrored) */}
+                      <div 
+                        className="absolute inset-0 rounded-lg overflow-hidden"
+                        style={{ 
+                          backfaceVisibility: 'hidden',
+                          WebkitBackfaceVisibility: 'hidden',
+                          transform: 'rotateY(180deg)',
+                          WebkitTransform: 'rotateY(180deg)',
+                          backgroundColor: 'white',
+                          boxShadow: '5px 5px 15px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        <Image
+                          src={pages[currentPage + 1]}
+                          alt={`Page ${currentPage + 2}`}
+                          fill
+                          className="object-contain scale-x-[-1]"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Navigation Arrows */}
               <button
