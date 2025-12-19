@@ -44,13 +44,13 @@ function withResumePrintStyles(runPrint: () => void) {
 `;
   document.head.appendChild(style);
 
-  runPrint();
-
   const cleanup = () => {
     style.remove();
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
+
+  runPrint();
 }
 
 export default function Step7_Download_ConsultingClassic({
@@ -59,14 +59,14 @@ export default function Step7_Download_ConsultingClassic({
 }: StepComponentProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Build EVERYTHING from draft only (no default “dummy” resume data)
+  // ✅ Build EVERYTHING from draft only (no hardcoded resume content)
   const previewData = useMemo(() => {
     const basic = (draft as any)?.resume?.basicInfo ?? {};
     const fullName = `${basic.firstName ?? ""} ${basic.lastName ?? ""}`.trim();
 
     return {
       header: {
-        name: fullName,
+        name: cleanStr(fullName),
         gender: cleanStr(basic.gender),
         university: cleanStr(basic.university),
         email: cleanStr(basic.email),
@@ -74,37 +74,39 @@ export default function Step7_Download_ConsultingClassic({
         location: cleanStr(basic.location),
       },
 
-      // meta bar / highlights from your Step1 only
       metaBar: safeArray<string>(basic.metaBar) ?? [],
 
-      // Step2
       educationRows: safeArray((draft as any)?.resume?.educationRows),
-
-      // Step3
       experiences: safeArray((draft as any)?.resume?.experiences),
-
-      // Step4
       scholasticBlocks: safeArray((draft as any)?.resume?.scholasticBlocks),
 
-      // Step5
       articleSectionTitle: cleanStr((draft as any)?.resume?.articleSectionTitle),
       articleHeaderRight: cleanStr((draft as any)?.resume?.articleHeaderRight),
       articleBlocks: safeArray((draft as any)?.resume?.articleBlocks),
 
-      // Step6
       leadershipTitle: cleanStr((draft as any)?.resume?.leadershipTitle),
       leadershipBlocks: safeArray((draft as any)?.resume?.leadershipBlocks),
     };
   }, [draft]);
 
-  // ✅ FIX #1: your react-to-print expects contentRef (not content)
-    const handlePrint = useReactToPrint({
+  // ✅ react-to-print v3+: use contentRef (NOT content/removeAfterPrint)
+  const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `${(previewData.header.name || "resume").replace(/\s+/g, "_")}_ConsultingClassic`,
+    documentTitle: `${(previewData.header.name || "resume").replace(
+      /\s+/g,
+      "_"
+    )}_ConsultingClassic`,
     onAfterPrint: () => {
-      // optional hook (we already remove injected CSS via afterprint listener)
+      // no-op (CSS cleanup happens via afterprint listener)
     },
   });
+
+  const onDownload = () => {
+    withResumePrintStyles(() => {
+      handlePrint?.();
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* UI card */}
@@ -117,7 +119,7 @@ export default function Step7_Download_ConsultingClassic({
         <div className="mt-4 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => withResumePrintStyles(() => handlePrint())}
+            onClick={onDownload}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
           >
             Download PDF (1 page)
@@ -125,7 +127,7 @@ export default function Step7_Download_ConsultingClassic({
 
           <button
             type="button"
-            onClick={onPrev}
+            onClick={() => onPrev?.()}
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
           >
             Back
@@ -138,7 +140,7 @@ export default function Step7_Download_ConsultingClassic({
         <ConsultingClassicPreview data={previewData as any} />
       </div>
 
-      {/* ✅ PRINT TARGET (hidden on screen, used only for print) */}
+      {/* ✅ PRINT TARGET (offscreen; ONLY this gets printed) */}
       <div style={{ position: "absolute", left: -99999, top: 0 }}>
         <div id="resume-print" ref={printRef}>
           <ConsultingClassicTemplate

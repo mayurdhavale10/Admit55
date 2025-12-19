@@ -1,3 +1,4 @@
+// src/app/mba/tools/resumewriter/components/Step0_IntentAndTemplate.tsx
 "use client";
 
 import React, { useEffect } from "react";
@@ -6,8 +7,9 @@ import { motion } from "framer-motion";
 // ✅ modular tile
 import TemplateTile from "./TemplateTile";
 
-// ✅ per-template preview
+// ✅ per-template previews
 import ConsultingClassicPreview from "./resume-templates/consulting-classic/ConsultingClassicPreview";
+import TechClassicPreview from "./resume-templates/tech-classic/TechClassicPreview";
 
 // ✅ single source of truth for types
 import type {
@@ -40,6 +42,11 @@ const TEMPLATE_OPTIONS = [
     badge: "Recommended",
   },
   {
+    id: "tech_classic",
+    label: "Tech Classic",
+    description: "Backend/SWE style with Summary → Skills → Experience → Education → Achievements.",
+  },
+  {
     id: "finance_tight",
     label: "Finance Tight",
     description: "Dense, transaction-heavy style ideal for IB / markets.",
@@ -53,21 +60,23 @@ const TEMPLATE_OPTIONS = [
 
 type TemplateId = (typeof TEMPLATE_OPTIONS)[number]["id"];
 
-function getRecommendedTemplateId(careerPath: CareerPath | null): TemplateId | null {
+function getRecommendedTemplateId(
+  careerPath: CareerPath | null
+): TemplateId | null {
   if (!careerPath) return null;
 
   switch (careerPath) {
     case "consulting":
       return "consulting_classic";
 
-    // fallback
-    case "product_management":
     case "tech_engineering":
-      return "general_mba";
+      return "tech_classic";
 
     case "finance":
       return "finance_tight";
 
+    case "product_management":
+    case "operations":
     default:
       return "general_mba";
   }
@@ -77,10 +86,11 @@ function getRecommendedTemplateId(careerPath: CareerPath | null): TemplateId | n
    SAMPLE DATA FOR PREVIEW
 ========================= */
 
-const sampleResumeData = {
+const sampleConsultingResumeData = {
   header: {
     name: "Vaishali Gupta",
     gender: "Female",
+    university: "IIM Ahmedabad", // ✅ REQUIRED by ConsultingClassicPreview types
     email: "email@example.com",
     phone: "+91-1234567890",
     location: "Dubai (Relocating to Mumbai)",
@@ -175,11 +185,16 @@ function TemplatePreview({ templateId }: { templateId: string }) {
     return (
       <ConsultingClassicPreview
         data={{
-          header: sampleResumeData.header,
-          metaBar: sampleResumeData.metaBar,
+          header: sampleConsultingResumeData.header,
+          metaBar: sampleConsultingResumeData.metaBar,
         }}
       />
     );
+  }
+
+  if (templateId === "tech_classic") {
+    // TechClassicPreview already includes its own good sample if no data is passed.
+    return <TechClassicPreview />;
   }
 
   // placeholder (for finance_tight / general_mba until previews exist)
@@ -207,6 +222,43 @@ function TemplatePreview({ templateId }: { templateId: string }) {
     </div>
   );
 }
+
+/* =========================
+   OPTIONS (typed)
+========================= */
+
+const CAREER_OPTIONS: Array<{
+  id: CareerPath;
+  label: string;
+  description: string;
+}> = [
+  { id: "consulting", label: "Consulting", description: "MBB, Tier-2, strategy roles." },
+  { id: "product_management", label: "Product Management", description: "PM, APM, product strategy." },
+  { id: "tech_engineering", label: "Tech / Engineering", description: "Software, data, infra." },
+  { id: "finance", label: "Finance / IB / PE", description: "IB, PE, VC, markets." },
+  { id: "operations", label: "Operations / General Mgmt", description: "Ops, supply chain, leadership." },
+  { id: "other", label: "Other", description: "Specify your path." },
+];
+
+const GOAL_OPTIONS: Array<{
+  id: ResumeGoal;
+  label: string;
+  description: string;
+}> = [
+  { id: "new_role", label: "Get a new role", description: "External applications." },
+  { id: "promotion", label: "Promotion", description: "Internal growth." },
+  { id: "mba_admit", label: "MBA / Grad Admit", description: "School applications." },
+  { id: "internship", label: "Internship", description: "Summer & off-cycle roles." },
+  { id: "career_switch", label: "Career switch", description: "New field / role." },
+  { id: "other", label: "Other", description: "Specify your aim." },
+];
+
+const EXPERIENCE_OPTIONS: Array<{ id: ExperienceLevel; label: string }> = [
+  { id: "0_2", label: "0–2 years" },
+  { id: "3_5", label: "3–5 years" },
+  { id: "6_10", label: "6–10 years" },
+  { id: "10_plus", label: "10+ years" },
+];
 
 /* =========================
    MAIN COMPONENT
@@ -247,42 +299,15 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
       content: (
         <>
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            <OptionCard
-              label="Consulting"
-              description="MBB, Tier-2, strategy roles."
-              selected={value.careerPath === "consulting"}
-              onClick={() => update("careerPath", "consulting")}
-            />
-            <OptionCard
-              label="Product Management"
-              description="PM, APM, product strategy."
-              selected={value.careerPath === "product_management"}
-              onClick={() => update("careerPath", "product_management")}
-            />
-            <OptionCard
-              label="Tech / Engineering"
-              description="Software, data, infra."
-              selected={value.careerPath === "tech_engineering"}
-              onClick={() => update("careerPath", "tech_engineering")}
-            />
-            <OptionCard
-              label="Finance / IB / PE"
-              description="IB, PE, VC, markets."
-              selected={value.careerPath === "finance"}
-              onClick={() => update("careerPath", "finance")}
-            />
-            <OptionCard
-              label="Operations / General Mgmt"
-              description="Ops, supply chain, leadership."
-              selected={value.careerPath === "operations"}
-              onClick={() => update("careerPath", "operations")}
-            />
-            <OptionCard
-              label="Other"
-              description="Specify your path."
-              selected={value.careerPath === "other"}
-              onClick={() => update("careerPath", "other")}
-            />
+            {CAREER_OPTIONS.map((opt) => (
+              <OptionCard
+                key={opt.id}
+                label={opt.label}
+                description={opt.description}
+                selected={value.careerPath === opt.id}
+                onClick={() => update("careerPath", opt.id)}
+              />
+            ))}
           </div>
 
           {value.careerPath === "other" && (
@@ -304,42 +329,15 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
       content: (
         <>
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            <OptionCard
-              label="Get a new role"
-              description="External applications."
-              selected={value.goal === "new_role"}
-              onClick={() => update("goal", "new_role")}
-            />
-            <OptionCard
-              label="Promotion"
-              description="Internal growth."
-              selected={value.goal === "promotion"}
-              onClick={() => update("goal", "promotion")}
-            />
-            <OptionCard
-              label="MBA / Grad Admit"
-              description="School applications."
-              selected={value.goal === "mba_admit"}
-              onClick={() => update("goal", "mba_admit")}
-            />
-            <OptionCard
-              label="Internship"
-              description="Summer & off-cycle roles."
-              selected={value.goal === "internship"}
-              onClick={() => update("goal", "internship")}
-            />
-            <OptionCard
-              label="Career switch"
-              description="New field / role."
-              selected={value.goal === "career_switch"}
-              onClick={() => update("goal", "career_switch")}
-            />
-            <OptionCard
-              label="Other"
-              description="Specify your aim."
-              selected={value.goal === "other"}
-              onClick={() => update("goal", "other")}
-            />
+            {GOAL_OPTIONS.map((opt) => (
+              <OptionCard
+                key={opt.id}
+                label={opt.label}
+                description={opt.description}
+                selected={value.goal === opt.id}
+                onClick={() => update("goal", opt.id)}
+              />
+            ))}
           </div>
 
           {value.goal === "other" && (
@@ -360,26 +358,14 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
       subtitle: "We tune tone, bullet depth, seniority signals.",
       content: (
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          <OptionCard
-            label="0–2 years"
-            selected={value.experienceLevel === "0_2"}
-            onClick={() => update("experienceLevel", "0_2")}
-          />
-          <OptionCard
-            label="3–5 years"
-            selected={value.experienceLevel === "3_5"}
-            onClick={() => update("experienceLevel", "3_5")}
-          />
-          <OptionCard
-            label="6–10 years"
-            selected={value.experienceLevel === "6_10"}
-            onClick={() => update("experienceLevel", "6_10")}
-          />
-          <OptionCard
-            label="10+ years"
-            selected={value.experienceLevel === "10_plus"}
-            onClick={() => update("experienceLevel", "10_plus")}
-          />
+          {EXPERIENCE_OPTIONS.map((opt) => (
+            <OptionCard
+              key={opt.id}
+              label={opt.label}
+              selected={value.experienceLevel === opt.id}
+              onClick={() => update("experienceLevel", opt.id)}
+            />
+          ))}
         </div>
       ),
     },
@@ -474,11 +460,7 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
             const isRecommended = tpl.id === recommendedTemplateId;
             const isSelected = value.templateId === tpl.id;
 
-            const badge = isRecommended
-              ? "Recommended"
-              : isSelected
-              ? "Selected"
-              : undefined;
+            const badge = isRecommended ? "Recommended" : isSelected ? "Selected" : undefined;
 
             return (
               <TemplateTile

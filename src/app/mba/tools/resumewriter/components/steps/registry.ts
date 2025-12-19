@@ -3,13 +3,26 @@ import React from "react";
 import type { ResumeTemplateId } from "../resume-templates";
 import type { StepId, ResumeDraft } from "../../utils/flowTypes";
 
+/* =========================
+   CONSULTING CLASSIC
+========================= */
 import Step1_BasicInfo_ConsultingClassic from "./consulting-classic/Step1_BasicInfo";
 import Step2_Education_ConsultingClassic from "./consulting-classic/Step2_Education";
 import Step3_WorkExperience_ConsultingClassic from "./consulting-classic/Step3_WorkExperience";
 import Step4_ScholasticAchievements_ConsultingClassic from "./consulting-classic/Step4_ScholasticAchievements";
 import Step5_intern_or_article_ConsultingClassic from "./consulting-classic/Step5_intern_or_article";
 import Step6leadership_and_extracurricular_ConsultingClassic from "./consulting-classic/Step6leadership_and_extracurricular";
-import Step7_Download_ConsultingClassic from "./consulting-classic/Step7_Download"; // ✅ NEW
+import Step7_Download_ConsultingClassic from "./consulting-classic/Step7_Download";
+
+/* =========================
+   TECH CLASSIC
+========================= */
+import Step1_HeaderAndSummary_TechClassic from "./tech-classic/Step1_HeaderAndSummary";
+import Step2_Skills_TechClassic from "./tech-classic/Step2_Skills";
+import Step3_Experience_TechClassic from "./tech-classic/Step3_Experience";
+import Step4_Education_TechClassic from "./tech-classic/Step4_Education";
+import Step5_KeyAchievements_TechClassic from "./tech-classic/Step5_KeyAchievements";
+import Step6_Download_TechClassic from "./tech-classic/Step6_Download";
 
 export type StepComponentProps = {
   draft: ResumeDraft;
@@ -44,6 +57,16 @@ export const STEP_COMPONENTS: Record<
 
     // ✅ Step 7 (final)
     download: Step7_Download_ConsultingClassic,
+  },
+
+  // ✅ NEW: Tech Classic mapping
+  tech_classic: {
+    "tech-header-summary": Step1_HeaderAndSummary_TechClassic,
+    "tech-skills": Step2_Skills_TechClassic,
+    "tech-experience": Step3_Experience_TechClassic,
+    "tech-education": Step4_Education_TechClassic,
+    "tech-achievements": Step5_KeyAchievements_TechClassic,
+    download: Step6_Download_TechClassic,
   },
 
   finance_tight: {},

@@ -60,6 +60,36 @@ const STEP_DEFS: Record<string, StepDef> = {
     label: "Download",
     description: "Preview + export as PDF",
   },
+
+  /* =========================
+     ✅ TECH CLASSIC STEPS
+  ========================= */
+
+  "tech-header-summary": {
+    id: "tech-header-summary",
+    label: "Header & Summary",
+    description: "Title, links, and a strong technical summary",
+  },
+  "tech-skills": {
+    id: "tech-skills",
+    label: "Skills",
+    description: "Languages, frameworks, cloud/devops, databases, tools",
+  },
+  "tech-experience": {
+    id: "tech-experience",
+    label: "Experience",
+    description: "Companies, roles, dates, impact bullets",
+  },
+  "tech-education": {
+    id: "tech-education",
+    label: "Education",
+    description: "Degrees, institutes, scores, years",
+  },
+  "tech-achievements": {
+    id: "tech-achievements",
+    label: "Key Achievements",
+    description: "Awards, recognitions, notable wins",
+  },
 };
 
 const TEMPLATE_FLOWS_LOCAL: Record<ResumeTemplateId, TemplateFlow> = {
@@ -78,7 +108,6 @@ const TEMPLATE_FLOWS_LOCAL: Record<ResumeTemplateId, TemplateFlow> = {
       STEP_DEFS["intern-or-article"],
       STEP_DEFS["leadership-extracurricular"],
 
-      // ✅ final step
       STEP_DEFS["download"],
     ],
   },
@@ -121,6 +150,22 @@ const TEMPLATE_FLOWS_LOCAL: Record<ResumeTemplateId, TemplateFlow> = {
       STEP_DEFS["scholastic-achievements"],
       STEP_DEFS["intern-or-article"],
       STEP_DEFS["leadership-extracurricular"],
+      STEP_DEFS["download"],
+    ],
+  },
+
+  // ✅ NEW: Tech Classic flow → ends with download
+  tech_classic: {
+    templateId: "tech_classic",
+    steps: [
+      STEP_DEFS["intent-template"],
+
+      STEP_DEFS["tech-header-summary"],
+      STEP_DEFS["tech-skills"],
+      STEP_DEFS["tech-experience"],
+      STEP_DEFS["tech-education"],
+      STEP_DEFS["tech-achievements"],
+
       STEP_DEFS["download"],
     ],
   },
