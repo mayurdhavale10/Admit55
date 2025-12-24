@@ -19,12 +19,23 @@ export type StepId =
   | "intern-or-article"
   | "leadership-extracurricular"
   | "download"
-  // ✅ tech-classic steps
+  // tech-classic steps
   | "tech-header-summary"
   | "tech-skills"
   | "tech-experience"
   | "tech-education"
-  | "tech-achievements";
+  | "tech-achievements"
+  // consulting-1 steps
+  | "c1-header-summary"
+  | "c1-work-experience"
+  | "c1-education"
+  | "c1-entrepreneurial"
+  // tech-vc1 steps
+  | "vc1-header-summary"
+  | "vc1-experience"
+  | "vc1-skills"
+  | "vc1-education"
+  | "vc1-achievements";
 
 /* =========================
    STEP 0 TYPES (used by Step0_IntentAndTemplate.tsx)
@@ -74,14 +85,18 @@ export type ResumeIntent = {
 export type ResumeDraft = {
   intent?: ResumeIntent;
   resume?: Partial<ResumeData> & {
-    // Existing optional blocks (consulting classic)
+    /* -------------------------
+       Consulting Classic blocks
+    -------------------------- */
     articleSectionTitle?: string;
     articleHeaderRight?: string;
     articleBlocks?: any[];
     leadershipTitle?: string;
     leadershipBlocks?: any[];
 
-    // ✅ Tech Classic step payloads (kept optional + non-breaking)
+    /* -------------------------
+       Tech Classic payloads
+    -------------------------- */
     techHeader?: {
       fullName?: string;
       title?: string;
@@ -95,10 +110,52 @@ export type ResumeDraft = {
       };
     };
     techSummary?: { text?: string };
+    techJobDescription?: string;
     techSkills?: any;
     techExperience?: any[];
     techEducation?: any[];
     techAchievements?: any[];
+
+    /* -------------------------
+       Consulting 1 payloads
+    -------------------------- */
+    consulting1Header?: {
+      fullName?: string;
+      title?: string;
+      phone?: string;
+      email?: string;
+      location?: string;
+      linkedin?: string;
+    };
+    consulting1Summary?: { text?: string };
+    consulting1WorkExperience?: any;
+    consulting1Education?: any;
+    consulting1Entrepreneurial?: any;
+    consulting1Download?: {
+      note?: string;
+      savedAt?: string;
+    };
+
+    /* -------------------------
+       Tech VC1 payloads
+       (NOTE: keep these in sync with your preview adapter)
+    -------------------------- */
+    techVC1Header?: any;
+    techVC1Summary?: any;
+
+    // ✅ should be an array of experience blocks (Professional Journey)
+    techVC1Experience?: any[];
+
+    // ✅ skills block
+    techVC1Skills?: any;
+
+    techVC1Education?: any[];
+    techVC1Achievements?: any[];
+
+    techVC1Download?: {
+      note?: string;
+      savedAt?: string;
+    };
   };
 };
 

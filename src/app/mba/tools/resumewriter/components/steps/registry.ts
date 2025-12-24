@@ -24,6 +24,28 @@ import Step4_Education_TechClassic from "./tech-classic/Step4_Education";
 import Step5_KeyAchievements_TechClassic from "./tech-classic/Step5_KeyAchievements";
 import Step6_Download_TechClassic from "./tech-classic/Step6_Download";
 
+/* =========================
+   CONSULTING 1
+========================= */
+import Step1_HeaderAndSummary_Consulting1 from "./consulting-1/Step1_HeaderAndSummary";
+import Step2_WorkExperience_Consulting1 from "./consulting-1/Step2_WorkExperience";
+import Step3_Education_Consulting1 from "./consulting-1/Step3_Education";
+import Step4_Entrepreneurial_Consulting1 from "./consulting-1/Step4_Entrepreneurial";
+import Step5_Download_Consulting1 from "./consulting-1/Step5_Download";
+
+/* =========================
+   TECH VC1
+========================= */
+import Step1_HeaderAndSummary_TechVC1 from "./tech-vc1/Step1_HeaderAndSummary";
+
+// IMPORTANT: keep filenames as-is, but import them with truthful variable names:
+import Step2_ProfessionalJourney_TechVC1 from "./tech-vc1/Step2_Professionalskills"; // file name stays
+import Step3_Skills_TechVC1 from "./tech-vc1/Step3_Skills"; // file name stays
+
+import Step4_Education_TechVC1 from "./tech-vc1/Step4_Education";
+import Step5_ProfessionalAccolades_TechVC1 from "./tech-vc1/Step5_ProfessionalAccolades";
+import Step6_Download_TechVC1 from "./tech-vc1/Step6_Download";
+
 export type StepComponentProps = {
   draft: ResumeDraft;
   setDraft: (next: ResumeDraft) => void;
@@ -38,28 +60,19 @@ export const STEP_COMPONENTS: Record<
   Partial<Record<StepId, StepComponent>>
 > = {
   consulting_classic: {
-    // Step 1 + Step 2
     "basic-info": Step1_BasicInfo_ConsultingClassic,
     education: Step2_Education_ConsultingClassic,
 
-    // Step 3 (compat)
+    // compat
     experience: Step3_WorkExperience_ConsultingClassic,
     "work-experience": Step3_WorkExperience_ConsultingClassic,
 
-    // Step 4
     "scholastic-achievements": Step4_ScholasticAchievements_ConsultingClassic,
-
-    // Step 5
     "intern-or-article": Step5_intern_or_article_ConsultingClassic,
-
-    // Step 6
     "leadership-extracurricular": Step6leadership_and_extracurricular_ConsultingClassic,
-
-    // ✅ Step 7 (final)
     download: Step7_Download_ConsultingClassic,
   },
 
-  // ✅ NEW: Tech Classic mapping
   tech_classic: {
     "tech-header-summary": Step1_HeaderAndSummary_TechClassic,
     "tech-skills": Step2_Skills_TechClassic,
@@ -67,6 +80,29 @@ export const STEP_COMPONENTS: Record<
     "tech-education": Step4_Education_TechClassic,
     "tech-achievements": Step5_KeyAchievements_TechClassic,
     download: Step6_Download_TechClassic,
+  },
+
+  consulting_1: {
+    "c1-header-summary": Step1_HeaderAndSummary_Consulting1,
+    "c1-work-experience": Step2_WorkExperience_Consulting1,
+    "c1-education": Step3_Education_Consulting1,
+    "c1-entrepreneurial": Step4_Entrepreneurial_Consulting1,
+    download: Step5_Download_Consulting1,
+  },
+
+  // ✅ FIXED: Step IDs now map to the correct step files
+  tech_vc1: {
+    "vc1-header-summary": Step1_HeaderAndSummary_TechVC1,
+
+    // Step 2 in UI = Professional Journey
+    "vc1-experience": Step2_ProfessionalJourney_TechVC1,
+
+    // Step 3 in UI = Skills
+    "vc1-skills": Step3_Skills_TechVC1,
+
+    "vc1-education": Step4_Education_TechVC1,
+    "vc1-achievements": Step5_ProfessionalAccolades_TechVC1,
+    download: Step6_Download_TechVC1,
   },
 
   finance_tight: {},

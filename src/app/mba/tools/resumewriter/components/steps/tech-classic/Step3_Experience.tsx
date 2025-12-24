@@ -53,27 +53,17 @@ function defaultSample(): ExperienceItem[] {
   ];
 }
 
+// ✅ FIXED: Keep ALL items, even if partially filled (no aggressive filtering)
 function toDraftExperience(items: ExperienceItem[]) {
-  return items
-    .map((it) => ({
-      company: clean(it.company).trim(),
-      role: clean(it.role).trim(),
-      location: clean(it.location).trim(),
-      start: clean(it.start).trim(),
-      end: clean(it.end).trim(),
-      summary: clean(it.summary).trim(),
-      bullets: ensureLen(it.bullets ?? [], 7).map((b) => clean(b).trim()).filter(Boolean),
-    }))
-    .filter(
-      (e) =>
-        e.company ||
-        e.role ||
-        e.location ||
-        e.start ||
-        e.end ||
-        e.summary ||
-        (e.bullets?.length ?? 0) > 0
-    );
+  return items.map((it) => ({
+    company: clean(it.company),
+    role: clean(it.role),
+    location: clean(it.location),
+    start: clean(it.start),
+    end: clean(it.end),
+    summary: clean(it.summary),
+    bullets: ensureLen(it.bullets ?? [], 7).map((b) => clean(b)),
+  }));
 }
 
 export default function Step3_Experience_TechClassic({
@@ -216,49 +206,40 @@ export default function Step3_Experience_TechClassic({
 
   const canContinue = items.some((it) => clean(it.company).trim() && clean(it.role).trim());
 
+  // ✅ FIXED: Preview now trims for display but doesn't filter out items
   const previewData = useMemo(() => {
     const header = resume.techHeader ?? {};
     const summary = resume.techSummary ?? {};
     const skills = resume.techSkills ?? {};
 
-    const experiences = items
-      .map((it) => {
-        const start = clean(it.start).trim();
-        const end = clean(it.end).trim();
-        const dateRange =
-          start && end ? `${start} – ${end}` : start ? start : end ? end : "";
+    const experiences = items.map((it) => {
+      const start = clean(it.start).trim();
+      const end = clean(it.end).trim();
+      const dateRange =
+        start && end ? `${start} – ${end}` : start ? start : end ? end : "";
 
-        return {
-          company: clean(it.company).trim(),
-          role: clean(it.role).trim(),
-          location: clean(it.location).trim(),
-          dateRange,
-          summaryLine: clean(it.summary).trim(),
-          bullets: ensureLen(it.bullets ?? [], 7).map((b) => clean(b).trim()).filter(Boolean),
-        };
-      })
-      .filter(
-        (e) =>
-          e.company ||
-          e.role ||
-          e.location ||
-          e.dateRange ||
-          e.summaryLine ||
-          (e.bullets?.length ?? 0) > 0
-      );
+      return {
+        company: clean(it.company).trim() || "Company Name",
+        role: clean(it.role).trim() || "Role Title",
+        location: clean(it.location).trim(),
+        dateRange: dateRange || "MM/YYYY – MM/YYYY",
+        summaryLine: clean(it.summary).trim(),
+        bullets: ensureLen(it.bullets ?? [], 7).map((b) => clean(b).trim()).filter(Boolean),
+      };
+    });
 
     return {
       header: {
-        name: clean(header.fullName) || "Your Name",
-        title: clean(header.title) || "Your Title",
-        phone: clean(header.phone),
-        email: clean(header.email),
-        linkedin: clean(header.links?.linkedin),
-        github: clean(header.links?.github),
-        portfolio: clean(header.links?.portfolio),
-        location: clean(header.location),
+        name: clean(header.fullName).trim() || "Your Name",
+        title: clean(header.title).trim() || "Your Title",
+        phone: clean(header.phone).trim(),
+        email: clean(header.email).trim(),
+        linkedin: clean(header.links?.linkedin).trim(),
+        github: clean(header.links?.github).trim(),
+        portfolio: clean(header.links?.portfolio).trim(),
+        location: clean(header.location).trim(),
       },
-      summary: clean(summary.text),
+      summary: clean(summary.text).trim(),
       skills,
       experiences,
       education: Array.isArray(resume.techEducation) ? resume.techEducation : [],

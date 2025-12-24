@@ -144,7 +144,7 @@ export default function ResumeWriterBuilderPage() {
         {/* Step0 */}
         {currentStepId === "intent-template" && (
           <Step0_IntentAndTemplate
-            value={draft?.intent ?? {}}
+            value={draft?.intent ?? {} as any}
             onChange={updateIntent}
             onNext={handleNext}
           />

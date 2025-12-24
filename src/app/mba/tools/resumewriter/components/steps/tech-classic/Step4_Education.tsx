@@ -44,57 +44,17 @@ function defaultSample(): EducationItem[] {
   ];
 }
 
+// ✅ Keep ALL items (no filtering)
 function toDraftEducation(items: EducationItem[]) {
-  return items
-    .map((r) => ({
-      institute: clean(r.institute).trim(),
-      location: clean(r.location).trim(),
-      degree: clean(r.degree).trim(),
-      start: clean(r.start).trim(),
-      end: clean(r.end).trim(),
-      score: clean(r.score).trim(),
-      highlights: ensureLen(r.highlights ?? [], 3)
-        .map((h) => clean(h).trim())
-        .filter(Boolean),
-    }))
-    .filter(
-      (r) =>
-        r.institute ||
-        r.degree ||
-        r.location ||
-        r.start ||
-        r.end ||
-        r.score ||
-        (r.highlights?.length ?? 0) > 0
-    );
-}
-
-function toTemplateEducation(items: EducationItem[]) {
-  return items
-    .map((r) => {
-      const start = clean(r.start).trim();
-      const end = clean(r.end).trim();
-      const dateRange =
-        start && end ? `${start} - ${end}` : start ? start : end ? end : "";
-
-      const degree = clean(r.degree).trim();
-      const score = clean(r.score).trim();
-      const degreeLine = score ? `${degree} • ${score}` : degree;
-
-      return {
-        institute: clean(r.institute).trim(),
-        location: clean(r.location).trim(),
-        degreeLine,
-        dateRange,
-        highlights: ensureLen(r.highlights ?? [], 3)
-          .map((h) => clean(h).trim())
-          .filter(Boolean),
-      };
-    })
-    .filter(
-      (e) =>
-        e.institute || e.location || e.degreeLine || e.dateRange || (e.highlights?.length ?? 0) > 0
-    );
+  return items.map((r) => ({
+    institute: clean(r.institute),
+    location: clean(r.location),
+    degree: clean(r.degree),
+    start: clean(r.start),
+    end: clean(r.end),
+    score: clean(r.score),
+    highlights: ensureLen(r.highlights ?? [], 3).map((h) => clean(h)),
+  }));
 }
 
 export default function Step4_Education_TechClassic({
@@ -106,7 +66,7 @@ export default function Step4_Education_TechClassic({
   const resume = (draft as any)?.resume ?? {};
   const isInitialMount = useRef(true);
 
-  // Hydrate state WITHOUT calling setDraft during render
+  // ✅ Hydrate state from draft
   const [rows, setRows] = useState<EducationItem[]>(() => {
     const existing = resume.techEducation as any[];
 
@@ -126,22 +86,8 @@ export default function Step4_Education_TechClassic({
     return defaultSample();
   });
 
-  // Sync to draft AFTER mount using useEffect
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      // Commit initial state to draft
-      setDraft({
-        ...(draft as any),
-        resume: {
-          ...((draft as any)?.resume ?? {}),
-          techEducation: toDraftEducation(rows),
-        },
-      });
-    }
-  }, []); // Empty deps - runs once on mount
-
-  const commitRowsToDraft = (nextRows: EducationItem[]) => {
+  // ✅ Commit to draft function
+  const commitToDraft = (nextRows: EducationItem[]) => {
     setDraft({
       ...(draft as any),
       resume: {
@@ -151,10 +97,26 @@ export default function Step4_Education_TechClassic({
     });
   };
 
+  // ✅ Sync initial state to draft AFTER mount (only once)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      // Commit the initial rows state to draft
+      setDraft({
+        ...(draft as any),
+        resume: {
+          ...((draft as any)?.resume ?? {}),
+          techEducation: toDraftEducation(rows),
+        },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - run only once on mount
+
   const updateRow = (id: string, patch: Partial<EducationItem>) => {
     setRows((prev) => {
       const next = prev.map((r) => (r.id === id ? { ...r, ...patch } : r));
-      commitRowsToDraft(next);
+      commitToDraft(next);
       return next;
     });
   };
@@ -167,7 +129,7 @@ export default function Step4_Education_TechClassic({
         highlights[hIdx] = value;
         return { ...r, highlights };
       });
-      commitRowsToDraft(next);
+      commitToDraft(next);
       return next;
     });
   };
@@ -187,7 +149,7 @@ export default function Step4_Education_TechClassic({
           highlights: ensureLen([], 3),
         },
       ];
-      commitRowsToDraft(next);
+      commitToDraft(next);
       return next;
     });
   };
@@ -196,7 +158,7 @@ export default function Step4_Education_TechClassic({
     setRows((prev) => {
       const filtered = prev.filter((r) => r.id !== id);
       const next = filtered.length ? filtered : defaultSample();
-      commitRowsToDraft(next);
+      commitToDraft(next);
       return next;
     });
   };
@@ -210,21 +172,42 @@ export default function Step4_Education_TechClassic({
     const summary = resume.techSummary ?? {};
     const skills = resume.techSkills ?? {};
 
+    const education = rows.map((r) => {
+      const start = clean(r.start).trim();
+      const end = clean(r.end).trim();
+      const dateRange =
+        start && end ? `${start} - ${end}` : start ? start : end ? end : "";
+
+      const degree = clean(r.degree).trim();
+      const score = clean(r.score).trim();
+      const degreeLine = score ? `${degree} • ${score}` : degree;
+
+      return {
+        institute: clean(r.institute).trim(),
+        location: clean(r.location).trim(),
+        degreeLine,
+        dateRange,
+        highlights: ensureLen(r.highlights ?? [], 3)
+          .map((h) => clean(h).trim())
+          .filter(Boolean),
+      };
+    });
+
     return {
       header: {
-        name: clean(header.fullName) || "Your Name",
-        title: clean(header.title) || "Your Title",
-        phone: clean(header.phone),
-        email: clean(header.email),
-        linkedin: clean(header.links?.linkedin),
-        github: clean(header.links?.github),
-        portfolio: clean(header.links?.portfolio),
-        location: clean(header.location),
+        name: clean(header.fullName).trim() || "Your Name",
+        title: clean(header.title).trim() || "Your Title",
+        phone: clean(header.phone).trim(),
+        email: clean(header.email).trim(),
+        linkedin: clean(header.links?.linkedin).trim(),
+        github: clean(header.links?.github).trim(),
+        portfolio: clean(header.links?.portfolio).trim(),
+        location: clean(header.location).trim(),
       },
-      summary: clean(summary.text),
+      summary: clean(summary.text).trim(),
       skills,
       experiences: Array.isArray(resume.techExperience) ? resume.techExperience : [],
-      education: toTemplateEducation(rows),
+      education,
       achievements: Array.isArray(resume.techAchievements) ? resume.techAchievements : [],
     };
   }, [resume, rows]);
@@ -243,8 +226,6 @@ export default function Step4_Education_TechClassic({
 
           <div className="mt-5 space-y-6">
             {rows.map((r, idx) => {
-              const highlights = ensureLen(r.highlights ?? [], 3);
-
               return (
                 <div
                   key={r.id}
@@ -307,8 +288,6 @@ export default function Step4_Education_TechClassic({
                       />
                     </div>
                   </div>
-
-
                 </div>
               );
             })}

@@ -1,3 +1,4 @@
+// src/app/mba/tools/resumewriter/components/TemplateTile.tsx
 "use client";
 
 import React from "react";
@@ -21,22 +22,29 @@ const TemplateTile: React.FC<TemplateTileProps> = ({
   children,
 }) => {
   return (
-    <motion.button
-      type="button"
+    <motion.div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       whileHover={{ y: -6, scale: 1.01 }}
       transition={{ duration: 0.2 }}
       className={`
-        group flex h-full w-full flex-col rounded-3xl border bg-white/95 text-left
-        shadow-[0_22px_70px_rgba(15,23,42,0.20)] transition-all
+        group flex h-full w-full cursor-pointer flex-col rounded-3xl border bg-white/95 text-left
+        shadow-[0_22px_70px_rgba(15,23,42,0.20)] transition-all outline-none
         ${
           selected
             ? "border-teal-500 shadow-[0_26px_90px_rgba(15,118,110,0.35)] dark:border-teal-400 dark:bg-slate-900/95"
             : "border-slate-200 hover:border-teal-300 hover:shadow-[0_26px_80px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900/90 dark:hover:border-teal-300"
         }
+        focus-visible:ring-2 focus-visible:ring-teal-400/40
       `}
     >
-      {/* ✅ Let preview grow naturally (no clamp, no scroll) */}
       <div className="relative w-full rounded-t-3xl bg-slate-50 dark:bg-slate-950 p-4">
         {children}
 
@@ -58,7 +66,7 @@ const TemplateTile: React.FC<TemplateTileProps> = ({
           {description}
         </p>
       </div>
-    </motion.button>
+    </motion.div>
   );
 };
 

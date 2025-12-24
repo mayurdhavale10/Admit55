@@ -1,4 +1,3 @@
-// src/app/mba/tools/resumewriter/components/resume-templates/tech-classic/TechClassicPreview.tsx
 "use client";
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -102,19 +101,39 @@ export default function TechClassicPreview({ data }: TechClassicPreviewProps) {
     };
   }, []);
 
-  // ✅ SAFE merge: do NOT let empty strings wipe sample fields (especially header/contact)
+  // ✅ FIXED: Check for REAL content, not just array existence
   const payload = useMemo<TechClassicTemplateProps>(() => {
     const d = data;
 
     if (!d) return sample;
 
+    // ✅ Check if experiences have actual content
+    const hasRealExperiences = (d.experiences ?? []).some(
+      (e: any) => clean(e.company) || clean(e.role)
+    );
+
+    // ✅ Check if education has actual content
+    const hasRealEducation = (d.education ?? []).some(
+      (e: any) => clean(e.institute) || clean(e.degree) || clean(e.degreeLine)
+    );
+
+    // ✅ Check if achievements have actual content
+    const hasRealAchievements = (d.achievements ?? []).some(
+      (a: any) => clean(a.title)
+    );
+
+    // ✅ Check if skills have actual content
+    const hasRealSkills = (d.skills?.rows ?? []).some(
+      (r: any) => clean(r.label) || clean(r.value)
+    );
+
     const hasReal =
       !!clean(d.header?.name) ||
       !!clean(d.summary) ||
-      (d.skills?.rows?.length ?? 0) > 0 ||
-      (d.experiences?.length ?? 0) > 0 ||
-      (d.education?.length ?? 0) > 0 ||
-      (d.achievements?.length ?? 0) > 0;
+      hasRealSkills ||
+      hasRealExperiences ||
+      hasRealEducation ||
+      hasRealAchievements;
 
     if (!hasReal) return sample;
 
@@ -148,7 +167,7 @@ export default function TechClassicPreview({ data }: TechClassicPreviewProps) {
       ...(d.skills ?? {}),
       heading: pickNonEmpty(d.skills?.heading, sample.skills?.heading),
       subHeading: pickNonEmpty(d.skills?.subHeading, sample.skills?.subHeading),
-      rows: (d.skills?.rows?.length ? d.skills.rows : sample.skills?.rows) ?? [],
+      rows: hasRealSkills ? d.skills!.rows : sample.skills?.rows ?? [],
     };
 
     const merged: TechClassicTemplateProps = {
@@ -156,9 +175,9 @@ export default function TechClassicPreview({ data }: TechClassicPreviewProps) {
       ...d,
       header: mergedHeader as any,
       skills: mergedSkills as any,
-      experiences: d.experiences?.length ? d.experiences : sample.experiences,
-      education: d.education?.length ? d.education : sample.education,
-      achievements: d.achievements?.length ? d.achievements : sample.achievements,
+      experiences: hasRealExperiences ? d.experiences : sample.experiences,
+      education: hasRealEducation ? d.education : sample.education,
+      achievements: hasRealAchievements ? d.achievements : sample.achievements,
       summary: clean(d.summary) ? d.summary : sample.summary,
     };
 

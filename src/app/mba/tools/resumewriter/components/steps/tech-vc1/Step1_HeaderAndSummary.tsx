@@ -1,42 +1,52 @@
-// src/app/mba/tools/resumewriter/components/steps/tech-classic/Step1_HeaderAndSummary.tsx
+// src/app/mba/tools/resumewriter/components/steps/tech-vc1/Step1_HeaderAndSummary.tsx
 "use client";
 
 import React, { useMemo, useState } from "react";
 import type { StepComponentProps } from "../registry";
 
-import TechClassicPreview from "../../resume-templates/tech-classic/TechClassicPreview";
+import TechVC1Preview from "../../resume-templates/tech-vc1/TechVC1Preview";
 import { rewriteTechSummary } from "../../../ai/rewriteTechSummary";
 
-type HeaderLinks = {
+/* =========================
+   helpers
+========================= */
+
+function asInput(v: unknown) {
+  return (v ?? "").toString(); // don't trim while typing
+}
+function cleanStr(v: unknown) {
+  return (v ?? "").toString().trim();
+}
+
+/* =========================
+   types (draft shape)
+========================= */
+
+type VC1HeaderLinks = {
   linkedin?: string;
   github?: string;
   portfolio?: string;
 };
 
-type TechHeader = {
+type VC1Header = {
   fullName?: string;
   title?: string;
+  address?: string;
   phone?: string;
   email?: string;
-  location?: string;
-  links?: HeaderLinks;
+
+  // label customizers (fix your “blue font too thick” issue)
+  nameWeight?: "600" | "700" | "800"; // default 600
+  nameColor?: string; // default "#2f3e55" (softer blue/grey like screenshot)
+  titleColor?: string; // default "#6b778a"
+
+  links?: VC1HeaderLinks;
+  wwwHint?: string; // "Bold Profile"
 };
 
-type TechSummary = {
-  text?: string;
-};
+type VC1Summary = { text?: string };
 
-// ✅ For input fields: DO NOT trim (keeps spaces while typing)
-function asInput(v: unknown) {
-  return (v ?? "").toString();
-}
-
-// ✅ For validation/preview: trim is fine
-function cleanStr(v: unknown) {
-  return (v ?? "").toString().trim();
-}
-
-export default function Step1_HeaderAndSummary_TechClassic({
+export default function Step1_HeaderAndSummary_TechVC1({
   draft,
   setDraft,
   onNext,
@@ -44,75 +54,100 @@ export default function Step1_HeaderAndSummary_TechClassic({
   const [isRewriting, setIsRewriting] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // ✅ keep raw values for controlled inputs (no trim)
-  const header: TechHeader = useMemo(() => {
-    const h = (draft as any)?.resume?.techHeader ?? {};
+  const resume = useMemo(() => (draft as any)?.resume ?? {}, [draft]);
+
+  const header: VC1Header = useMemo(() => {
+    const h = resume.techVC1Header ?? {};
     return {
       fullName: asInput(h.fullName),
       title: asInput(h.title),
+      address: asInput(h.address),
       phone: asInput(h.phone),
       email: asInput(h.email),
-      location: asInput(h.location),
+
+      // ✅ defaults tuned to match the screenshot (less bold + softer tone)
+      nameWeight: (h.nameWeight as any) || "600",
+      nameColor: asInput(h.nameColor || "#2f3e55"),
+      titleColor: asInput(h.titleColor || "#6b778a"),
+
+      wwwHint: asInput(h.wwwHint || "Bold Profile"),
       links: {
         linkedin: asInput(h.links?.linkedin),
         github: asInput(h.links?.github),
         portfolio: asInput(h.links?.portfolio),
       },
     };
-  }, [draft]);
+  }, [resume]);
 
-  const summary: TechSummary = useMemo(() => {
-    const s = (draft as any)?.resume?.techSummary ?? {};
+  const summary: VC1Summary = useMemo(() => {
+    const s = resume.techVC1Summary ?? {};
     return { text: asInput(s.text) };
-  }, [draft]);
+  }, [resume]);
 
-  const jobDescription = useMemo(() => {
-    return asInput((draft as any)?.resume?.techJobDescription ?? "");
-  }, [draft]);
+  const jobDescription = useMemo(() => asInput(resume.techVC1JobDescription ?? ""), [resume]);
 
-  // ✅ updater that supports functional setDraft OR direct object setDraft
-  const update = (patch: Partial<{ techHeader: TechHeader; techSummary: TechSummary; techJobDescription: string }>) => {
+  const update = (
+    patch: Partial<{
+      techVC1Header: VC1Header;
+      techVC1Summary: VC1Summary;
+      techVC1JobDescription: string;
+    }>
+  ) => {
     const nextDraft = {
       ...(draft as any),
       resume: {
-        ...((draft as any)?.resume ?? {}),
-        ...(patch.techHeader ? { techHeader: patch.techHeader } : {}),
-        ...(patch.techSummary ? { techSummary: patch.techSummary } : {}),
-        ...(patch.techJobDescription !== undefined ? { techJobDescription: patch.techJobDescription } : {}),
+        ...(resume ?? {}),
+        ...(patch.techVC1Header ? { techVC1Header: patch.techVC1Header } : {}),
+        ...(patch.techVC1Summary ? { techVC1Summary: patch.techVC1Summary } : {}),
+        ...(patch.techVC1JobDescription !== undefined
+          ? { techVC1JobDescription: patch.techVC1JobDescription }
+          : {}),
       },
     };
-
-    // In your project, setDraft seems to expect an object (not a function)
-    // (If later you switch to functional, this still works)
     (setDraft as any)(nextDraft);
   };
 
-  const updateHeader = (p: Partial<TechHeader>) => update({ techHeader: { ...header, ...p } });
-  const updateLinks = (p: Partial<HeaderLinks>) =>
+  const updateHeader = (p: Partial<VC1Header>) =>
+    update({ techVC1Header: { ...header, ...p } });
+
+  const updateLinks = (p: Partial<VC1HeaderLinks>) =>
     updateHeader({ links: { ...(header.links ?? {}), ...p } });
 
-  const updateSummary = (text: string) => update({ techSummary: { ...summary, text } });
-  const updateJD = (text: string) => update({ techJobDescription: text });
+  const updateSummary = (text: string) =>
+    update({ techVC1Summary: { ...summary, text } });
 
-  // ✅ trim only for validation
+  const updateJD = (text: string) => update({ techVC1JobDescription: text });
+
   const canContinue = !!cleanStr(header.fullName) && !!cleanStr(header.title);
 
-  // ✅ trim only for preview payload (so template doesn't get weird trailing spaces)
-  const previewData = useMemo(() => {
+  // ✅ pass styling knobs into preview via draft.resume.techVC1Header
+  const previewDraft = useMemo(() => {
     return {
-      header: {
-        name: cleanStr(header.fullName) || "Your Name",
-        title: cleanStr(header.title) || "Your Title",
-        phone: cleanStr(header.phone),
-        email: cleanStr(header.email),
-        linkedin: cleanStr(header.links?.linkedin),
-        github: cleanStr(header.links?.github),
-        portfolio: cleanStr(header.links?.portfolio),
-        location: cleanStr(header.location),
+      resume: {
+        ...resume,
+        techVC1Header: {
+          fullName: cleanStr(header.fullName) || "Rahul Gupta",
+          title: cleanStr(header.title) || "Software Engineer",
+          address: cleanStr(header.address) || "Dehradun, India 248001",
+          phone: cleanStr(header.phone) || "+91 8126621231",
+          email: cleanStr(header.email) || "guptarahul0319@gmail.com",
+          links: {
+            linkedin:
+              cleanStr(header.links?.linkedin) || "https://www.linkedin.com/in/rahul-gupta-/",
+            github: cleanStr(header.links?.github) || "",
+            portfolio: cleanStr(header.links?.portfolio) || "",
+          },
+          wwwHint: cleanStr(header.wwwHint) || "Bold Profile",
+
+          nameWeight: header.nameWeight || "600",
+          nameColor: header.nameColor || "#2f3e55",
+          titleColor: header.titleColor || "#6b778a",
+        },
+        techVC1Summary: { text: cleanStr(summary.text) },
+        techVC1JobDescription: cleanStr(jobDescription),
       },
-      summary: cleanStr(summary.text),
     };
-  }, [header, summary.text]);
+  }, [resume, header, summary.text, jobDescription]);
 
   async function handleRewriteSummary() {
     setAiError(null);
@@ -151,10 +186,10 @@ export default function Step1_HeaderAndSummary_TechClassic({
         {/* LEFT */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-950">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
-            Step 1 — Header & Summary
+            Step 1 — Header & Summary (Tech VC1)
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Fill your header, write a rough summary, then use <b>Admit55-AI</b> to rewrite it (optionally using a Job Description).
+            Match the screenshot: softer name color + lighter weight.
           </p>
 
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -162,13 +197,20 @@ export default function Step1_HeaderAndSummary_TechClassic({
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
               placeholder="Full Name (e.g., Rahul Gupta)"
               value={header.fullName ?? ""}
-              onChange={(e) => updateHeader({ fullName: e.target.value })} // ✅ spaces preserved
+              onChange={(e) => updateHeader({ fullName: e.target.value })}
             />
             <input
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-              placeholder="Title (e.g., Senior Software Engineer)"
+              placeholder="Title (e.g., Software Engineer)"
               value={header.title ?? ""}
               onChange={(e) => updateHeader({ title: e.target.value })}
+            />
+
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 md:col-span-2"
+              placeholder="Address / Location (e.g., Dehradun, India 248001)"
+              value={header.address ?? ""}
+              onChange={(e) => updateHeader({ address: e.target.value })}
             />
 
             <input
@@ -179,16 +221,9 @@ export default function Step1_HeaderAndSummary_TechClassic({
             />
             <input
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-              placeholder="Email (optional)"
+              placeholder="E-mail (optional)"
               value={header.email ?? ""}
               onChange={(e) => updateHeader({ email: e.target.value })}
-            />
-
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 md:col-span-2"
-              placeholder="Location (optional) (e.g., Bengaluru, India)"
-              value={header.location ?? ""}
-              onChange={(e) => updateHeader({ location: e.target.value })}
             />
 
             <input
@@ -205,10 +240,37 @@ export default function Step1_HeaderAndSummary_TechClassic({
             />
             <input
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-              placeholder="Portfolio URL (optional)"
+              placeholder="WWW / Portfolio URL (optional)"
               value={header.links?.portfolio ?? ""}
               onChange={(e) => updateLinks({ portfolio: e.target.value })}
             />
+
+            {/* ✅ style controls */}
+            <div className="md:col-span-2 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                value={header.nameWeight || "600"}
+                onChange={(e) => updateHeader({ nameWeight: e.target.value as any })}
+              >
+                <option value="600">Name weight 600 (recommended)</option>
+                <option value="700">Name weight 700</option>
+                <option value="800">Name weight 800</option>
+              </select>
+
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                placeholder="Name color hex (e.g., #2f3e55)"
+                value={header.nameColor ?? ""}
+                onChange={(e) => updateHeader({ nameColor: e.target.value })}
+              />
+
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                placeholder="Title color hex (e.g., #6b778a)"
+                value={header.titleColor ?? ""}
+                onChange={(e) => updateHeader({ titleColor: e.target.value })}
+              />
+            </div>
           </div>
 
           {/* Job Description */}
@@ -216,15 +278,12 @@ export default function Step1_HeaderAndSummary_TechClassic({
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
               Job Description (optional)
             </h3>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-              Paste JD here. If present, Admit55-AI will tailor your summary to match keywords naturally.
-            </p>
             <textarea
               rows={6}
               className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
               placeholder="Paste job description here (optional)..."
               value={jobDescription}
-              onChange={(e) => updateJD(e.target.value)} // ✅ preserves spaces + formatting
+              onChange={(e) => updateJD(e.target.value)}
             />
           </div>
 
@@ -253,9 +312,9 @@ export default function Step1_HeaderAndSummary_TechClassic({
             <textarea
               rows={4}
               className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-              placeholder="Write a rough summary first (2–4 lines). Then click Admit55-AI Rewrite."
+              placeholder="Write a rough summary first..."
               value={summary.text ?? ""}
-              onChange={(e) => updateSummary(e.target.value)} // ✅ keeps spaces while typing
+              onChange={(e) => updateSummary(e.target.value)}
             />
 
             {aiError && (
@@ -287,11 +346,11 @@ export default function Step1_HeaderAndSummary_TechClassic({
         <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950">
           <div className="mb-2 flex items-center justify-between px-1">
             <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-              Live Preview (Tech Classic)
+              Live Preview (Tech VC1)
             </div>
           </div>
 
-          <TechClassicPreview data={previewData as any} />
+          <TechVC1Preview data={previewDraft} showPager />
         </div>
       </div>
     </div>

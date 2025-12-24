@@ -10,6 +10,8 @@ import TemplateTile from "./TemplateTile";
 // ✅ per-template previews
 import ConsultingClassicPreview from "./resume-templates/consulting-classic/ConsultingClassicPreview";
 import TechClassicPreview from "./resume-templates/tech-classic/TechClassicPreview";
+import Classic1Preview from "./resume-templates/consulting-1/Classic1Preview";
+import TechVC1Preview from "./resume-templates/tech-vc1/TechVC1Preview";
 
 // ✅ single source of truth for types
 import type {
@@ -42,9 +44,23 @@ const TEMPLATE_OPTIONS = [
     badge: "Recommended",
   },
   {
+    id: "consulting_1",
+    label: "Consulting 1",
+    description:
+      "Akshay-style consulting profile layout: clean header + compact sections + strong highlights.",
+  },
+  {
     id: "tech_classic",
     label: "Tech Classic",
-    description: "Backend/SWE style with Summary → Skills → Experience → Education → Achievements.",
+    description:
+      "Backend/SWE style with Summary → Skills → Experience → Education → Achievements.",
+  },
+  {
+    id: "tech_vc1",
+    label: "Tech VC1",
+    description:
+      "VC/Startup-ready tech profile: tight story, sharp summary, clean sections (Rahul-style target).",
+    badge: "New",
   },
   {
     id: "finance_tight",
@@ -70,7 +86,7 @@ function getRecommendedTemplateId(
       return "consulting_classic";
 
     case "tech_engineering":
-      return "tech_classic";
+      return "tech_vc1";
 
     case "finance":
       return "finance_tight";
@@ -90,7 +106,7 @@ const sampleConsultingResumeData = {
   header: {
     name: "Vaishali Gupta",
     gender: "Female",
-    university: "IIM Ahmedabad", // ✅ REQUIRED by ConsultingClassicPreview types
+    university: "IIM Ahmedabad",
     email: "email@example.com",
     phone: "+91-1234567890",
     location: "Dubai (Relocating to Mumbai)",
@@ -101,6 +117,84 @@ const sampleConsultingResumeData = {
     "IIM Ahmedabad",
     "Chartered Accountant",
     "Grant Thornton Bharat LLP",
+  ],
+};
+
+const sampleConsulting1Data = {
+  header: {
+    name: "AKSHAY GOEL",
+    email: "Akshay10.tu@gmail.com",
+    linkedin: "LinkedIn",
+    phone: "+971 566895746",
+  },
+  summary:
+    "Digital & Analytics expert with management consulting & entrepreneurial background; international work experience of 8+ years; alumnus of Indian School of Business (ISB); currently working as Engagement Manager with Kearney.",
+};
+
+// ✅ Rahul-style sample for Tech VC1 tile preview
+const sampleTechVC1Data = {
+  header: {
+    name: "RAHUL GUPTA",
+    title: "Senior Software Engineer",
+    phone: "+91 8126621231",
+    email: "guptarahul0319@gmail.com",
+    location: "Bengaluru, India",
+    linkedin: "linkedin.com/in/rahul-gupta",
+    github: "github.com/rahulgupta",
+    portfolio: "your-portfolio.com",
+  },
+  summary:
+    "Experienced Java backend developer with 6+ years of expertise in designing and developing scalable, high-performance applications. Proficient in building microservices, implementing RESTful APIs, and database management, with strong problem-solving skills and a collaborative approach to delivering quality software solutions.",
+  skills: [
+    {
+      label: "Languages & Frameworks",
+      text: "Java (Core, EE), Spring Boot, Dropwizard, JPA, REST",
+    },
+    {
+      label: "Cloud & DevOps",
+      text: "AWS, GCP, Kubernetes, Docker, Jenkins, Serverless, GitHub, Gradle, Maven",
+    },
+    {
+      label: "Databases",
+      text: "PostgreSQL, SQL, MongoDB, Cassandra, Redis, Elasticsearch",
+    },
+  ],
+  experiences: [
+    {
+      company: "WrkSpot",
+      location: "Remote",
+      role: "Technical Lead",
+      dateRange: "06/2023 – Present",
+      bullets: [
+        "Designed and implemented an online timesheet management system with 10 microservices and IoT integration, enabling better workforce tracking and reducing leakage.",
+        "Developed a reusable framework and internal tooling that reduced development time by ~50% across multiple services.",
+      ],
+    },
+    {
+      company: "Meesho",
+      location: "Bengaluru, India",
+      role: "Software Development Engineer 2",
+      dateRange: "04/2022 – 05/2023",
+      bullets: [
+        "Delivered a microservices-based project in 90 days supporting peak traffic; improved API responsiveness and reliability.",
+      ],
+    },
+  ],
+  education: [
+    {
+      institute: "Your University",
+      location: "India",
+      degreeLine: "B.Tech — Computer Science",
+      dateRange: "2016 – 2020",
+      bullets: ["CGPA: 8.4/10 (optional)", "Relevant coursework / projects (optional)"],
+    },
+  ],
+  achievements: [
+    {
+      title: "Employee of the Month",
+      dateRange: "Sep 2023",
+      bullets: ["Recognized for high-impact delivery and ownership."],
+    },
   ],
 };
 
@@ -192,12 +286,20 @@ function TemplatePreview({ templateId }: { templateId: string }) {
     );
   }
 
+  if (templateId === "consulting_1") {
+    return <Classic1Preview data={sampleConsulting1Data as any} />;
+  }
+
   if (templateId === "tech_classic") {
-    // TechClassicPreview already includes its own good sample if no data is passed.
     return <TechClassicPreview />;
   }
 
-  // placeholder (for finance_tight / general_mba until previews exist)
+  if (templateId === "tech_vc1") {
+    // ✅ Show Rahul-style sample (not blank)
+    return <TechVC1Preview data={sampleTechVC1Data as any} />;
+  }
+
+  // placeholder (finance_tight / general_mba until previews exist)
   return (
     <div className="w-full aspect-[210/297] overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm">
       <div className="px-8 pt-8">
@@ -233,10 +335,18 @@ const CAREER_OPTIONS: Array<{
   description: string;
 }> = [
   { id: "consulting", label: "Consulting", description: "MBB, Tier-2, strategy roles." },
-  { id: "product_management", label: "Product Management", description: "PM, APM, product strategy." },
+  {
+    id: "product_management",
+    label: "Product Management",
+    description: "PM, APM, product strategy.",
+  },
   { id: "tech_engineering", label: "Tech / Engineering", description: "Software, data, infra." },
   { id: "finance", label: "Finance / IB / PE", description: "IB, PE, VC, markets." },
-  { id: "operations", label: "Operations / General Mgmt", description: "Ops, supply chain, leadership." },
+  {
+    id: "operations",
+    label: "Operations / General Mgmt",
+    description: "Ops, supply chain, leadership.",
+  },
   { id: "other", label: "Other", description: "Specify your path." },
 ];
 
@@ -290,7 +400,10 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
   }, [recommendedTemplateId]);
 
   const canContinue =
-    !!value.careerPath && !!value.goal && !!value.experienceLevel && !!value.templateId;
+    !!value.careerPath &&
+    !!value.goal &&
+    !!value.experienceLevel &&
+    !!value.templateId;
 
   const SECTIONS_AD = [
     {
@@ -460,7 +573,11 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
             const isRecommended = tpl.id === recommendedTemplateId;
             const isSelected = value.templateId === tpl.id;
 
-            const badge = isRecommended ? "Recommended" : isSelected ? "Selected" : undefined;
+            const badge = isRecommended
+              ? "Recommended"
+              : isSelected
+              ? "Selected"
+              : (tpl as any).badge;
 
             return (
               <TemplateTile
@@ -469,7 +586,7 @@ const Step0_IntentAndTemplate: React.FC<Step0Props> = ({
                 description={tpl.description}
                 selected={isSelected}
                 badge={badge}
-                onClick={() => update("templateId", tpl.id)}
+                onClick={() => update("templateId", tpl.id as any)}
               >
                 <TemplatePreview templateId={tpl.id} />
               </TemplateTile>

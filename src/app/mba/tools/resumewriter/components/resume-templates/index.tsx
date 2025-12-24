@@ -4,18 +4,22 @@
 import React, { type ReactElement } from "react";
 import type { ResumeData } from "../../utils/resumeTypes";
 
-// ✅ keep YOUR existing path (this is what you actually have)
+// existing
 import ConsultingClassicTemplate from "./ConsultingClassicTemplate";
-
-// ✅ use preview (so your TechClassicTemplate renders via TechClassicPreview sample/draft)
 import TechClassicPreview from "./tech-classic/TechClassicPreview";
+import Classic1Preview from "./consulting-1/Classic1Preview";
+
+// ✅ NEW: Tech VC1 preview
+import TechVC1Preview from "./tech-vc1/TechVC1Preview";
 
 export type ResumeTemplateId =
   | "consulting_classic"
+  | "consulting_1"
+  | "tech_classic"
+  | "tech_vc1" // ✅ add
   | "product_modern"
   | "finance_tight"
-  | "general_mba"
-  | "tech_classic";
+  | "general_mba";
 
 export type ResumeTemplateProps = {
   data: ResumeData;
@@ -53,7 +57,7 @@ const TemplateGeneralMBA: ResumeTemplateComponent = (props) => (
 );
 
 /* -----------------------------------------
-   Adapters (ResumeData -> Template Props)
+   Adapters
 ------------------------------------------ */
 
 const TemplateConsultingClassicAdapter: ResumeTemplateComponent = ({ data }) => {
@@ -79,15 +83,27 @@ const TemplateConsultingClassicAdapter: ResumeTemplateComponent = ({ data }) => 
   );
 };
 
-// ✅ IMPORTANT: Tech should render the PREVIEW (it already contains sample + scaling)
 const TemplateTechClassicAdapter: ResumeTemplateComponent = ({ data }) => {
   return <TechClassicPreview data={data as any} />;
+};
+
+const TemplateConsulting1Adapter: ResumeTemplateComponent = ({ data }) => {
+  return <Classic1Preview data={data as any} />;
+};
+
+// ✅ NEW: Tech VC1 adapter
+const TemplateTechVC1Adapter: ResumeTemplateComponent = ({ data }) => {
+  return <TechVC1Preview data={data as any} />;
 };
 
 export const TEMPLATE_REGISTRY: Record<ResumeTemplateId, ResumeTemplateComponent> =
   {
     consulting_classic: TemplateConsultingClassicAdapter,
+    consulting_1: TemplateConsulting1Adapter,
     tech_classic: TemplateTechClassicAdapter,
+
+    // ✅ NEW
+    tech_vc1: TemplateTechVC1Adapter,
 
     product_modern: TemplateProductModern,
     finance_tight: TemplateFinanceTight,

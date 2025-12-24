@@ -54,16 +54,15 @@ function defaultAchievements(): AchievementUI[] {
   ];
 }
 
+// ✅ Keep ALL items (no filtering)
 function toDraftAchievements(items: AchievementUI[]) {
-  return items
-    .map((a) => ({
-      icon: a.icon,
-      title: clean(a.title).trim(),
-      description: clean(a.subtitle).trim() || clean(a.details).trim(),
-      details: clean(a.details).trim(),
-      subtitle: clean(a.subtitle).trim(),
-    }))
-    .filter((a) => a.title || a.description || a.details);
+  return items.map((a) => ({
+    icon: a.icon,
+    title: clean(a.title),
+    description: clean(a.subtitle) || clean(a.details),
+    details: clean(a.details),
+    subtitle: clean(a.subtitle),
+  }));
 }
 
 export default function Step5_KeyAchievements_TechClassic({
@@ -96,7 +95,7 @@ export default function Step5_KeyAchievements_TechClassic({
   const [isRewriting, setIsRewriting] = useState(false);
   const [rewriteError, setRewriteError] = useState<string | null>(null);
 
-  // Sync to draft AFTER mount using useEffect
+  // ✅ Sync to draft AFTER mount (only once)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -108,6 +107,7 @@ export default function Step5_KeyAchievements_TechClassic({
         },
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - runs once on mount
 
   const commitToDraft = (next: AchievementUI[]) => {
@@ -196,22 +196,29 @@ export default function Step5_KeyAchievements_TechClassic({
     const summary = resume.techSummary ?? {};
     const skills = resume.techSkills ?? {};
 
+    // ✅ Preview trims for display
+    const achievements = items.map((a) => ({
+      icon: a.icon,
+      title: clean(a.title).trim(),
+      description: clean(a.subtitle).trim() || clean(a.details).trim(),
+    }));
+
     return {
       header: {
-        name: clean(header.fullName) || "Your Name",
-        title: clean(header.title) || "Your Title",
-        phone: clean(header.phone),
-        email: clean(header.email),
-        linkedin: clean(header.links?.linkedin),
-        github: clean(header.links?.github),
-        portfolio: clean(header.links?.portfolio),
-        location: clean(header.location),
+        name: clean(header.fullName).trim() || "Your Name",
+        title: clean(header.title).trim() || "Your Title",
+        phone: clean(header.phone).trim(),
+        email: clean(header.email).trim(),
+        linkedin: clean(header.links?.linkedin).trim(),
+        github: clean(header.links?.github).trim(),
+        portfolio: clean(header.links?.portfolio).trim(),
+        location: clean(header.location).trim(),
       },
-      summary: clean(summary.text),
+      summary: clean(summary.text).trim(),
       skills,
       experiences: Array.isArray(resume.techExperience) ? resume.techExperience : [],
       education: Array.isArray(resume.techEducation) ? resume.techEducation : [],
-      achievements: toDraftAchievements(items),
+      achievements,
     };
   }, [resume, items]);
 
