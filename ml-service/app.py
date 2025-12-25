@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 FastAPI wrapper for:
-- MBA Resume Analysis Pipeline (Groq single-call v5.0)
+- MBA Resume Analysis Pipeline (v5.4.0 with header_summary support)
 - B-School Match Pipeline
-- Resume Writer Pipeline (Groq)
+- Resume Writer Pipeline
 
 Deployed on Render.com
 """
@@ -11,6 +11,7 @@ Deployed on Render.com
 import os
 import sys
 import tempfile
+import json
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body
@@ -19,13 +20,20 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add pipeline to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Import pipeline functions with fallbacks
+# Import the NEW v5.4.0 pipeline
 try:
-    from pipeline.mba_hybrid_pipeline import run_pipeline
+    from pipeline.mba_hybrid_pipeline import run_pipeline, LLMSettings, _env_default_settings
+    PIPELINE_VERSION = "5.4.0"
 except ImportError as e:
-    print(f"[IMPORT ERROR] mba_hybrid_pipeline: {e}", file=sys.stderr)
-    def run_pipeline(text, **kwargs):
-        raise HTTPException(500, "Resume analysis pipeline not available")
+    print(f"[IMPORT ERROR] mba_llm_detailed_pipeline v5.4.0: {e}", file=sys.stderr)
+    # Fallback to old pipeline if needed
+    try:
+        from pipeline.mba_hybrid_pipeline import run_pipeline
+        PIPELINE_VERSION = "5.0.0-fallback"
+    except ImportError:
+        def run_pipeline(text, **kwargs):
+            raise HTTPException(500, "Resume analysis pipeline not available")
+        PIPELINE_VERSION = "unknown"
 
 try:
     from pipeline.mba_hybrid_pipeline import PDF_SUPPORT
@@ -47,7 +55,7 @@ except ImportError as e:
     def generate_resume(payload):
         raise HTTPException(500, "Resume writer pipeline not available")
 
-# PDF extraction - only needed for /analyze endpoint
+# PDF extraction
 try:
     import PyPDF2
     
@@ -67,7 +75,7 @@ except ImportError:
             detail="PDF support not available - PyPDF2 not installed"
         )
 
-APP_VERSION = "5.0.0"
+APP_VERSION = PIPELINE_VERSION
 
 app = FastAPI(
     title="MBA Tools API",
@@ -91,6 +99,7 @@ async def root():
         "status": "healthy",
         "service": "MBA Tools",
         "version": APP_VERSION,
+        "pipeline_version": PIPELINE_VERSION,
         "endpoints": {
             "analyze": "POST /analyze",
             "rewrite": "POST /rewrite",
@@ -108,11 +117,20 @@ async def health():
     return {
         "status": "healthy",
         "pdf_support": PDF_SUPPORT,
+        "pipeline_version": PIPELINE_VERSION,
         "groq_configured": bool(os.getenv("GROQ_API_KEY")),
+        "gemini_configured": bool(os.getenv("GEMINI_API_KEY")),
+        "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
         "models": {
             "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            "gemini_model": os.getenv("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash"),
+            "openai_model": os.getenv("OPENAI_PRIMARY_MODEL", "gpt-4o-mini"),
         },
-        "pipeline_version": APP_VERSION,
+        "features": {
+            "header_summary": True,  # NEW in v5.4.0
+            "multi_provider": True,
+            "context_aware": True,
+        },
         "extra": {
             "bschool_match_pipeline": True,
             "resume_writer_pipeline": True,
@@ -121,12 +139,13 @@ async def health():
 
 
 # ============================================================
-# /analyze – Resume Analysis (Profiler / Resume Tool)
+# /analyze – Resume Analysis (v5.4.0 with header_summary)
 # ============================================================
 @app.post("/analyze")
 async def analyze_resume(
     file: Optional[UploadFile] = File(None),
     resume_text: Optional[str] = Form(None),
+    context: Optional[str] = Form(None),  # NEW: optional context JSON string
 ):
     """
     Analyze resume from PDF file or direct text.
@@ -134,10 +153,16 @@ async def analyze_resume(
     Args:
         file: PDF file upload (optional)
         resume_text: Direct resume text (optional)
+        context: Optional JSON string with context (goal, timeline, tier, etc.)
 
     Returns:
-        Complete analysis with scores, strengths, improvements, recommendations.
-        NOTE: Does NOT include improved_resume (use /rewrite for that).
+        Complete analysis with:
+        - scores
+        - header_summary (NEW in v5.4.0: summary, highlights, archetype)
+        - strengths
+        - improvements
+        - recommendations
+        - narrative (optional)
     """
 
     # Validate input
@@ -204,7 +229,16 @@ async def analyze_resume(
         )
         resume_text = resume_text[:50000]
 
-    # Run ML pipeline (Groq single-call)
+    # Parse optional context
+    context_dict = None
+    if context:
+        try:
+            context_dict = json.loads(context)
+            print(f"[API] Received context: {list(context_dict.keys())}", file=sys.stderr)
+        except json.JSONDecodeError:
+            print(f"[API] Invalid context JSON, ignoring", file=sys.stderr)
+
+    # Run ML pipeline (v5.4.0)
     try:
         print(
             f"[API] Starting analysis for {len(resume_text)} character resume",
@@ -212,26 +246,39 @@ async def analyze_resume(
         )
         print("=" * 60, file=sys.stderr)
         print(
-            f"MBA RESUME ANALYSIS PIPELINE v{APP_VERSION} (Groq single-call)",
-            file=sys.stderr,
-        )
-        print(
-            f"[LLM] Using Groq model: {os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
+            f"MBA RESUME ANALYSIS PIPELINE v{PIPELINE_VERSION}",
             file=sys.stderr,
         )
         print("=" * 60, file=sys.stderr)
 
-        result = run_pipeline(resume_text, include_improvement=False)
+        # Get LLM settings from environment
+        settings = _env_default_settings()
+        print(f"[API] Using provider: {settings.provider}, model: {settings.model}", file=sys.stderr)
 
-        # Extra safety: drop improved_resume if pipeline still sends it
-        if isinstance(result, dict) and "improved_resume" in result:
-            del result["improved_resume"]
+        # Call the v5.4.0 pipeline with context support
+        result = run_pipeline(
+            resume_text=resume_text,
+            settings=settings,
+            fallback=None,
+            context=context_dict,
+            include_narrative=True,  # Set to False to save tokens
+        )
 
         print("[API] Analysis complete", file=sys.stderr)
+        print(f"[API] Result keys: {list(result.keys())}", file=sys.stderr)
+        
+        # Verify header_summary is present
+        if "header_summary" in result:
+            print(f"[API] ✅ header_summary generated with keys: {list(result['header_summary'].keys())}", file=sys.stderr)
+        else:
+            print("[API] ⚠️  header_summary NOT in result!", file=sys.stderr)
+
         return result
 
     except Exception as e:
         print(f"[API] Analysis failed: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         raise HTTPException(
             status_code=500,
             detail=f"Analysis pipeline failed: {str(e)}",

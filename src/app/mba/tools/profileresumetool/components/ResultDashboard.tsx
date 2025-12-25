@@ -6,6 +6,11 @@ import StrengthsCard from "./StrengthsCard";
 import ImprovementCard from "./ImprovementCard";
 import RecommendationCard from "./RecommendationCard";
 
+// ✅ NEW (you created these files)
+import HeaderSummary from "./HeaderSummary";
+import AdComPanel from "./AdComPanel";
+import ActionPlan from "./ActionPlan";
+
 interface ResultDashboardProps {
   data: any;
   onNewAnalysis?: () => void;
@@ -40,8 +45,17 @@ function normalizeScoreTo100(v: any): number {
   return Math.round(Math.max(0, Math.min(100, n)));
 }
 
+function computeAvgAndTotal(scores: Record<string, number>) {
+  const vals = SCORE_KEYS.map((k) => normalizeScoreTo100(scores[k]));
+  const total = vals.reduce((a, b) => a + b, 0);
+  const avg = vals.length ? total / vals.length : 0;
+  return { avg100: Math.round(avg), total100: total, avg10: avg / 10, total10: total / 10 };
+}
+
 export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboardProps) {
   const scores: Record<string, number> = (data?.scores as Record<string, number>) || {};
+
+  const { avg10, total10 } = computeAvgAndTotal(scores);
 
   // Build radar input (label + normalized 0-100 score)
   const radarInput = SCORE_KEYS.map((k) => ({
@@ -64,8 +78,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           title: s.label,
           summary: `Strong in ${s.label}.`,
           score: Math.round(s.value),
-        }))
-  ) as any[];
+        }))) as any[];
 
   // Improvements
   const backendImprovements = Array.isArray(data?.improvements) ? data.improvements : null;
@@ -101,8 +114,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           suggestion: `Consider improving ${s.label.toLowerCase()} (current ${Math.round(
             s.value
           )}/100).`,
-        }))
-  ) as any[];
+        }))) as any[];
 
   // Recommendations
   const backendRecs = Array.isArray(data?.recommendations) ? data.recommendations : null;
@@ -129,8 +141,27 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         action: imp.suggestion || `Work on ${imp.area}`,
         estimated_impact: "Should meaningfully improve competitiveness",
         current_score: typeof imp.score === "number" ? imp.score : null,
-      }))
-  ) as any[];
+      }))) as any[];
+
+  // ✅ NEW: AdCom Panel + Action Plan from API (if present)
+  const adcom = data?.adcom_panel || data?.adcom || data?.what_adcom_sees || null;
+  const actionPlan = data?.action_plan || data?.plan || null;
+
+  const whatExcites: string[] = Array.isArray(adcom?.what_excites) ? adcom.what_excites : [];
+  const whatConcerns: string[] = Array.isArray(adcom?.what_concerns) ? adcom.what_concerns : [];
+  const howToPreempt: string[] = Array.isArray(adcom?.how_to_preempt) ? adcom.how_to_preempt : [];
+
+  const next4to6Weeks =
+    Array.isArray(actionPlan?.next_4_6_weeks) ? actionPlan.next_4_6_weeks : [];
+  const next3Months = Array.isArray(actionPlan?.next_3_months) ? actionPlan.next_3_months : [];
+
+  // ✅ FIXED: Extract header_summary from Python pipeline (with test fallback)
+  const headerSummary = data?.header_summary || {
+    summary: "TEST: This is a hardcoded summary to verify the UI works. If you see this, your Python pipeline isn't returning header_summary data.",
+    highlights: ["7 years experience", "Corporate Strategy", "No GMAT/GRE", "Leadership", "Test Data"],
+    applicantArchetypeTitle: "TEST: Experienced Professional",
+    applicantArchetypeSubtitle: "Career Switcher"
+  };
 
   // ON-DEMAND improved resume
   const [improvedResume, setImprovedResume] = useState<string | null>(null);
@@ -150,9 +181,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
     try {
       const res = await fetch("/api/mba/profileresumetool/report-pdf", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           report: {
             ...data,
@@ -219,10 +248,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
       const res = await fetch("/api/mba/profileresumetool/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          report: data,
-          to: trimmed,
-        }),
+        body: JSON.stringify({ report: data, to: trimmed }),
       });
 
       if (!res.ok) {
@@ -267,9 +293,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
     }
 
     if (!sourceText) {
-      alert(
-        "Could not find resume text in analysis response. Please make sure you analyzed a resume first."
-      );
+      alert("Could not find resume text in analysis response. Please analyze a resume first.");
       return;
     }
 
@@ -281,25 +305,16 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         body: JSON.stringify({ resume_text: sourceText }),
       });
 
-      let json: any = null;
-      try {
-        json = await res.json();
-      } catch (parseErr) {
-        console.error("[Rewrite] Failed to parse JSON response:", parseErr);
+      const json = await res.json().catch(() => null);
+      if (!json) {
         alert("Server returned invalid response. Check console for details.");
         return;
       }
 
       if (!res.ok) {
         const message = json?.error || json?.detail || `HTTP ${res.status}: ${res.statusText}`;
-        console.error("[Rewrite] API returned error:", {
-          status: res.status,
-          message,
-          fullResponse: json,
-        });
-        alert(
-          `Failed to improve resume: ${message}\n\nCheck the browser console for more details.`
-        );
+        console.error("[Rewrite] API returned error:", { status: res.status, message, fullResponse: json });
+        alert(`Failed to improve resume: ${message}`);
         return;
       }
 
@@ -308,25 +323,15 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
       if (!improved || typeof improved !== "string") {
         console.warn("[Rewrite] No improved_resume field in response:", json);
-        alert(
-          "Server responded successfully but didn't return an improved resume. Check console for details."
-        );
+        alert("Server responded OK but didn't return an improved resume.");
         return;
       }
 
       setImprovedResume(improved);
-
-      setTimeout(() => {
-        improvedRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 100);
+      setTimeout(() => improvedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     } catch (err: any) {
       console.error("[Rewrite] Unexpected error:", err);
-      alert(
-        `Network error: ${err?.message || "Unknown error"}\n\nMake sure the server is running and accessible.`
-      );
+      alert(`Network error: ${err?.message || "Unknown error"}`);
     } finally {
       setImproving(false);
     }
@@ -334,7 +339,24 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
+      {/* ✅ FIXED: Now passing actual data from header_summary */}
+      <div className="mt-8">
+        <HeaderSummary
+          candidateName={data?.candidate_name || data?.name}
+          averageScore={avg10}
+          totalScore={total10}
+          summary={headerSummary?.summary}
+          highlights={headerSummary?.highlights}
+          applicantArchetypeTitle={headerSummary?.applicantArchetypeTitle}
+          applicantArchetypeSubtitle={headerSummary?.applicantArchetypeSubtitle}
+          verification={data?.verification}
+          generatedAt={data?.generated_at}
+          pipelineVersion={data?.pipeline_version}
+          processingMeta={data?.processing_meta}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
         {/* ROW 1: Left main + right sidebar */}
         <div className="lg:col-span-9 space-y-6">
           <div className="rounded-2xl bg-white p-6 shadow-sm border">
@@ -350,13 +372,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
             <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="rounded-xl bg-gradient-to-br from-white to-green-50 p-6">
                 <RadarGraph
-                  scores={radarInput.reduce(
-                    (acc: Record<string, number>, r) => {
-                      acc[r.label] = r.value;
-                      return acc;
-                    },
-                    {}
-                  )}
+                  scores={radarInput.reduce((acc: Record<string, number>, r) => {
+                    acc[r.label] = r.value;
+                    return acc;
+                  }, {})}
                 />
               </div>
 
@@ -369,16 +388,12 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                     <div className="text-xs text-slate-700">{r.label}</div>
 
                     <div className="mt-2 flex items-center justify-between">
-                      <div className="text-lg font-semibold text-slate-900">
-                        {Math.round(r.value)}
-                      </div>
+                      <div className="text-lg font-semibold text-slate-900">{Math.round(r.value)}</div>
                       <div className="w-2/3">
                         <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                           <div
                             style={{ width: `${r.value}%` }}
-                            className={`h-2 rounded-full ${
-                              r.value >= 70 ? "bg-emerald-500" : "bg-sky-500"
-                            }`}
+                            className={`h-2 rounded-full ${r.value >= 70 ? "bg-emerald-500" : "bg-sky-500"}`}
                           />
                         </div>
                       </div>
@@ -388,6 +403,15 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               </div>
             </div>
           </div>
+
+          {/* ✅ NEW: AdCom Panel + Action Plan (only if backend provides them) */}
+          {(whatExcites.length || whatConcerns.length || howToPreempt.length) ? (
+            <AdComPanel whatExcites={whatExcites} whatConcerns={whatConcerns} howToPreempt={howToPreempt} />
+          ) : null}
+
+          {(next4to6Weeks.length || next3Months.length) ? (
+            <ActionPlan next4to6Weeks={next4to6Weeks} next3Months={next3Months} />
+          ) : null}
         </div>
 
         {/* Sidebar (Quick summary + buttons) */}
@@ -398,12 +422,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
             <div className="text-slate-700 text-sm space-y-1">
               <div>
-                <strong>Average score:</strong>{" "}
-                {(() => {
-                  const vals = SCORE_KEYS.map((k) => normalizeScoreTo100(scores[k]));
-                  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-                  return `${avg}/100`;
-                })()}
+                <strong>Average score:</strong> {Math.round(avg10 * 10)}/100
               </div>
             </div>
 
@@ -449,8 +468,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           <div className="rounded-2xl bg-emerald-50 p-3 shadow-sm border">
             <h5 className="font-semibold text-sm text-slate-900">Book a Session</h5>
             <p className="text-[11px] text-slate-700 mt-1 leading-snug">
-              Get personalised guidance from alumni{" "}
-              <span className="text-slate-500">(integration pending)</span>.
+              Get personalised guidance from alumni <span className="text-slate-500">(integration pending)</span>.
             </p>
 
             <div className="mt-2">
@@ -502,9 +520,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         <div className="lg:col-span-12 space-y-6">
           {/* Recommendations */}
           <div className="rounded-2xl bg-white p-6 shadow-sm border">
-            <h3 className="text-xl font-semibold mb-3 text-slate-900">
-              Actionable Recommendations
-            </h3>
+            <h3 className="text-xl font-semibold mb-3 text-slate-900">Actionable Recommendations</h3>
             <div className="space-y-4">
               {recommendations.map((rec: any, idx: number) => (
                 <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
@@ -538,11 +554,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           {/* Improved Resume */}
           <div ref={improvedRef} className="rounded-2xl bg-white border p-6 shadow-sm">
             <h3 className="text-xl font-semibold mb-2 text-slate-900">Improved Resume</h3>
+
             {!improvedResume && !improving && (
               <p className="text-sm text-slate-600">
-                No improved resume generated yet. Use{" "}
-                <span className="font-semibold">"Get Improved Resume"</span> from the Improvement
-                Areas card or from the Recommendations section to generate a refined draft.
+                No improved resume generated yet. Use <span className="font-semibold">"Get Improved Resume"</span> to generate a refined draft.
               </p>
             )}
 
@@ -555,9 +570,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
             {improvedResume && (
               <div className="mt-4 rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 max-h-[480px] overflow-y-auto shadow-inner">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono text-gray-800">
-                  {improvedResume}
-                </pre>
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono text-gray-800">{improvedResume}</pre>
               </div>
             )}
           </div>
@@ -575,7 +588,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               <div>
                 <h2 className="text-base font-semibold text-slate-900">Email your report</h2>
                 <p className="text-xs text-slate-500">
-                  We’ll send a PDF copy of your MBA profile report to your inbox.
+                  We'll send a PDF copy of your MBA profile report to your inbox.
                 </p>
               </div>
             </div>

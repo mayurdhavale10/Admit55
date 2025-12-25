@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
 
 type AdminSidebarProps = {
   className?: string;
@@ -24,6 +23,11 @@ const links: NavLink[] = [
     href: "/admin/bookings",
     label: "Booked Sessions",
     icon: "📆",
+  },
+  {
+    href: "/admin/mba/llm-settings",
+    label: "LLM Settings",
+    icon: "🤖",
   },
 ];
 
@@ -54,7 +58,6 @@ export default function AdminSidebar({ className }: AdminSidebarProps) {
   return (
     <div
       className={cn(
-        // glassy container
         "flex flex-col rounded-3xl border border-white/20 bg-white/10 shadow-xl",
         "backdrop-blur-xl backdrop-saturate-150",
         "text-slate-50",
