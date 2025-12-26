@@ -35,13 +35,12 @@ export default function ProfileResumeToolClient() {
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
-    // wait till browser has had a chance to render, then scroll
     setTimeout(() => scrollToSection(tab), 50);
   };
 
   /** Handle File Upload **/
   const handleFileUpload = async (file: File) => {
-    if (loading) return; // 🔥 guard
+    if (loading) return;
     setError(null);
     setLoading(true);
     setResult(null);
@@ -58,7 +57,7 @@ export default function ProfileResumeToolClient() {
 
   /** Handle Quick Form Submission **/
   const handleFormSubmit = async (formData: any) => {
-    if (loading) return; // 🔥 guard
+    if (loading) return;
     setError(null);
     setLoading(true);
     setResult(null);
@@ -189,12 +188,13 @@ GMAT/GRE: ${formData.gmatScore}
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - WIDER CONTAINER */}
       <div className="py-10 px-4">
-        <div className="max-w-4xl mx-auto">
+        {/* Changed from max-w-4xl to max-w-7xl for wider layout */}
+        <div className="max-w-7xl mx-auto">
           {/* Both sections are always rendered; we just hide the inactive one */}
           {!loading && !result && (
-            <div className="mt-6 space-y-6">
+            <div className="mt-6 space-y-6 max-w-4xl mx-auto">
               <div
                 ref={quickFormRef}
                 className={activeTab === "form" ? "" : "hidden"}
@@ -213,19 +213,19 @@ GMAT/GRE: ${formData.gmatScore}
 
           {/* Error State */}
           {error && (
-            <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+            <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 max-w-4xl mx-auto">
               ❌ {error}
             </div>
           )}
 
           {/* Loading State */}
           {loading && (
-            <div className="mt-10">
+            <div className="mt-10 max-w-4xl mx-auto">
               <LoadingState />
             </div>
           )}
 
-          {/* Results Dashboard */}
+          {/* Results Dashboard - FULL WIDTH */}
           {result && !loading && (
             <div className="mt-10">
               <ResultDashboard
