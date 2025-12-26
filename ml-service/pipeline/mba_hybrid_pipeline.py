@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-mba_llm_detailed_pipeline.py v5.6.2 (429-proof + AdCom always visible + actionable recs refresh)
+mba_llm_detailed_pipeline.py v5.6.3
+(Action Plan moved into Recommendations buckets: next_4_6_weeks / next_3_months)
 
-✅ Fixes requested:
-- ✅ AdCom panel INCLUDED + never "disappears" in UI (non-empty fallback placeholders)
-- ✅ Recommendations are more "actionable" and refresh reliably (cache-bust + stronger prompt + normalization)
+✅ Updates requested (to match your new UI that uses ONLY RecommendationCard):
+- ✅ No separate action_plan needed in output (but still compatible if frontend reads it)
+- ✅ Recommendations ALWAYS include timeframe as:
+      "next_4_6_weeks" | "next_3_months"  (so your two columns render)
+- ✅ Stronger “actionable output artifact” recommendations
 - ✅ 429-proof calling (retry + downgrade model + fallback provider/model)
-- ✅ UI-safe output (guaranteed fields + schema stability)
-- ✅ CLI narrative flag fixed (was always False in your pasted v5.6.0)
+- ✅ AdCom panel always non-empty (so it never hides)
+- ✅ UI-safe schema stability
 
 ENV (optional):
 - LLM_PROVIDER=groq|openai|gemini
@@ -39,7 +42,7 @@ import requests
 
 load_dotenv()
 
-PIPELINE_VERSION = "5.6.2"
+PIPELINE_VERSION = "5.6.3"
 CACHE_BUST = (os.environ.get("PIPELINE_CACHE_BUST") or "").strip()
 DISABLE_CACHE = (os.environ.get("PIPELINE_DISABLE_CACHE") or "").strip() == "1"
 
@@ -464,6 +467,57 @@ def _clamp_int(n: Any, lo: int, hi: int, default: int) -> int:
 
 
 # ============================================================
+# TIMEFRAME NORMALIZATION (critical for your UI buckets)
+# ============================================================
+def _normalize_timeframe_to_key(tf: Any) -> str:
+    """
+    Your RecommendationCard buckets strictly on:
+      - next_4_6_weeks
+      - next_3_months
+      - unknown
+
+    So backend must produce those keys reliably.
+    """
+    t = _as_str(tf).lower()
+    if not t:
+        return "unknown"
+
+    if t in ("next_4_6_weeks", "next-4-6-weeks", "next 4-6 weeks"):
+        return "next_4_6_weeks"
+    if t in ("next_3_months", "next-3-months", "next 3 months"):
+        return "next_3_months"
+
+    # heuristic: weeks
+    if (
+        "4-6" in t
+        or "4–6" in t
+        or "4 to 6" in t
+        or ("week" in t and "month" not in t)
+        or "next 4" in t
+        or "next 6" in t
+        or "2-4 week" in t
+        or "2–4 week" in t
+        or "7 day" in t
+        or "14 day" in t
+    ):
+        return "next_4_6_weeks"
+
+    # heuristic: months
+    if (
+        "3 month" in t
+        or "three month" in t
+        or "next 3" in t
+        or "12 week" in t
+        or "8 week" in t
+        or "month" in t
+        or "quarter" in t
+    ):
+        return "next_3_months"
+
+    return "unknown"
+
+
+# ============================================================
 # PROMPTS
 # ============================================================
 def _context_block(context: Optional[Dict[str, str]]) -> str:
@@ -480,7 +534,6 @@ def _context_block(context: Optional[Dict[str, str]]) -> str:
     return "Context:\n" + "\n".join(lines) + "\n"
 
 
-# ✅ cache-bust string embedded into prompts too (so even if cache is on, it changes keys)
 _PROMPT_PREFIX = f"PIPELINE_VERSION={PIPELINE_VERSION} CACHE_BUST={CACHE_BUST}\n"
 
 SCORING_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions expert. Analyze this resume and score it on 8 dimensions (0-10 scale). Use the Context only to adjust emphasis (do NOT hallucinate facts).
@@ -599,8 +652,8 @@ Return JSON:
   ]
 }}"""
 
-# ✅ Stronger actionable recommendations prompt
-RECOMMENDATIONS_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions strategist creating an action plan.
+# ✅ IMPORTANT CHANGE: timeframe MUST be the enum keys your UI expects.
+RECOMMENDATIONS_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions strategist creating a highly actionable plan.
 
 Make it highly specific and prioritized, aligned to Context (timeline matters).
 
@@ -618,7 +671,7 @@ Strengths:
 Improvements:
 {improvements}
 
-Create 5-8 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this structure:
+Create 6-10 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this structure:
 {{
   "recommendations": [
     {{
@@ -626,9 +679,11 @@ Create 5-8 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this structu
       "type": "skill|test|extracurricular|career|resume|networking|other",
       "area": "Short label",
       "priority": "high|medium|low",
-      "timeframe": "e.g., 'Next 7 days'|'2-4 weeks'|'By <Month>'",
-      "action": "2-4 bullet-like sentences: WHAT to do, HOW to do it, and a concrete output (artifact) to produce",
-      "estimated_impact": "1-2 sentences explaining MBA admissions benefit",
+
+      "timeframe": "next_4_6_weeks | next_3_months",
+
+      "action": "Write 2-4 bullet-like sentences: WHAT to do, HOW to do it, and the OUTPUT artifact to produce.",
+      "estimated_impact": "1-2 sentences: how this improves admissions outcomes",
       "current_score": 0-100,
       "score": 0-100
     }}
@@ -636,9 +691,11 @@ Create 5-8 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this structu
 }}
 
 Hard rules:
-- Every action must produce an OUTPUT artifact (e.g., '1-page leadership story', 'quantified impact bullets', 'portfolio link', 'mock interview answers')
-- Include at least 2 recommendations that directly improve RESUME BULLETS (quantification, structure, proof)
-- Do NOT recommend test prep if resume clearly includes GMAT >=700 or GRE >=325."""
+- timeframe MUST be exactly either 'next_4_6_weeks' or 'next_3_months' for every item.
+- Every action must produce an OUTPUT artifact (e.g., '1-page leadership story', 'quantified resume bullets', 'portfolio link', 'mock interview answers').
+- Include at least 3 recommendations that directly improve RESUME BULLETS (quantification, structure, proof).
+- If the resume does NOT specify GMAT/GRE score, you may include test_readiness actions, but they still must produce artifacts (study plan, practice test log, score tracker).
+- Avoid generic fluff; tie each recommendation to resume specifics or explicitly say 'not specified in resume'."""
 
 NARRATIVE_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions consultant writing a detailed profile assessment.
 
@@ -868,11 +925,11 @@ def generate_adcom_panel(resume_text: str, scores: Dict[str, float], strengths: 
 
         # ✅ ensure it NEVER becomes empty (so your UI won't hide it)
         if not exc:
-            exc = ["AdCom view pending: rerun analysis for deeper strengths (rate-limit fallback)."]
+            exc = ["AdCom view pending: rerun analysis for deeper strengths (temporary provider limit)."]
         if not con:
-            con = ["AdCom view pending: rerun analysis to surface concerns (rate-limit fallback)."]
+            con = ["AdCom view pending: rerun analysis to surface concerns (temporary provider limit)."]
         if not pre:
-            pre = ["Try again in 2–3 minutes OR switch provider (Groq/OpenAI/Gemini)."]
+            pre = ["Rerun in 2–3 minutes OR switch provider/model (Groq/OpenAI/Gemini)."]
 
         print("[adcom_panel] ✓", file=sys.stderr)
         return {"what_excites": exc, "what_concerns": con, "how_to_preempt": pre}
@@ -880,7 +937,6 @@ def generate_adcom_panel(resume_text: str, scores: Dict[str, float], strengths: 
     except Exception as e:
         print(f"[adcom_panel] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
-    # ✅ non-empty fallback placeholders
     return {
         "what_excites": ["AdCom panel not generated (temporary provider limit)."],
         "what_concerns": ["AdCom panel not generated (temporary provider limit)."],
@@ -890,11 +946,14 @@ def generate_adcom_panel(resume_text: str, scores: Dict[str, float], strengths: 
 
 def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
     """
-    Guarantees BOTH `score` and `current_score` exist (0-100 int),
-    plus timeframe for better UI.
+    Guarantees:
+    - timeframe is one of: next_4_6_weeks | next_3_months | unknown
+    - score & current_score exist (0-100 int)
+    - action & estimated_impact are non-empty strings
     """
     recs = _as_list(raw_recs)
     out: List[Dict] = []
+
     for i, r in enumerate(recs, start=1):
         if not isinstance(r, dict):
             continue
@@ -905,30 +964,38 @@ def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
         current_val = r.get("current_score", score_int)
         current_int = _clamp_int(current_val, 0, 100, score_int)
 
+        timeframe_key = _normalize_timeframe_to_key(r.get("timeframe"))
+        if timeframe_key == "unknown":
+            # if model violated prompt, try to infer from action text (last resort)
+            timeframe_key = _normalize_timeframe_to_key(r.get("action"))
+
         out.append(
             {
                 "id": _as_str(r.get("id")) or f"rec_{i}",
                 "type": _as_str(r.get("type")) or "other",
                 "area": _as_str(r.get("area")) or "General",
                 "priority": (_as_str(r.get("priority")) or "medium").lower(),
-                "timeframe": _as_str(r.get("timeframe")) or "Next 2-4 weeks",
-                "action": _as_str(r.get("action")) or "Create one concrete output that improves this area.",
+                "timeframe": timeframe_key,
+                "action": _as_str(r.get("action")) or "Create one concrete output artifact that improves this area.",
                 "estimated_impact": _as_str(r.get("estimated_impact")) or "Improves overall competitiveness.",
                 "score": score_int,
                 "current_score": current_int,
             }
         )
 
-    # ✅ if model returned nothing, still give useful actionable defaults (non-empty)
+    # ✅ If model returned nothing, still return non-empty actionable defaults
     if not out:
         out = [
             {
                 "id": "rec_1",
                 "type": "resume",
-                "area": "Quantify impact",
+                "area": "Quantify impact bullets",
                 "priority": "high",
-                "timeframe": "Next 7 days",
-                "action": "Rewrite top 6 bullets to include metrics (%, ₹/$, time saved). Produce: updated 1-page resume PDF + a 'metrics evidence' note per bullet.",
+                "timeframe": "next_4_6_weeks",
+                "action": (
+                    "Rewrite top 6 bullets to include metrics (%, ₹/$, time saved, scale). "
+                    "Create: updated 1-page resume PDF + a proof-note per bullet (source of metric)."
+                ),
                 "estimated_impact": "Quantified impact is one of the strongest MBA signals for leadership + results.",
                 "score": 70,
                 "current_score": 60,
@@ -936,15 +1003,37 @@ def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
             {
                 "id": "rec_2",
                 "type": "networking",
-                "area": "Narrative clarity",
+                "area": "Leadership story bank",
                 "priority": "high",
-                "timeframe": "Next 2 weeks",
-                "action": "Write 3 stories (Leadership, Failure, Team conflict) in STAR format. Produce: 3 one-page story docs + 90-sec spoken version each.",
-                "estimated_impact": "Stronger essays/interviews and clearer AdCom 'why MBA / why now'.",
+                "timeframe": "next_4_6_weeks",
+                "action": (
+                    "Write 3 STAR stories (Leadership, Failure, Conflict). "
+                    "Create: 3 one-page story docs + 90-second spoken version for each."
+                ),
+                "estimated_impact": "Stronger essays/interviews and clearer AdCom narrative (why MBA/why now).",
                 "score": 72,
                 "current_score": 62,
             },
+            {
+                "id": "rec_3",
+                "type": "career",
+                "area": "Post-MBA goal clarity",
+                "priority": "medium",
+                "timeframe": "next_3_months",
+                "action": (
+                    "Draft a 1-page 'career hypothesis' (target roles, industries, 3 reasons, 3 proof points). "
+                    "Create: 1-page doc + 10 networking questions tailored to that path."
+                ),
+                "estimated_impact": "Clear goals reduce AdCom risk and improve essay coherence.",
+                "score": 68,
+                "current_score": 58,
+            },
         ]
+
+    # safety: ensure all timeframes are valid keys
+    for r in out:
+        r["timeframe"] = _normalize_timeframe_to_key(r.get("timeframe"))
+
     return out
 
 
@@ -1031,6 +1120,28 @@ def run_pipeline(
         header_summary["summary"] = "Profile analysis complete. Review detailed sections below."
     if not isinstance(header_summary.get("highlights"), list):
         header_summary["highlights"] = []
+    if not isinstance(adcom_panel.get("what_excites"), list) or not adcom_panel.get("what_excites"):
+        adcom_panel["what_excites"] = ["AdCom view pending: rerun analysis for deeper strengths."]
+    if not isinstance(adcom_panel.get("what_concerns"), list) or not adcom_panel.get("what_concerns"):
+        adcom_panel["what_concerns"] = ["AdCom view pending: rerun analysis to surface concerns."]
+    if not isinstance(adcom_panel.get("how_to_preempt"), list) or not adcom_panel.get("how_to_preempt"):
+        adcom_panel["how_to_preempt"] = ["Rerun in 2–3 minutes or change provider/model."]
+
+    # ✅ Optional compatibility: generate "action_plan" from recommendations,
+    # even though your UI no longer needs ActionPlan.tsx.
+    action_plan = {"next_4_6_weeks": [], "next_3_months": []}
+    for r in recommendations:
+        tf = _normalize_timeframe_to_key(r.get("timeframe"))
+        item = {
+            "title": r.get("area") or "Action",
+            "description": r.get("action") or "",
+            "priority": r.get("priority") or "medium",
+            "current_score": r.get("current_score", None),
+        }
+        if tf == "next_4_6_weeks":
+            action_plan["next_4_6_weeks"].append(item)
+        elif tf == "next_3_months":
+            action_plan["next_3_months"].append(item)
 
     analysis = {
         "scores": scores,
@@ -1039,6 +1150,7 @@ def run_pipeline(
         "strengths": strengths,
         "improvements": improvements,
         "recommendations": recommendations,
+        "action_plan": action_plan,  # safe, optional
     }
 
     narrative = ""
@@ -1061,13 +1173,17 @@ def run_pipeline(
         "strengths": strengths,
         "improvements": improvements,
         "recommendations": recommendations,
+
+        # optional compatibility (if any old UI still reads it)
+        "action_plan": action_plan,
+
         "narrative": narrative,
 
         # compatibility layer
         "analysis": analysis,
 
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": f"{PIPELINE_VERSION}-429-proof-adcom-safe",
+        "pipeline_version": f"{PIPELINE_VERSION}-recommendations-timeframe-keys",
         "processing_meta": {
             "total_duration_seconds": duration,
             "provider": settings.provider,
@@ -1090,7 +1206,7 @@ def run_pipeline(
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description=f"MBA Pipeline v{PIPELINE_VERSION} (429-proof + AdCom safe)")
+    parser = argparse.ArgumentParser(description=f"MBA Pipeline v{PIPELINE_VERSION} (Recommendations bucketed for UI)")
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text OR path to a .txt file")
     parser.add_argument("--provider", default="", help="groq|openai|gemini (overrides env)")
     parser.add_argument("--model", default="", help="model name (overrides env)")
@@ -1133,7 +1249,7 @@ def main():
         settings=settings,
         fallback=None,  # auto-build from env
         context=context,
-        include_narrative=(not args.no_narrative),  # ✅ fixed: was broken in your pasted v5.6.0
+        include_narrative=(not args.no_narrative),
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
