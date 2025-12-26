@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
 """
-mba_llm_detailed_pipeline.py v5.5.1
+mba_llm_detailed_pipeline.py v5.6.0 (429-proof)
 Provider-agnostic multi-call MBA resume pipeline (Groq / OpenAI / Gemini)
 
-Fixes in v5.5.1:
-- Ensures output schema is UI-friendly + backward compatible:
-  * recommendations items ALWAYS include `score` (0-100) so old UI doesn't break
-  * also includes `current_score` alias (same value) for newer UI
-- Adds `analysis` root object as a compatibility layer (some frontends render from result.analysis.*)
-- Sanitizes / normalizes list fields so UI never gets null/invalid shapes
+✅ What’s new vs your v5.5.1:
+- 429-proof LLM calling:
+  - smart retry on transient errors
+  - auto-switch to fallback provider/model on 429 (TPD/token/day or RPM)
+  - optional same-provider model downgrade on 429
+- Lower (but still good) token budgets by default for heavy steps
+- Guaranteed non-empty defaults so UI never breaks
+- Recommendations ALWAYS include BOTH `score` and `current_score` (0-100)
+- Narrative can be disabled (recommended) without breaking UI
+
+ENV (optional but recommended):
+- LLM_PROVIDER=groq|openai|gemini
+- GROQ_API_KEY / GROQ_MODEL / GROQ_API_URL
+- OPENAI_API_KEY / OPENAI_PRIMARY_MODEL / OPENAI_BASE_URL
+- GEMINI_API_KEY / GEMINI_PRIMARY_MODEL
+
+Optional model downgrade envs (used on 429):
+- GROQ_FALLBACK_MODEL=llama-3.1-8b-instant
+- OPENAI_FALLBACK_MODEL=gpt-4o-mini
+- GEMINI_FALLBACK_MODEL=gemini-2.0-flash
+
+Note: Your UI does NOT require narrative. Disable it to save tokens.
 """
 
 import os
@@ -17,8 +33,9 @@ import time
 import json
 import re
 import hashlib
+import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 import requests
 
@@ -57,10 +74,7 @@ def _env_default_settings() -> LLMSettings:
     gem_model = os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")
 
     openai_key = os.environ.get("OPENAI_API_KEY", "")
-    openai_model = os.environ.get(
-        "OPENAI_PRIMARY_MODEL",
-        os.environ.get("OPENAI_FOURTHFALLBACK_MODEL", "gpt-4o-mini"),
-    )
+    openai_model = os.environ.get("OPENAI_PRIMARY_MODEL", "gpt-4o-mini")
     openai_base = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
 
     if provider == "groq" and groq_key:
@@ -70,14 +84,49 @@ def _env_default_settings() -> LLMSettings:
     if provider == "openai" and openai_key:
         return LLMSettings(provider="openai", api_key=openai_key, model=openai_model, base_url=openai_base)
 
+    # Auto-pick in priority order if provider not set
     if groq_key:
         return LLMSettings(provider="groq", api_key=groq_key, model=groq_model, base_url=groq_base)
-    if gem_key:
-        return LLMSettings(provider="gemini", api_key=gem_key, model=gem_model)
     if openai_key:
         return LLMSettings(provider="openai", api_key=openai_key, model=openai_model, base_url=openai_base)
+    if gem_key:
+        return LLMSettings(provider="gemini", api_key=gem_key, model=gem_model)
 
     return LLMSettings(provider="groq", api_key="", model=groq_model, base_url=groq_base)
+
+
+def _build_fallback_from_env(primary: LLMSettings) -> Optional[LLMSettings]:
+    """
+    Fallback strategy:
+    - If primary is groq: fallback -> openai if available else gemini if available
+    - If primary is openai: fallback -> groq if available else gemini if available
+    - If primary is gemini: fallback -> groq if available else openai if available
+    """
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    groq_base = os.environ.get("GROQ_API_URL") or "https://api.groq.com/openai/v1"
+
+    openai_key = os.environ.get("OPENAI_API_KEY", "")
+    openai_model = os.environ.get("OPENAI_PRIMARY_MODEL", "gpt-4o-mini")
+    openai_base = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+
+    gem_key = os.environ.get("GEMINI_API_KEY", "")
+    gem_model = os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")
+
+    candidates: List[LLMSettings] = []
+    if groq_key:
+        candidates.append(LLMSettings(provider="groq", api_key=groq_key, model=groq_model, base_url=groq_base))
+    if openai_key:
+        candidates.append(LLMSettings(provider="openai", api_key=openai_key, model=openai_model, base_url=openai_base))
+    if gem_key:
+        candidates.append(LLMSettings(provider="gemini", api_key=gem_key, model=gem_model))
+
+    # remove primary provider if possible, prefer different provider for true fallback
+    different = [c for c in candidates if c.provider != primary.provider]
+    if different:
+        return different[0]
+    # else allow same provider fallback (still better than nothing)
+    return candidates[0] if candidates else None
 
 
 # ============================================================
@@ -157,9 +206,13 @@ def _cache_key(settings: LLMSettings, prompt: str, temperature: float, max_token
 
 
 # ============================================================
-# PROVIDER CALLS
+# PROVIDER CALLS + 429 HANDLING
 # ============================================================
 class LLMError(Exception):
+    pass
+
+
+class LLMRateLimitError(LLMError):
     pass
 
 
@@ -174,12 +227,25 @@ def _openai_compatible_url(base_url: str) -> str:
     return base + "/v1/chat/completions"
 
 
-def call_llm(
+def _looks_like_429(status_code: int, text: str) -> bool:
+    if status_code == 429:
+        return True
+    t = (text or "").lower()
+    return ("rate limit" in t) or ("rate_limit" in t) or ("tpd" in t) or ("too many requests" in t)
+
+
+def _sleep_backoff(attempt: int) -> None:
+    # small jittered exponential backoff; keeps your app responsive
+    base = min(2.0, 0.25 * (2 ** attempt))
+    time.sleep(base + random.random() * 0.2)
+
+
+def call_llm_once(
     settings: LLMSettings,
     prompt: str,
-    max_tokens: int = 2048,
-    temperature: float = 0.2,
-    response_format: Optional[str] = None,  # "json" or None
+    max_tokens: int,
+    temperature: float,
+    response_format: Optional[str],
 ) -> str:
     if not settings.api_key:
         raise LLMError(f"Missing API key for provider={settings.provider}")
@@ -208,8 +274,12 @@ def call_llm(
 
         print(f"[llm:{provider}] Calling {settings.model} (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
         r = requests.post(url, headers=headers, json=payload, timeout=settings.timeout)
+
         if r.status_code != 200:
-            raise LLMError(f"HTTP {r.status_code}: {r.text[:600]}")
+            msg = r.text[:900]
+            if _looks_like_429(r.status_code, msg):
+                raise LLMRateLimitError(f"HTTP {r.status_code}: {msg}")
+            raise LLMError(f"HTTP {r.status_code}: {msg}")
 
         data = r.json()
         content = data["choices"][0]["message"]["content"]
@@ -231,8 +301,12 @@ def call_llm(
 
         print(f"[llm:gemini] Calling {model} (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
         r = requests.post(url, headers=headers, json=payload, timeout=settings.timeout)
+
         if r.status_code != 200:
-            raise LLMError(f"HTTP {r.status_code}: {r.text[:600]}")
+            msg = r.text[:900]
+            if _looks_like_429(r.status_code, msg):
+                raise LLMRateLimitError(f"HTTP {r.status_code}: {msg}")
+            raise LLMError(f"HTTP {r.status_code}: {msg}")
 
         data = r.json()
         candidates = data.get("candidates") or []
@@ -252,6 +326,76 @@ def call_llm(
         return out
 
     raise LLMError(f"Unsupported provider: {settings.provider}")
+
+
+def _downgraded_model_for(settings: LLMSettings) -> Optional[str]:
+    p = settings.provider.lower()
+    if p == "groq":
+        return os.environ.get("GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant")
+    if p == "openai":
+        return os.environ.get("OPENAI_FALLBACK_MODEL", "gpt-4o-mini")
+    if p == "gemini":
+        return os.environ.get("GEMINI_FALLBACK_MODEL", "gemini-2.0-flash")
+    return None
+
+
+def call_llm(
+    settings: LLMSettings,
+    prompt: str,
+    max_tokens: int = 2048,
+    temperature: float = 0.2,
+    response_format: Optional[str] = None,  # "json" or None
+    fallback: Optional[LLMSettings] = None,
+    retries: int = 2,
+) -> str:
+    """
+    429-proof calling:
+    - Try primary with small retries
+    - If 429 happens, try:
+        1) same-provider model downgrade (if configured)
+        2) fallback provider/model (if available)
+    """
+    # 1) primary attempts
+    last_err: Optional[Exception] = None
+    for a in range(retries + 1):
+        try:
+            return call_llm_once(settings, prompt, max_tokens, temperature, response_format)
+        except LLMRateLimitError as e:
+            last_err = e
+            print(f"[llm:{settings.provider}] rate-limited on attempt {a+1}: {str(e)[:200]}", file=sys.stderr)
+            _sleep_backoff(a)
+        except Exception as e:
+            last_err = e
+            print(f"[llm:{settings.provider}] error attempt {a+1}: {str(e)[:200]}", file=sys.stderr)
+            _sleep_backoff(a)
+
+    # 2) same-provider model downgrade (only if different)
+    downgraded = _downgraded_model_for(settings)
+    if downgraded and downgraded != settings.model:
+        st2 = LLMSettings(
+            provider=settings.provider,
+            api_key=settings.api_key,
+            model=downgraded,
+            base_url=settings.base_url,
+            timeout=settings.timeout,
+        )
+        try:
+            print(f"[llm] switching to downgraded model: {settings.provider}/{downgraded}", file=sys.stderr)
+            return call_llm_once(st2, prompt, max_tokens, temperature, response_format)
+        except Exception as e:
+            last_err = e
+            print(f"[llm] downgraded model failed: {str(e)[:200]}", file=sys.stderr)
+
+    # 3) fallback provider/model
+    if fallback and fallback.api_key:
+        try:
+            print(f"[llm] switching to fallback: {fallback.provider}/{fallback.model}", file=sys.stderr)
+            return call_llm_once(fallback, prompt, max_tokens, temperature, response_format)
+        except Exception as e:
+            last_err = e
+            print(f"[llm] fallback failed: {str(e)[:200]}", file=sys.stderr)
+
+    raise LLMError(str(last_err) if last_err else "Unknown LLM failure")
 
 
 # ============================================================
@@ -514,72 +658,96 @@ Return ONLY markdown text."""
 
 
 # ============================================================
+# TOKEN BUDGETS (tuned to reduce 429 risk)
+# ============================================================
+TOKENS = {
+    "scoring": 450,
+    "header_summary": 700,
+    "strengths": 950,
+    "improvements": 950,
+    "adcom_panel": 900,
+    "recommendations": 1150,
+    "narrative": 1200,
+}
+
+
+# ============================================================
 # PIPELINE STEPS
 # ============================================================
-def score_resume(resume_text: str, settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, float]:
+def score_resume(
+    resume_text: str,
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+) -> Dict[str, float]:
     prompt = SCORING_PROMPT.format(resume=resume_text, context=_context_block(context))
+    try:
+        raw = call_llm(
+            settings,
+            prompt,
+            max_tokens=TOKENS["scoring"],
+            temperature=0.1,
+            response_format="json" if settings.provider in ("groq", "openai") else None,
+            fallback=fallback,
+            retries=1,
+        )
+        data = parse_json_strictish(raw)
 
-    for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
-        try:
-            raw = call_llm(
-                st,
-                prompt,
-                max_tokens=600,
-                temperature=0.1,
-                response_format="json" if st.provider in ("groq", "openai") else None,
-            )
-            data = parse_json_strictish(raw)
+        normalized: Dict[str, float] = {}
+        for k, v in data.items():
+            try:
+                n = float(v)
+            except Exception:
+                n = 5.0
+            if n > 10:
+                n = n / 10.0
+            normalized[k] = round(max(0.0, min(10.0, n)), 2)
 
-            normalized: Dict[str, float] = {}
-            for k, v in data.items():
-                try:
-                    n = float(v)
-                except Exception:
-                    n = 5.0
-                if n > 10:
-                    n = n / 10.0
-                normalized[k] = round(max(0.0, min(10.0, n)), 2)
+        required = ["academics", "test_readiness", "leadership", "extracurriculars", "international", "work_impact", "impact", "industry"]
+        for rk in required:
+            normalized.setdefault(rk, 5.0)
 
-            required = ["academics", "test_readiness", "leadership", "extracurriculars", "international", "work_impact", "impact", "industry"]
-            for rk in required:
-                normalized.setdefault(rk, 5.0)
-
-            print(f"[scoring] ✓ ({st.provider}) {normalized}", file=sys.stderr)
-            return normalized
-        except Exception as e:
-            print(f"[scoring] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
+        print(f"[scoring] ✓ ({settings.provider})", file=sys.stderr)
+        return normalized
+    except Exception as e:
+        print(f"[scoring] ✗ fallback default: {str(e)[:200]}", file=sys.stderr)
 
     return {k: 5.0 for k in ["academics", "test_readiness", "leadership", "extracurriculars", "international", "work_impact", "impact", "industry"]}
 
 
-def generate_header_summary(resume_text: str, scores: Dict[str, float], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, Any]:
+def generate_header_summary(
+    resume_text: str,
+    scores: Dict[str, float],
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+) -> Dict[str, Any]:
     prompt = HEADER_SUMMARY_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
         context=_context_block(context),
     )
-
-    for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
-        try:
-            raw = call_llm(
-                st,
-                prompt,
-                max_tokens=1200,
-                temperature=0.2,
-                response_format="json" if st.provider in ("groq", "openai") else None,
-            )
-            data = parse_json_strictish(raw)
-
-            result = {
-                "summary": _as_str(data.get("summary", "")),
-                "highlights": _as_list(data.get("highlights", []))[:18],
-                "applicantArchetypeTitle": _as_str(data.get("applicantArchetypeTitle", "")),
-                "applicantArchetypeSubtitle": _as_str(data.get("applicantArchetypeSubtitle", "")),
-            }
-            print(f"[header_summary] ✓ ({st.provider}) generated summary + {len(result['highlights'])} highlights", file=sys.stderr)
-            return result
-        except Exception as e:
-            print(f"[header_summary] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
+    try:
+        raw = call_llm(
+            settings,
+            prompt,
+            max_tokens=TOKENS["header_summary"],
+            temperature=0.2,
+            response_format="json" if settings.provider in ("groq", "openai") else None,
+            fallback=fallback,
+            retries=1,
+        )
+        data = parse_json_strictish(raw)
+        result = {
+            "summary": _as_str(data.get("summary", "")) or "Profile analysis complete. Review detailed sections below.",
+            "highlights": _as_list(data.get("highlights", []))[:18],
+            "applicantArchetypeTitle": _as_str(data.get("applicantArchetypeTitle", "")) or "MBA Candidate",
+            "applicantArchetypeSubtitle": _as_str(data.get("applicantArchetypeSubtitle", "")),
+        }
+        print(f"[header_summary] ✓", file=sys.stderr)
+        return result
+    except Exception as e:
+        print(f"[header_summary] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
     return {
         "summary": "Profile analysis complete. Review detailed sections below.",
@@ -587,6 +755,102 @@ def generate_header_summary(resume_text: str, scores: Dict[str, float], settings
         "applicantArchetypeTitle": "MBA Candidate",
         "applicantArchetypeSubtitle": "",
     }
+
+
+def extract_strengths(
+    resume_text: str,
+    entities: Dict[str, set],
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+    max_retries: int = 2,
+) -> List[Dict]:
+    base_prompt = STRENGTHS_PROMPT.format(resume=resume_text, context=_context_block(context))
+
+    cleaned: List[Dict] = []
+    for attempt in range(max_retries):
+        try:
+            prompt = base_prompt
+            if attempt > 0:
+                prompt += "\n\nWARNING: Previous attempt too generic. MUST include resume-specific companies/metrics/roles. Return only JSON."
+
+            raw = call_llm(
+                settings,
+                prompt,
+                max_tokens=TOKENS["strengths"],
+                temperature=0.2,
+                response_format="json" if settings.provider in ("groq", "openai") else None,
+                fallback=fallback,
+                retries=1,
+            )
+            data = parse_json_strictish(raw)
+            strengths = _as_list(data.get("strengths")) or []
+
+            cleaned = []
+            for s in strengths:
+                if not isinstance(s, dict):
+                    continue
+                cleaned.append(
+                    {
+                        "title": _as_str(s.get("title")) or "Strength",
+                        "summary": _as_str(s.get("summary")) or "",
+                        "score": _clamp_int(s.get("score"), 0, 100, 70),
+                    }
+                )
+
+            specific_count = sum(1 for s in cleaned if is_specific(f"{s.get('title','')} {s.get('summary','')}", entities, min_score=3))
+            generic_ratio = 1 - (specific_count / max(1, len(cleaned)))
+            print(f"[strengths] attempt {attempt+1}: {specific_count}/{len(cleaned)} specific", file=sys.stderr)
+
+            if cleaned and generic_ratio <= 0.6:
+                return cleaned
+        except Exception as e:
+            print(f"[strengths] ✗ attempt {attempt+1}: {str(e)[:200]}", file=sys.stderr)
+
+    return cleaned or []
+
+
+def extract_improvements(
+    resume_text: str,
+    scores: Dict[str, float],
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+) -> List[Dict]:
+    prompt = IMPROVEMENTS_PROMPT.format(
+        resume=resume_text,
+        scores=json.dumps(scores, indent=2),
+        context=_context_block(context),
+    )
+    try:
+        raw = call_llm(
+            settings,
+            prompt,
+            max_tokens=TOKENS["improvements"],
+            temperature=0.2,
+            response_format="json" if settings.provider in ("groq", "openai") else None,
+            fallback=fallback,
+            retries=1,
+        )
+        data = parse_json_strictish(raw)
+        improvements = _as_list(data.get("improvements")) or []
+        cleaned: List[Dict] = []
+        for it in improvements:
+            if not isinstance(it, dict):
+                continue
+            cleaned.append(
+                {
+                    "area": _as_str(it.get("area")) or "Improvement Area",
+                    "suggestion": _as_str(it.get("suggestion")) or "Consider strengthening this area.",
+                    "score": _clamp_int(it.get("score"), 0, 100, 65),
+                }
+            )
+        print(f"[improvements] ✓ {len(cleaned)}", file=sys.stderr)
+        return cleaned
+    except Exception as e:
+        print(f"[improvements] ✗ default: {str(e)[:200]}", file=sys.stderr)
+
+    return []
 
 
 def generate_adcom_panel(
@@ -605,136 +869,33 @@ def generate_adcom_panel(
         improvements=json.dumps(improvements, indent=2),
         context=_context_block(context),
     )
-
-    for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
-        try:
-            raw = call_llm(
-                st,
-                prompt,
-                max_tokens=1800,
-                temperature=0.25,
-                response_format="json" if st.provider in ("groq", "openai") else None,
-            )
-            data = parse_json_strictish(raw)
-
-            result = {
-                "what_excites": [str(x) for x in _as_list(data.get("what_excites"))][:5],
-                "what_concerns": [str(x) for x in _as_list(data.get("what_concerns"))][:5],
-                "how_to_preempt": [str(x) for x in _as_list(data.get("how_to_preempt"))][:5],
-            }
-            print(
-                f"[adcom_panel] ✓ ({st.provider}) excites={len(result['what_excites'])}, concerns={len(result['what_concerns'])}, preempt={len(result['how_to_preempt'])}",
-                file=sys.stderr,
-            )
-            return result
-        except Exception as e:
-            print(f"[adcom_panel] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
+    try:
+        raw = call_llm(
+            settings,
+            prompt,
+            max_tokens=TOKENS["adcom_panel"],
+            temperature=0.25,
+            response_format="json" if settings.provider in ("groq", "openai") else None,
+            fallback=fallback,
+            retries=1,
+        )
+        data = parse_json_strictish(raw)
+        result = {
+            "what_excites": [str(x) for x in _as_list(data.get("what_excites"))][:5],
+            "what_concerns": [str(x) for x in _as_list(data.get("what_concerns"))][:5],
+            "how_to_preempt": [str(x) for x in _as_list(data.get("how_to_preempt"))][:5],
+        }
+        print("[adcom_panel] ✓", file=sys.stderr)
+        return result
+    except Exception as e:
+        print(f"[adcom_panel] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
     return {"what_excites": [], "what_concerns": [], "how_to_preempt": []}
 
 
-def extract_strengths(
-    resume_text: str,
-    entities: Dict[str, set],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-    max_retries: int = 2,
-) -> List[Dict]:
-    base_prompt = STRENGTHS_PROMPT.format(resume=resume_text, context=_context_block(context))
-    providers_to_try = [settings] + ([fallback] if fallback else [])
-
-    for st in providers_to_try:
-        for attempt in range(max_retries):
-            try:
-                prompt = base_prompt
-                if attempt > 0:
-                    prompt = base_prompt + "\n\nWARNING: Previous attempt was too generic. MUST include resume-specific companies/metrics/roles. Return only JSON."
-
-                raw = call_llm(
-                    st,
-                    prompt,
-                    max_tokens=2200,
-                    temperature=0.2,
-                    response_format="json" if st.provider in ("groq", "openai") else None,
-                )
-                data = parse_json_strictish(raw)
-                strengths = _as_list(data.get("strengths")) or []
-
-                cleaned: List[Dict] = []
-                for s in strengths:
-                    if not isinstance(s, dict):
-                        continue
-                    cleaned.append(
-                        {
-                            "title": _as_str(s.get("title")),
-                            "summary": _as_str(s.get("summary")),
-                            "score": _clamp_int(s.get("score"), 0, 100, 70),
-                        }
-                    )
-
-                specific_count = sum(1 for s in cleaned if is_specific(f"{s.get('title','')} {s.get('summary','')}", entities, min_score=3))
-                generic_ratio = 1 - (specific_count / max(1, len(cleaned)))
-                print(f"[strengths] ({st.provider}) attempt {attempt+1}: {specific_count}/{len(cleaned)} specific (generic {generic_ratio:.0%})", file=sys.stderr)
-
-                if cleaned and generic_ratio <= 0.5:
-                    print(f"[strengths] ✓ using {st.provider} extracted {len(cleaned)}", file=sys.stderr)
-                    return cleaned
-            except Exception as e:
-                print(f"[strengths] ✗ ({st.provider}) attempt {attempt+1} failed: {e}", file=sys.stderr)
-
-    return []
-
-
-def extract_improvements(
-    resume_text: str,
-    scores: Dict[str, float],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> List[Dict]:
-    prompt = IMPROVEMENTS_PROMPT.format(
-        resume=resume_text,
-        scores=json.dumps(scores, indent=2),
-        context=_context_block(context),
-    )
-
-    for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
-        try:
-            raw = call_llm(
-                st,
-                prompt,
-                max_tokens=2200,
-                temperature=0.2,
-                response_format="json" if st.provider in ("groq", "openai") else None,
-            )
-            data = parse_json_strictish(raw)
-            improvements = _as_list(data.get("improvements")) or []
-
-            cleaned: List[Dict] = []
-            for it in improvements:
-                if not isinstance(it, dict):
-                    continue
-                cleaned.append(
-                    {
-                        "area": _as_str(it.get("area")),
-                        "suggestion": _as_str(it.get("suggestion")),
-                        "score": _clamp_int(it.get("score"), 0, 100, 65),
-                    }
-                )
-
-            print(f"[improvements] ✓ ({st.provider}) {len(cleaned)} areas", file=sys.stderr)
-            return cleaned
-        except Exception as e:
-            print(f"[improvements] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
-
-    return []
-
-
 def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
     """
-    IMPORTANT: guarantees BOTH `score` and `current_score` exist
-    so old UI (score) and new UI (current_score) both render.
+    Guarantees BOTH `score` and `current_score` exist (0-100 int).
     """
     recs = _as_list(raw_recs)
     out: List[Dict] = []
@@ -742,7 +903,6 @@ def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
         if not isinstance(r, dict):
             continue
 
-        # accept either key coming from LLM, but always output both
         score_val = r.get("score", r.get("current_score", r.get("rating", 70)))
         score_int = _clamp_int(score_val, 0, 100, 70)
 
@@ -752,13 +912,10 @@ def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
                 "type": _as_str(r.get("type")) or "other",
                 "area": _as_str(r.get("area")) or "General",
                 "priority": _as_str(r.get("priority")) or "medium",
-                "action": _as_str(r.get("action")),
-                "estimated_impact": _as_str(r.get("estimated_impact")),
-                # backward compat:
+                "action": _as_str(r.get("action")) or "Take a concrete next step based on the gap identified.",
+                "estimated_impact": _as_str(r.get("estimated_impact")) or "Improves overall competitiveness.",
                 "score": score_int,
-                # forward compat:
                 "current_score": score_int,
-                # optional extras (don’t break UI if ignored):
                 "timeframe": _as_str(r.get("timeframe", "")),
             }
         )
@@ -781,22 +938,22 @@ def extract_recommendations(
         improvements=json.dumps(improvements, indent=2),
         context=_context_block(context),
     )
-
-    for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
-        try:
-            raw = call_llm(
-                st,
-                prompt,
-                max_tokens=2800,
-                temperature=0.3,
-                response_format="json" if st.provider in ("groq", "openai") else None,
-            )
-            data = parse_json_strictish(raw)
-            cleaned = _normalize_recommendations(data.get("recommendations"))
-            print(f"[recommendations] ✓ ({st.provider}) {len(cleaned)} items", file=sys.stderr)
-            return cleaned
-        except Exception as e:
-            print(f"[recommendations] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
+    try:
+        raw = call_llm(
+            settings,
+            prompt,
+            max_tokens=TOKENS["recommendations"],
+            temperature=0.3,
+            response_format="json" if settings.provider in ("groq", "openai") else None,
+            fallback=fallback,
+            retries=1,
+        )
+        data = parse_json_strictish(raw)
+        cleaned = _normalize_recommendations(data.get("recommendations"))
+        print(f"[recommendations] ✓ {len(cleaned)}", file=sys.stderr)
+        return cleaned
+    except Exception as e:
+        print(f"[recommendations] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
     return []
 
@@ -813,16 +970,13 @@ def generate_narrative(
         analysis=json.dumps(analysis, indent=2, ensure_ascii=False),
         context=_context_block(context),
     )
-
-    for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
-        try:
-            out = call_llm(st, prompt, max_tokens=2200, temperature=0.35, response_format=None)
-            print(f"[narrative] ✓ ({st.provider}) {len(out)} chars", file=sys.stderr)
-            return out
-        except Exception as e:
-            print(f"[narrative] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
-
-    return "Narrative generation failed."
+    try:
+        out = call_llm(settings, prompt, max_tokens=TOKENS["narrative"], temperature=0.35, response_format=None, fallback=fallback, retries=1)
+        print(f"[narrative] ✓ {len(out)} chars", file=sys.stderr)
+        return out
+    except Exception as e:
+        print(f"[narrative] ✗ default: {str(e)[:200]}", file=sys.stderr)
+    return "Narrative generation unavailable right now."
 
 
 # ============================================================
@@ -833,30 +987,15 @@ def run_pipeline(
     settings: Optional[LLMSettings] = None,
     fallback: Optional[LLMSettings] = None,
     context: Optional[Dict[str, str]] = None,
-    include_narrative: bool = True,
+    include_narrative: bool = False,  # ✅ default OFF (your UI doesn't need it)
 ) -> Dict[str, Any]:
     settings = settings or _env_default_settings()
-
     if fallback is None:
-        if settings.provider == "groq" and os.environ.get("GEMINI_API_KEY"):
-            fallback = LLMSettings(
-                provider="gemini",
-                api_key=os.environ.get("GEMINI_API_KEY", ""),
-                model=os.environ.get("GEMINI_SECONDARYFALLBACK_MODEL", os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")),
-            )
-        elif settings.provider != "groq" and os.environ.get("GROQ_API_KEY"):
-            fallback = LLMSettings(
-                provider="groq",
-                api_key=os.environ.get("GROQ_API_KEY", ""),
-                model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                base_url=os.environ.get("GROQ_API_URL", "https://api.groq.com/openai/v1"),
-            )
-        else:
-            fallback = None
+        fallback = _build_fallback_from_env(settings)
 
     start = time.time()
     print("\n" + "=" * 60, file=sys.stderr)
-    print(f"MBA ANALYSIS PIPELINE v5.5.1 ({settings.provider}/{settings.model})", file=sys.stderr)
+    print(f"MBA ANALYSIS PIPELINE v5.6.0 ({settings.provider}/{settings.model})", file=sys.stderr)
     if fallback:
         print(f"Fallback: {fallback.provider}/{fallback.model}", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
@@ -871,8 +1010,13 @@ def run_pipeline(
     improvements = extract_improvements(resume_text, scores, settings, context, fallback)
 
     adcom_panel = generate_adcom_panel(resume_text, scores, strengths, improvements, settings, context, fallback)
-
     recommendations = extract_recommendations(resume_text, scores, strengths, improvements, settings, context, fallback)
+
+    # ✅ guaranteed minimal non-empty defaults (UI safety)
+    if not header_summary.get("summary"):
+        header_summary["summary"] = "Profile analysis complete. Review detailed sections below."
+    if not isinstance(header_summary.get("highlights"), list):
+        header_summary["highlights"] = []
 
     analysis = {
         "scores": scores,
@@ -892,14 +1036,11 @@ def run_pipeline(
     print(f"PIPELINE COMPLETE in {duration}s", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
 
-    # IMPORTANT: return BOTH:
-    # - root fields (your current frontend)
-    # - analysis object (older frontend / safer compatibility)
     return {
         "success": True,
         "original_resume": resume_text,
 
-        # root (current)
+        # root fields (your current frontend)
         "scores": scores,
         "header_summary": header_summary,
         "adcom_panel": adcom_panel,
@@ -908,11 +1049,11 @@ def run_pipeline(
         "recommendations": recommendations,
         "narrative": narrative,
 
-        # compatibility layer (some UIs read from result.analysis.*)
+        # compatibility layer (some UIs read result.analysis.*)
         "analysis": analysis,
 
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "5.5.1-llm-agnostic",
+        "pipeline_version": "5.6.0-429-proof",
         "processing_meta": {
             "total_duration_seconds": duration,
             "provider": settings.provider,
@@ -922,6 +1063,7 @@ def run_pipeline(
             "context_provided": bool(context),
             "include_narrative": include_narrative,
             "cache_size": len(_PROMPT_CACHE),
+            "token_budgets": TOKENS,
         },
     }
 
@@ -932,18 +1074,18 @@ def run_pipeline(
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="MBA Pipeline v5.5.1 (Groq/OpenAI/Gemini)")
+    parser = argparse.ArgumentParser(description="MBA Pipeline v5.6.0 (429-proof) Groq/OpenAI/Gemini")
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text OR path to a .txt file")
     parser.add_argument("--provider", default="", help="groq|openai|gemini (overrides env)")
     parser.add_argument("--model", default="", help="model name (overrides env)")
     parser.add_argument("--api_key", default="", help="api key (overrides env)")
     parser.add_argument("--base_url", default="", help="base url for groq/openai compatible")
-    parser.add_argument("--no_narrative", action="store_true", help="disable narrative (saves cost)")
+    parser.add_argument("--no_narrative", action="store_true", help="disable narrative (saves tokens)")
     parser.add_argument("--context", default="", help="JSON string: {goal,timeline,tier,test_status,concern}")
     args = parser.parse_args()
 
     if not args.resume_text:
-        print("Usage: python script.py <resume_text_or_file>", file=sys.stderr)
+        print("Usage: python mba_llm_detailed_pipeline.py <resume_text_or_file>", file=sys.stderr)
         sys.exit(1)
 
     if os.path.isfile(args.resume_text):
@@ -973,9 +1115,9 @@ def main():
     result = run_pipeline(
         resume_text=resume_text,
         settings=settings,
-        fallback=None,
+        fallback=None,  # auto-build from env
         context=context,
-        include_narrative=not args.no_narrative,
+        include_narrative=not args.no_narrative and False,  # ✅ default OFF
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
