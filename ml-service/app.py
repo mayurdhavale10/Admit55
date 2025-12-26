@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 FastAPI wrapper for:
-- MBA Resume Analysis Pipeline (v5.4.x)
+- MBA Resume Analysis Pipeline (v5.7.0)
 - B-School Match Pipeline
 - Resume Writer Pipeline
 
@@ -27,9 +27,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 # ------------------------------------------------------------
 try:
     from pipeline.mba_hybrid_pipeline import run_pipeline
-    PIPELINE_VERSION = "5.4.x"
+    PIPELINE_VERSION = "5.7.0"
 except ImportError as e:
-    print(f"[IMPORT ERROR] mba_hybrid_pipeline: {e}", file=sys.stderr)
+    print(f"[IMPORT ERROR] mba_llm_detailed_pipeline: {e}", file=sys.stderr)
     def run_pipeline(*args, **kwargs):
         raise HTTPException(500, "Resume analysis pipeline not available")
     PIPELINE_VERSION = "unknown"
@@ -115,7 +115,7 @@ async def health():
     }
 
 # ------------------------------------------------------------
-# /analyze — Resume Analysis (NO narrative, NO context)
+# /analyze — Resume Analysis (v5.7.0 - simplified signature)
 # ------------------------------------------------------------
 @app.post("/analyze")
 async def analyze_resume(
@@ -149,14 +149,12 @@ async def analyze_resume(
     if len(resume_text) > 50000:
         resume_text = resume_text[:50000]
 
-    # --- Run pipeline (CORRECT SIGNATURE) ---
+    # --- Run pipeline (v5.7.0 simplified signature) ---
     try:
-        print("[API] Running MBA pipeline (no narrative)", file=sys.stderr)
+        print("[API] Running MBA pipeline v5.7.0", file=sys.stderr)
 
-        result = run_pipeline(
-            resume_text=resume_text,
-            include_narrative=False,  # ✅ token-safe
-        )
+        # v5.7.0 only accepts resume_text parameter
+        result = run_pipeline(resume_text)
 
         print(f"[API] Pipeline complete. Keys: {list(result.keys())}", file=sys.stderr)
         return result
