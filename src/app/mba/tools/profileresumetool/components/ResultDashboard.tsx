@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import Image from "next/image";
 import RadarGraph from "./RadarGraph";
 import StrengthsCard from "./StrengthsCard";
@@ -174,11 +174,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
     applicantArchetypeSubtitle: "Career Switcher"
   };
 
-  // ON-DEMAND improved resume
-  const [improvedResume, setImprovedResume] = useState<string | null>(null);
-  const [improving, setImproving] = useState(false);
-  const improvedRef = useRef<HTMLDivElement | null>(null);
-
   // Email modal state
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
@@ -280,73 +275,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   const startOver = useCallback(() => {
     window.location.href = "/mba/tools/profileresumetool";
   }, []);
-
-  // ---------------------------------------------------------------------------
-  // Generate improved resume handler
-  // ---------------------------------------------------------------------------
-  const handleGenerateImprovedResume = useCallback(async () => {
-    if (improving) return;
-
-    const candidates = [
-      data?.original_resume,
-      data?.raw_resume_text,
-      data?.resume_text,
-      data?.cleaned_text,
-      data?.extracted_text,
-    ];
-
-    let sourceText = "";
-    for (const t of candidates) {
-      if (typeof t === "string" && t.trim().length > 0) {
-        sourceText = t;
-        break;
-      }
-    }
-
-    if (!sourceText) {
-      alert("Could not find resume text in analysis response. Please analyze a resume first.");
-      return;
-    }
-
-    setImproving(true);
-    try {
-      const res = await fetch("/api/mba/profileresumetool/rewrite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume_text: sourceText }),
-      });
-
-      const json = await res.json().catch(() => null);
-      if (!json) {
-        alert("Server returned invalid response. Check console for details.");
-        return;
-      }
-
-      if (!res.ok) {
-        const message = json?.error || json?.detail || `HTTP ${res.status}: ${res.statusText}`;
-        console.error("[Rewrite] API returned error:", { status: res.status, message, fullResponse: json });
-        alert(`Failed to improve resume: ${message}`);
-        return;
-      }
-
-      const improved =
-        json?.improved_resume || json?.improvedResume || json?.data?.improved_resume || "";
-
-      if (!improved || typeof improved !== "string") {
-        console.warn("[Rewrite] No improved_resume field in response:", json);
-        alert("Server responded OK but didn't return an improved resume.");
-        return;
-      }
-
-      setImprovedResume(improved);
-      setTimeout(() => improvedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-    } catch (err: any) {
-      console.error("[Rewrite] Unexpected error:", err);
-      alert(`Network error: ${err?.message || "Unknown error"}`);
-    } finally {
-      setImproving(false);
-    }
-  }, [data, improving]);
 
   return (
     <>
@@ -549,44 +477,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               </a>
             </div>
           </div>
-
-          {/* Get Improved Resume Card */}
-          <div className="rounded-xl md:rounded-2xl bg-red-50 p-3 md:p-4 shadow-sm border border-red-100">
-            <div className="flex items-center gap-2 mb-2">
-              <Image
-                src="/logo/admit55_final_logo.webp"
-                alt="Admit55"
-                width={20}
-                height={20}
-                className="w-5 h-5 object-contain"
-              />
-              <h5 className="font-semibold text-xs md:text-sm text-slate-900">Get Improved Resume</h5>
-            </div>
-            <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug mb-3">
-              Transform your resume with AI-powered recommendations tailored for top MBA programs.
-            </p>
-
-            <div className="mt-2">
-              <button
-                onClick={handleGenerateImprovedResume}
-                disabled={improving}
-                className={`inline-block w-full text-center rounded-md transition-colors text-white px-3 py-2 text-xs font-medium ${
-                  improving
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-red-600 hover:bg-red-700"
-                }`}
-              >
-                {improving ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    Generating...
-                  </span>
-                ) : (
-                  "Generate Now"
-                )}
-              </button>
-            </div>
-          </div>
         </aside>
 
         {/* ROW 2: Strengths + Improvements */}
@@ -609,7 +499,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           </div>
         ) : null}
 
-        {/* ROW 5: Recommendations + Improved Resume */}
+        {/* ROW 5: Recommendations */}
         <div className="lg:col-span-12 space-y-4 md:space-y-6">
           {/* Recommendations */}
           <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-6 shadow-sm border">
@@ -619,62 +509,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
               ))}
             </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={handleGenerateImprovedResume}
-                disabled={improving}
-                className={`inline-flex items-center rounded-lg text-xs md:text-sm font-medium px-3 md:px-4 py-2 md:py-2.5
-                ${
-                  improving
-                    ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                    : "bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100"
-                }`}
-              >
-                {improving ? (
-                  <>
-                    <span className="inline-block w-3 h-3 mr-2 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
-                    Generating…
-                  </>
-                ) : (
-                  <>
-                    <Image
-                      src="/logo/admit55_final_logo.webp"
-                      alt="Admit55"
-                      width={16}
-                      height={16}
-                      className="w-4 h-4 object-contain mr-1.5"
-                    />
-                    Improve Resume from Recommendations
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Improved Resume */}
-          <div ref={improvedRef} className="rounded-xl md:rounded-2xl bg-white border p-4 md:p-6 shadow-sm">
-            <h3 className="text-lg md:text-xl font-semibold mb-2 text-slate-900">Improved Resume</h3>
-
-            {!improvedResume && !improving && (
-              <p className="text-xs md:text-sm text-slate-600">
-                No improved resume generated yet. Use <span className="font-semibold">"Improve Resume from Recommendations"</span> to generate a refined draft.
-              </p>
-            )}
-
-            {improving && (
-              <p className="mt-2 text-xs md:text-sm text-sky-700 flex items-center gap-2">
-                <span className="inline-block w-3 h-3 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
-                Improving your resume with advanced prompts…
-              </p>
-            )}
-
-            {improvedResume && (
-              <div className="mt-4 rounded-lg md:rounded-xl border border-gray-200 bg-slate-50 px-4 md:px-5 py-3 md:py-4 max-h-[320px] md:max-h-[480px] overflow-y-auto shadow-inner">
-                <pre className="whitespace-pre-wrap text-xs md:text-sm leading-relaxed font-mono text-gray-800">{improvedResume}</pre>
-              </div>
-            )}
           </div>
         </div>
       </div>
