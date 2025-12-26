@@ -7,10 +7,13 @@ import StrengthsCard from "./StrengthsCard";
 import ImprovementCard from "./ImprovementCard";
 import RecommendationCard from "./RecommendationCard";
 
-// ✅ NEW (you created these files)
+// ✅ NEW
 import HeaderSummary from "./HeaderSummary";
 import AdComPanel from "./AdComPanel";
 import ActionPlan from "./ActionPlan";
+
+// ✅ types for ActionPlan (fixes: string[] not assignable to ActionItem[])
+import type { ActionItem } from "./ActionPlan";
 
 interface ResultDashboardProps {
   data: any;
@@ -53,27 +56,87 @@ function computeAvgAndTotal(scores: Record<string, number>) {
   return { avg100: Math.round(avg), total100: total, avg10: avg / 10, total10: total / 10 };
 }
 
-// Helper to identify spike areas (top 3 scores)
 function getTopScores(radarInput: Array<{ key: string; label: string; value: number }>) {
-  return radarInput
+  return [...radarInput]
     .sort((a, b) => b.value - a.value)
     .slice(0, 3)
     .map((item) => item.label);
 }
 
+/** ✅ Converts pipeline string[] OR object[] into ActionItem[] expected by ActionPlan */
+function toActionItems(input: any): ActionItem[] {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((x: any, idx: number) => {
+      // If pipeline returned strings
+      if (typeof x === "string") {
+        const text = x.trim();
+        if (!text) return null;
+        return {
+          title: `Action ${idx + 1}`,
+          description: text,
+          priority: "medium",
+        } as ActionItem;
+      }
+
+      // If pipeline returned objects already
+      if (x && typeof x === "object") {
+        const title =
+          typeof x.title === "string" && x.title.trim()
+            ? x.title.trim()
+            : typeof x.area === "string" && x.area.trim()
+            ? x.area.trim()
+            : `Action ${idx + 1}`;
+
+        const description =
+          typeof x.description === "string" && x.description.trim()
+            ? x.description.trim()
+            : typeof x.action === "string" && x.action.trim()
+            ? x.action.trim()
+            : typeof x.text === "string" && x.text.trim()
+            ? x.text.trim()
+            : "";
+
+        if (!description) return null;
+
+        const priority =
+          typeof x.priority === "string" && x.priority.trim()
+            ? x.priority.trim()
+            : "medium";
+
+        const current_score =
+          typeof x.current_score === "number"
+            ? x.current_score
+            : typeof x.score === "number"
+            ? x.score
+            : null;
+
+        return {
+          ...x,
+          title,
+          description,
+          priority,
+          current_score,
+        } as ActionItem;
+      }
+
+      return null;
+    })
+    .filter(Boolean) as ActionItem[];
+}
+
 export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboardProps) {
   const scores: Record<string, number> = (data?.scores as Record<string, number>) || {};
-
   const { avg10, total10 } = computeAvgAndTotal(scores);
 
-  // Build radar input (label + normalized 0-100 score)
   const radarInput = SCORE_KEYS.map((k) => ({
     key: k,
     label: LABEL_MAP[k] ?? k,
     value: normalizeScoreTo100(scores[k]),
   }));
 
-  const topScores = getTopScores([...radarInput]);
+  const topScores = getTopScores(radarInput);
 
   // Strengths
   const backendStrengths = Array.isArray(data?.strengths) ? data.strengths : null;
@@ -127,7 +190,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           )}/100).`,
         }))) as any[];
 
-  // Recommendations
+  // ✅ Recommendations: keep as one list and render RecommendationCard ONCE
   const backendRecs = Array.isArray(data?.recommendations) ? data.recommendations : null;
   const recommendations = (backendRecs && backendRecs.length > 0
     ? backendRecs.map((r: any, i: number) => ({
@@ -138,11 +201,20 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         action: r?.action || r?.recommendation || r?.suggestion || "",
         estimated_impact: r?.estimated_impact || r?.impact || "",
         current_score:
+          typeof r?.current_score === "number"
+            ? r.current_score
+            : typeof r?.score === "number"
+            ? r.score > 10
+              ? Math.round(Math.max(0, Math.min(100, r.score)))
+              : Math.round(r.score * 10)
+            : null,
+        score:
           typeof r?.score === "number"
             ? r.score > 10
               ? Math.round(Math.max(0, Math.min(100, r.score)))
               : Math.round(r.score * 10)
             : null,
+        timeframe: typeof r?.timeframe === "string" ? r.timeframe : null,
       }))
     : (improvements || []).slice(0, 6).map((imp: any, i: number) => ({
         id: `rec_fallback_${i + 1}`,
@@ -152,27 +224,56 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         action: imp.suggestion || `Work on ${imp.area}`,
         estimated_impact: "Should meaningfully improve competitiveness",
         current_score: typeof imp.score === "number" ? imp.score : null,
+        score: typeof imp.score === "number" ? imp.score : null,
+        timeframe: "Next 4–6 weeks",
       }))) as any[];
 
-  // ✅ NEW: AdCom Panel + Action Plan from API (if present)
+  // ✅ AdCom Panel
   const adcom = data?.adcom_panel || data?.adcom || data?.what_adcom_sees || null;
-  const actionPlan = data?.action_plan || data?.plan || null;
 
   const whatExcites: string[] = Array.isArray(adcom?.what_excites) ? adcom.what_excites : [];
   const whatConcerns: string[] = Array.isArray(adcom?.what_concerns) ? adcom.what_concerns : [];
   const howToPreempt: string[] = Array.isArray(adcom?.how_to_preempt) ? adcom.how_to_preempt : [];
 
-  const next4to6Weeks =
-    Array.isArray(actionPlan?.next_4_6_weeks) ? actionPlan.next_4_6_weeks : [];
-  const next3Months = Array.isArray(actionPlan?.next_3_months) ? actionPlan.next_3_months : [];
+  // ✅ Action Plan: accept either your own action_plan OR fallback to recommendations split by timeframe
+  const actionPlan = data?.action_plan || data?.plan || null;
 
-  // ✅ FIXED: Extract header_summary from Python pipeline (with test fallback)
-  const headerSummary = data?.header_summary || {
-    summary: "TEST: This is a hardcoded summary to verify the UI works. If you see this, your Python pipeline isn't returning header_summary data.",
-    highlights: ["7 years experience", "Corporate Strategy", "No GMAT/GRE", "Leadership", "Test Data"],
-    applicantArchetypeTitle: "TEST: Experienced Professional",
-    applicantArchetypeSubtitle: "Career Switcher"
-  };
+  const next4to6Weeks: ActionItem[] = toActionItems(actionPlan?.next_4_6_weeks);
+  const next3Months: ActionItem[] = toActionItems(actionPlan?.next_3_months);
+
+  // If backend didn't send action_plan, build it from recommendations (so UI never empty)
+  const derived4to6 = recommendations
+    .filter((r: any) => (r?.timeframe || "").toLowerCase().includes("week"))
+    .slice(0, 4)
+    .map((r: any, i: number) => ({
+      title: r.area || `Action ${i + 1}`,
+      description: r.action || "",
+      priority: r.priority || "medium",
+      current_score: r.current_score ?? null,
+    })) as ActionItem[];
+
+  const derived3mo = recommendations
+    .filter((r: any) => (r?.timeframe || "").toLowerCase().includes("month"))
+    .slice(0, 4)
+    .map((r: any, i: number) => ({
+      title: r.area || `Action ${i + 1}`,
+      description: r.action || "",
+      priority: r.priority || "medium",
+      current_score: r.current_score ?? null,
+    })) as ActionItem[];
+
+  const finalNext4to6Weeks = next4to6Weeks.length ? next4to6Weeks : derived4to6;
+  const finalNext3Months = next3Months.length ? next3Months : derived3mo;
+
+  // ✅ Header Summary (real pipeline data, with safe fallback)
+  const headerSummary =
+    data?.header_summary || {
+      summary:
+        "Profile analysis complete. Review the detailed sections below.",
+      highlights: [],
+      applicantArchetypeTitle: "MBA Candidate",
+      applicantArchetypeSubtitle: "",
+    };
 
   // Email modal state
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -180,9 +281,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   const [emailSending, setEmailSending] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  // ---------------------------------------------------------------------------
   // Download report (PDF)
-  // ---------------------------------------------------------------------------
   const downloadReport = useCallback(async () => {
     try {
       const res = await fetch("/api/mba/profileresumetool/report-pdf", {
@@ -219,9 +318,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
     }
   }, [data]);
 
-  // ---------------------------------------------------------------------------
   // Email modal logic
-  // ---------------------------------------------------------------------------
   const openEmailModal = useCallback(() => {
     const prefill =
       (typeof data?.user_email === "string" && data.user_email) ||
@@ -296,11 +393,9 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 mt-4 md:mt-6 px-2 sm:px-0">
-        {/* ROW 1: REDESIGNED - Larger Radar Graph + Sidebar */}
+        {/* ROW 1 */}
         <div className="lg:col-span-9 space-y-4 md:space-y-6">
-          {/* ✅ NEW: Larger Radar Chart with Spike Insight */}
           <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-8 shadow-sm border">
-            {/* Header with Logo */}
             <div className="flex items-start gap-3 md:gap-4 mb-3">
               <Image
                 src="/logo/admit55_final_logo.webp"
@@ -310,25 +405,34 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 className="w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0"
               />
               <div>
-                <h2 className="text-lg md:text-2xl font-extrabold text-slate-900">Profile Strength Analysis</h2>
+                <h2 className="text-lg md:text-2xl font-extrabold text-slate-900">
+                  Profile Strength Analysis
+                </h2>
               </div>
             </div>
 
-            {/* Spike Insight - MOVED UP */}
             <div className="mb-4 md:mb-6 rounded-lg md:rounded-xl border-l-4 border-emerald-500 bg-emerald-50/50 p-3 md:p-5">
               <div className="flex items-start gap-2 md:gap-3">
                 <div className="text-xl md:text-2xl flex-shrink-0">📊</div>
                 <div>
-                  <div className="text-xs md:text-sm font-bold text-emerald-900 mb-1 md:mb-2">Your Profile Spikes</div>
+                  <div className="text-xs md:text-sm font-bold text-emerald-900 mb-1 md:mb-2">
+                    Your Profile Spikes
+                  </div>
                   <p className="text-xs md:text-sm text-slate-700 leading-relaxed">
-                    Successful admits typically show spikes in <span className="font-semibold">Test Readiness</span>, <span className="font-semibold">Work Impact</span>, and <span className="font-semibold">Leadership</span>. 
-                    Your strongest areas are: <span className="font-bold text-emerald-800">{topScores.join(", ")}</span>.
+                    Successful admits typically show spikes in{" "}
+                    <span className="font-semibold">Test Readiness</span>,{" "}
+                    <span className="font-semibold">Work Impact</span>, and{" "}
+                    <span className="font-semibold">Leadership</span>. Your
+                    strongest areas are:{" "}
+                    <span className="font-bold text-emerald-800">
+                      {topScores.join(", ")}
+                    </span>
+                    .
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Large Radar Chart */}
             <div className="rounded-lg md:rounded-xl bg-gradient-to-br from-white to-green-50 p-4 md:p-8">
               <RadarGraph
                 scores={radarInput.reduce((acc: Record<string, number>, r) => {
@@ -338,22 +442,29 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               />
             </div>
 
-            {/* Score Breakdown Grid - MOVED BELOW */}
             <div className="mt-4 md:mt-6 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
               {radarInput.map((r) => (
                 <div
                   key={r.key}
                   className="bg-white rounded-lg md:rounded-xl p-3 md:p-4 border shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <div className="text-[10px] md:text-xs font-semibold text-slate-600 mb-1 md:mb-2 truncate">{r.label}</div>
+                  <div className="text-[10px] md:text-xs font-semibold text-slate-600 mb-1 md:mb-2 truncate">
+                    {r.label}
+                  </div>
                   <div className="flex items-center gap-2 md:gap-3">
-                    <div className="text-xl md:text-2xl font-bold text-slate-900">{Math.round(r.value)}</div>
+                    <div className="text-xl md:text-2xl font-bold text-slate-900">
+                      {Math.round(r.value)}
+                    </div>
                     <div className="flex-1">
                       <div className="h-1.5 md:h-2 bg-slate-200 rounded-full overflow-hidden">
                         <div
                           style={{ width: `${r.value}%` }}
                           className={`h-1.5 md:h-2 rounded-full transition-all duration-500 ${
-                            r.value >= 80 ? "bg-emerald-500" : r.value >= 60 ? "bg-sky-500" : "bg-amber-500"
+                            r.value >= 80
+                              ? "bg-emerald-500"
+                              : r.value >= 60
+                              ? "bg-sky-500"
+                              : "bg-amber-500"
                           }`}
                         />
                       </div>
@@ -365,9 +476,8 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           </div>
         </div>
 
-        {/* Sidebar (Quick summary + buttons) */}
+        {/* Sidebar */}
         <aside className="lg:col-span-3 space-y-4 md:space-y-5">
-          {/* Quick Summary - PROFESSIONAL REDESIGN */}
           <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-5 shadow-md border border-slate-200">
             <div className="flex items-center gap-2 mb-3 md:mb-4">
               <Image
@@ -377,10 +487,11 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 height={24}
                 className="w-5 h-5 md:w-6 md:h-6 object-contain"
               />
-              <h4 className="text-xs md:text-sm font-bold text-slate-900 uppercase tracking-wide">Profile Summary</h4>
+              <h4 className="text-xs md:text-sm font-bold text-slate-900 uppercase tracking-wide">
+                Profile Summary
+              </h4>
             </div>
 
-            {/* Score Display */}
             <div className="mb-3 md:mb-4">
               <div className="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                 Overall Score
@@ -389,7 +500,9 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 <span className="text-3xl md:text-4xl font-black text-slate-900">
                   {Math.round(avg10 * 10)}
                 </span>
-                <span className="text-base md:text-lg font-semibold text-slate-500">/100</span>
+                <span className="text-base md:text-lg font-semibold text-slate-500">
+                  /100
+                </span>
               </div>
             </div>
 
@@ -398,14 +511,15 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 onClick={onNewAnalysis}
                 className="w-full text-xs md:text-sm rounded-lg bg-red-600 text-white py-2.5 md:py-3 font-semibold hover:bg-red-700 transition-colors shadow-sm"
               >
-               🔄 New Analysis
+                🔄 New Analysis
               </button>
             )}
           </div>
 
-          {/* Next Steps */}
           <div className="rounded-xl md:rounded-2xl bg-sky-900 text-white p-4 md:p-5 shadow-sm">
-            <h4 className="font-semibold text-sm md:text-base mb-3">Next Steps</h4>
+            <h4 className="font-semibold text-sm md:text-base mb-3">
+              Next Steps
+            </h4>
 
             <div className="space-y-2 md:space-y-3">
               <button
@@ -431,11 +545,13 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
             </div>
           </div>
 
-          {/* Book a Session */}
           <div className="rounded-xl md:rounded-2xl bg-emerald-50 p-3 shadow-sm border">
-            <h5 className="font-semibold text-xs md:text-sm text-slate-900">Book a Session</h5>
+            <h5 className="font-semibold text-xs md:text-sm text-slate-900">
+              Book a Session
+            </h5>
             <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug">
-              Get personalised guidance from alumni <span className="text-slate-500">(integration pending)</span>.
+              Get personalised guidance from alumni{" "}
+              <span className="text-slate-500">(integration pending)</span>.
             </p>
 
             <div className="mt-2">
@@ -452,7 +568,6 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
             </div>
           </div>
 
-          {/* Know More About Admit55 Card */}
           <div className="rounded-xl md:rounded-2xl bg-emerald-50 p-3 md:p-4 shadow-sm border border-emerald-100">
             <div className="flex items-center gap-2 mb-2">
               <Image
@@ -462,10 +577,13 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 height={24}
                 className="w-5 h-5 md:w-6 md:h-6 object-contain"
               />
-              <h5 className="font-semibold text-xs md:text-sm text-slate-900">Know more about Admit55</h5>
+              <h5 className="font-semibold text-xs md:text-sm text-slate-900">
+                Know more about Admit55
+              </h5>
             </div>
             <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug mb-3">
-              Discover how we help aspiring MBA candidates achieve their dreams with personalized guidance and expert support.
+              Discover how we help aspiring MBA candidates achieve their dreams
+              with personalized guidance and expert support.
             </p>
 
             <div className="mt-2">
@@ -479,36 +597,41 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           </div>
         </aside>
 
-        {/* ROW 2: Strengths + Improvements */}
+        {/* ROW 2 */}
         <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-stretch">
           <StrengthsCard strengths={strengths} />
           <ImprovementCard improvements={improvements} />
         </div>
 
-        {/* ✅ ROW 3: AdCom Panel (MOVED HERE - right after improvements) */}
-        {(whatExcites.length || whatConcerns.length || howToPreempt.length) ? (
+        {/* ROW 3: AdCom Panel */}
+        {whatExcites.length || whatConcerns.length || howToPreempt.length ? (
           <div className="lg:col-span-12">
-            <AdComPanel whatExcites={whatExcites} whatConcerns={whatConcerns} howToPreempt={howToPreempt} />
+            <AdComPanel
+              whatExcites={whatExcites}
+              whatConcerns={whatConcerns}
+              howToPreempt={howToPreempt}
+            />
           </div>
         ) : null}
 
-        {/* ROW 4: Action Plan */}
-        {(next4to6Weeks.length || next3Months.length) ? (
+        {/* ROW 4: Action Plan (always tries to show something derived) */}
+        {(finalNext4to6Weeks.length || finalNext3Months.length) ? (
           <div className="lg:col-span-12">
-            <ActionPlan next4to6Weeks={next4to6Weeks} next3Months={next3Months} />
+            <ActionPlan
+              next4to6Weeks={finalNext4to6Weeks}
+              next3Months={finalNext3Months}
+            />
           </div>
         ) : null}
 
-        {/* ROW 5: Recommendations */}
+        {/* ROW 5: Recommendations (✅ render ONCE) */}
         <div className="lg:col-span-12 space-y-4 md:space-y-6">
-          {/* Recommendations */}
           <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-6 shadow-sm border">
-            <h3 className="text-lg md:text-xl font-semibold mb-3 text-slate-900">Actionable Recommendations</h3>
-            <div className="space-y-3 md:space-y-4">
-              {recommendations.map((rec: any, idx: number) => (
-                <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
-              ))}
-            </div>
+            <h3 className="text-lg md:text-xl font-semibold mb-3 text-slate-900">
+              Actionable Recommendations
+            </h3>
+
+            <RecommendationCard recommendations={recommendations} />
           </div>
         </div>
       </div>
@@ -522,7 +645,9 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 <span className="text-sky-700 text-base md:text-lg">✉</span>
               </div>
               <div>
-                <h2 className="text-sm md:text-base font-semibold text-slate-900">Email your report</h2>
+                <h2 className="text-sm md:text-base font-semibold text-slate-900">
+                  Email your report
+                </h2>
                 <p className="text-[10px] md:text-xs text-slate-500">
                   We'll send a PDF copy of your MBA profile report to your inbox.
                 </p>
@@ -544,7 +669,8 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               {emailError && <p className="text-xs text-red-600">{emailError}</p>}
 
               <p className="text-[10px] md:text-[11px] text-slate-500">
-                You can forward this report to mentors or save it for your MBA applications later.
+                You can forward this report to mentors or save it for your MBA
+                applications later.
               </p>
             </div>
 

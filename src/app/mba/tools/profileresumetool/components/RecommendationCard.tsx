@@ -15,7 +15,7 @@ export interface RecommendationItem {
   action?: string | null;
   estimated_impact?: string | null;
 
-  // ✅ add this to support the “Next 4–6 Weeks / Next 3 Months” UI
+  // Supports “Next 4–6 Weeks / Next 3 Months”
   timeframe?: string | null; // e.g. "next_4_6_weeks" | "next_3_months" | "4-6 weeks" | "3 months"
 }
 
@@ -23,22 +23,30 @@ interface RecommendationCardProps {
   recommendations: RecommendationItem[];
 }
 
-function normalizeTimeframe(tf?: string | null): "next_4_6_weeks" | "next_3_months" | "unknown" {
+type TF = "next_4_6_weeks" | "next_3_months" | "unknown";
+
+function normalizeTimeframe(tf?: string | null): TF {
   const t = (tf || "").toLowerCase().trim();
   if (!t) return "unknown";
 
-  // Accept lots of variants
+  // explicit keys first
+  if (t === "next_4_6_weeks") return "next_4_6_weeks";
+  if (t === "next_3_months") return "next_3_months";
+
+  // weeks bucket (more strict to avoid mis-bucketing)
   if (
     t.includes("4-6") ||
     t.includes("4–6") ||
     t.includes("4 to 6") ||
     t.includes("4- 6") ||
-    t.includes("weeks") ||
-    t.includes("month") === false && t.includes("week")
+    (t.includes("week") && !t.includes("month")) ||
+    t.includes("next 4") ||
+    t.includes("next 6")
   ) {
     return "next_4_6_weeks";
   }
 
+  // months bucket
   if (
     t.includes("3 month") ||
     t.includes("three month") ||
@@ -49,11 +57,14 @@ function normalizeTimeframe(tf?: string | null): "next_4_6_weeks" | "next_3_mont
     return "next_3_months";
   }
 
-  // explicit keys
-  if (t === "next_4_6_weeks") return "next_4_6_weeks";
-  if (t === "next_3_months") return "next_3_months";
-
   return "unknown";
+}
+
+function normalizeScore(v: number | null | undefined): number | null {
+  if (typeof v !== "number" || Number.isNaN(v)) return null;
+  // if backend sends 0-10 scale, convert to 0-100
+  if (v <= 10) return Math.round(Math.max(0, Math.min(10, v)) * 10);
+  return Math.round(Math.max(0, Math.min(100, v)));
 }
 
 function RecommendationItemCard({ item, idx }: { item: RecommendationItem; idx: number }) {
@@ -64,13 +75,18 @@ function RecommendationItemCard({ item, idx }: { item: RecommendationItem; idx: 
       ? item.score
       : null;
 
-  const scoreText =
-    typeof rawScore === "number" && !Number.isNaN(rawScore) ? `${Math.round(rawScore)}/100` : null;
+  const score = normalizeScore(rawScore);
+  const scoreText = typeof score === "number" ? `${score}/100` : null;
 
   const actionText =
     typeof item.action === "string" && item.action.trim().length > 0
       ? item.action.trim()
       : "Action not provided.";
+
+  const impactText =
+    typeof item.estimated_impact === "string" && item.estimated_impact.trim().length > 0
+      ? item.estimated_impact.trim()
+      : null;
 
   return (
     <div className="rounded-2xl bg-white/95 border border-sky-100 px-4 py-4 md:px-6 md:py-5 shadow-sm">
@@ -85,30 +101,30 @@ function RecommendationItemCard({ item, idx }: { item: RecommendationItem; idx: 
         {/* Content */}
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            {item.area && (
+            {item.area ? (
               <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-800 border border-sky-100">
                 {item.area}
               </span>
-            )}
+            ) : null}
 
-            {item.priority && (
+            {item.priority ? (
               <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 border border-amber-100">
                 Priority: {String(item.priority).toUpperCase()}
               </span>
-            )}
+            ) : null}
 
-            {scoreText && (
+            {scoreText ? (
               <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 border border-slate-100">
                 Current: {scoreText}
               </span>
-            )}
+            ) : null}
           </div>
 
           <p className="text-sm md:text-base text-slate-800 leading-relaxed">{actionText}</p>
 
-          {item.estimated_impact && (
-            <p className="text-xs md:text-sm text-sky-700 mt-1 italic">💡 {item.estimated_impact}</p>
-          )}
+          {impactText ? (
+            <p className="text-xs md:text-sm text-sky-700 mt-1 italic">💡 {impactText}</p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -118,7 +134,6 @@ function RecommendationItemCard({ item, idx }: { item: RecommendationItem; idx: 
 export default function RecommendationCard({ recommendations }: RecommendationCardProps) {
   if (!Array.isArray(recommendations) || recommendations.length === 0) return null;
 
-  // ✅ Split into the 2 buckets your UI wants
   const bucketA: RecommendationItem[] = [];
   const bucketB: RecommendationItem[] = [];
   const unknown: RecommendationItem[] = [];
@@ -131,15 +146,13 @@ export default function RecommendationCard({ recommendations }: RecommendationCa
   }
 
   // If pipeline didn’t send timeframe, still keep UI consistent:
-  // push unknowns into 4–6 weeks first, then overflow into 3 months.
-  const fallbackFill = (source: RecommendationItem[]) => {
-    if (source.length === 0) return;
-    for (const r of source) {
+  // fill 4–6 weeks first, then overflow into 3 months.
+  if (bucketA.length === 0 && bucketB.length === 0 && unknown.length > 0) {
+    for (const r of unknown) {
       if (bucketA.length <= bucketB.length) bucketA.push(r);
       else bucketB.push(r);
     }
-  };
-  if (bucketA.length === 0 && bucketB.length === 0) fallbackFill(unknown);
+  }
 
   return (
     <section className="rounded-3xl border border-sky-100 bg-gradient-to-b from-sky-50 to-cyan-50 px-6 py-6 md:px-8 md:py-8 shadow-sm w-full">
@@ -169,7 +182,7 @@ export default function RecommendationCard({ recommendations }: RecommendationCa
         </div>
       </div>
 
-      {/* ✅ Two timeframe columns like your screenshot */}
+      {/* Two timeframe columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
         {/* Next 4–6 Weeks */}
         <div className="rounded-3xl bg-white/60 border border-sky-100 p-4 md:p-5">
