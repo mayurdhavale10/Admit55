@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, os.path.dirname(__file__))
 
 # ------------------------------------------------------------
-# Pipeline imports
+# Pipeline imports (SAFE)
 # ------------------------------------------------------------
 try:
     from pipeline.mba_hybrid_pipeline import run_pipeline
@@ -34,19 +34,21 @@ except ImportError as e:
         raise HTTPException(500, "Resume analysis pipeline not available")
     PIPELINE_VERSION = "unknown"
 
-try:
-    from pipeline.bschool_match_pipeline import run_bschool_match
-except ImportError as e:
-    print(f"[IMPORT ERROR] bschool_match_pipeline: {e}", file=sys.stderr)
-    def run_bschool_match(profile):
-        raise HTTPException(500, "B-school match pipeline not available")
+# Lazy-safe import for bschool match
+def run_bschool_match_safe(profile):
+    try:
+        from pipeline.bschool_match_pipeline import run_bschool_match
+        return run_bschool_match(profile)
+    except Exception as e:
+        raise HTTPException(500, f"B-school match failed: {str(e)}")
 
-try:
-    from pipeline.resume_writer_pipeline import generate_resume
-except ImportError as e:
-    print(f"[IMPORT ERROR] resume_writer_pipeline: {e}", file=sys.stderr)
-    def generate_resume(payload):
-        raise HTTPException(500, "Resume writer pipeline not available")
+# Lazy-safe import for resume writer
+def generate_resume_safe(payload):
+    try:
+        from pipeline.resume_writer_pipeline import generate_resume
+        return generate_resume(payload)
+    except Exception as e:
+        raise HTTPException(500, f"Resume writer failed: {str(e)}")
 
 # ------------------------------------------------------------
 # PDF extraction
@@ -113,13 +115,12 @@ async def health():
     }
 
 # ------------------------------------------------------------
-# /analyze — Resume Analysis (NO narrative)
+# /analyze — Resume Analysis (NO narrative, NO context)
 # ------------------------------------------------------------
 @app.post("/analyze")
 async def analyze_resume(
     file: Optional[UploadFile] = File(None),
     resume_text: Optional[str] = Form(None),
-    context: Optional[str] = Form(None),
 ):
     if not file and not resume_text:
         raise HTTPException(
@@ -148,22 +149,13 @@ async def analyze_resume(
     if len(resume_text) > 50000:
         resume_text = resume_text[:50000]
 
-    # --- Context parsing ---
-    context_dict = None
-    if context:
-        try:
-            context_dict = json.loads(context)
-        except json.JSONDecodeError:
-            print("[API] Invalid context JSON, ignoring", file=sys.stderr)
-
-    # --- Run pipeline (CRITICAL FIX HERE) ---
+    # --- Run pipeline (CORRECT SIGNATURE) ---
     try:
         print("[API] Running MBA pipeline (no narrative)", file=sys.stderr)
 
         result = run_pipeline(
             resume_text=resume_text,
-            context=context_dict,
-            include_narrative=False,  # ✅ token-safe, UI-aligned
+            include_narrative=False,  # ✅ token-safe
         )
 
         print(f"[API] Pipeline complete. Keys: {list(result.keys())}", file=sys.stderr)
@@ -189,16 +181,10 @@ async def rewrite_resume(resume_text: str = Form(...)):
 # /bschool-match
 # ------------------------------------------------------------
 @app.post("/bschool-match")
-async def bschool_match(
-    candidate_profile: Dict[str, Any] = Body(...),
-):
+async def bschool_match(candidate_profile: Dict[str, Any] = Body(...)):
     if not candidate_profile:
         raise HTTPException(400, "candidate_profile must be non-empty")
-
-    try:
-        return run_bschool_match(candidate_profile)
-    except Exception as e:
-        raise HTTPException(500, f"B-school match failed: {str(e)}")
+    return run_bschool_match_safe(candidate_profile)
 
 # ------------------------------------------------------------
 # /resumewriter
@@ -207,17 +193,12 @@ async def bschool_match(
 async def resume_writer(payload: Dict[str, Any] = Body(...)):
     if not payload:
         raise HTTPException(400, "Payload must be non-empty")
-
-    try:
-        return generate_resume(payload)
-    except Exception as e:
-        raise HTTPException(500, f"Resume writer failed: {str(e)}")
+    return generate_resume_safe(payload)
 
 # ------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
