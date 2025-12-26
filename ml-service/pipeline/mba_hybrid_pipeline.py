@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-mba_llm_detailed_pipeline.py v5.6.3
+mba_llm_detailed_pipeline.py "5.7.0"
 (Action Plan moved into Recommendations buckets: next_4_6_weeks / next_3_months)
 
 ✅ Updates requested (to match your new UI that uses ONLY RecommendationCard):
@@ -469,10 +469,14 @@ def _clamp_int(n: Any, lo: int, hi: int, default: int) -> int:
 # ============================================================
 # TIMEFRAME NORMALIZATION (critical for your UI buckets)
 # ============================================================
+# ============================================================
+# TIMEFRAME NORMALIZATION (critical for your UI buckets)
+# ============================================================
 def _normalize_timeframe_to_key(tf: Any) -> str:
     """
     Your RecommendationCard buckets strictly on:
-      - next_4_6_weeks
+      - next_1_3_weeks
+      - next_3_6_weeks
       - next_3_months
       - unknown
 
@@ -482,40 +486,61 @@ def _normalize_timeframe_to_key(tf: Any) -> str:
     if not t:
         return "unknown"
 
-    if t in ("next_4_6_weeks", "next-4-6-weeks", "next 4-6 weeks"):
-        return "next_4_6_weeks"
+    # Exact matches
+    if t in ("next_1_3_weeks", "next-1-3-weeks", "next 1-3 weeks"):
+        return "next_1_3_weeks"
+    if t in ("next_3_6_weeks", "next-3-6-weeks", "next 3-6 weeks"):
+        return "next_3_6_weeks"
     if t in ("next_3_months", "next-3-months", "next 3 months"):
         return "next_3_months"
 
-    # heuristic: weeks
+    # heuristic: 1-3 weeks (urgent/immediate)
     if (
-        "4-6" in t
-        or "4–6" in t
-        or "4 to 6" in t
-        or ("week" in t and "month" not in t)
-        or "next 4" in t
-        or "next 6" in t
-        or "2-4 week" in t
-        or "2–4 week" in t
+        "1-3" in t
+        or "1–3" in t
+        or "1 to 3" in t
+        or "next 1" in t
+        or "next 2" in t
+        or "immediate" in t
+        or "urgent" in t
+        or "asap" in t
         or "7 day" in t
         or "14 day" in t
+        or "2 week" in t
     ):
-        return "next_4_6_weeks"
+        return "next_1_3_weeks"
 
-    # heuristic: months
+    # heuristic: 3-6 weeks (medium-term)
+    if (
+        "3-6" in t
+        or "3–6" in t
+        or "4-6" in t
+        or "4–6" in t
+        or "3 to 6" in t
+        or "4 to 6" in t
+        or "next 4" in t
+        or "next 5" in t
+        or "next 6" in t
+        or ("week" in t and "month" not in t and "1-3" not in t)
+    ):
+        return "next_3_6_weeks"
+
+    # heuristic: 3 months (long-term)
     if (
         "3 month" in t
         or "three month" in t
         or "next 3" in t
         or "12 week" in t
         or "8 week" in t
+        or "10 week" in t
         or "month" in t
         or "quarter" in t
+        or "long term" in t
+        or "strategic" in t
     ):
         return "next_3_months"
 
     return "unknown"
-
 
 # ============================================================
 # PROMPTS
@@ -680,7 +705,7 @@ Create 6-10 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this struct
       "area": "Short label",
       "priority": "high|medium|low",
 
-      "timeframe": "next_4_6_weeks | next_3_months",
+      "timeframe": "next_1_3_weeks | next_3_6_weeks | next_3_months",
 
       "action": "Write 2-4 bullet-like sentences: WHAT to do, HOW to do it, and the OUTPUT artifact to produce.",
       "estimated_impact": "1-2 sentences: how this improves admissions outcomes",
@@ -690,12 +715,16 @@ Create 6-10 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this struct
   ]
 }}
 
+
 Hard rules:
-- timeframe MUST be exactly either 'next_4_6_weeks' or 'next_3_months' for every item.
-- Every action must produce an OUTPUT artifact (e.g., '1-page leadership story', 'quantified resume bullets', 'portfolio link', 'mock interview answers').
-- Include at least 3 recommendations that directly improve RESUME BULLETS (quantification, structure, proof).
-- If the resume does NOT specify GMAT/GRE score, you may include test_readiness actions, but they still must produce artifacts (study plan, practice test log, score tracker).
-- Avoid generic fluff; tie each recommendation to resume specifics or explicitly say 'not specified in resume'."""
+- timeframe MUST be exactly 'next_1_3_weeks' OR 'next_3_6_weeks' OR 'next_3_months'.
+- Distribute recommendations across all 3 buckets (at least 2 per bucket).
+- next_1_3_weeks: urgent, high-impact, quick wins (resume fixes, story prep)
+- next_3_6_weeks: skill building, networking, test prep milestones
+- next_3_months: long-term strategy, school research, application planning
+- Every action must produce an OUTPUT artifact.
+- Include at least 3 recommendations that directly improve RESUME BULLETS.
+"""
 
 NARRATIVE_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions consultant writing a detailed profile assessment.
 
@@ -985,50 +1014,50 @@ def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
 
     # ✅ If model returned nothing, still return non-empty actionable defaults
     if not out:
-        out = [
-            {
-                "id": "rec_1",
-                "type": "resume",
-                "area": "Quantify impact bullets",
-                "priority": "high",
-                "timeframe": "next_4_6_weeks",
-                "action": (
-                    "Rewrite top 6 bullets to include metrics (%, ₹/$, time saved, scale). "
-                    "Create: updated 1-page resume PDF + a proof-note per bullet (source of metric)."
-                ),
-                "estimated_impact": "Quantified impact is one of the strongest MBA signals for leadership + results.",
-                "score": 70,
-                "current_score": 60,
-            },
-            {
-                "id": "rec_2",
-                "type": "networking",
-                "area": "Leadership story bank",
-                "priority": "high",
-                "timeframe": "next_4_6_weeks",
-                "action": (
-                    "Write 3 STAR stories (Leadership, Failure, Conflict). "
-                    "Create: 3 one-page story docs + 90-second spoken version for each."
-                ),
-                "estimated_impact": "Stronger essays/interviews and clearer AdCom narrative (why MBA/why now).",
-                "score": 72,
-                "current_score": 62,
-            },
-            {
-                "id": "rec_3",
-                "type": "career",
-                "area": "Post-MBA goal clarity",
-                "priority": "medium",
-                "timeframe": "next_3_months",
-                "action": (
-                    "Draft a 1-page 'career hypothesis' (target roles, industries, 3 reasons, 3 proof points). "
-                    "Create: 1-page doc + 10 networking questions tailored to that path."
-                ),
-                "estimated_impact": "Clear goals reduce AdCom risk and improve essay coherence.",
-                "score": 68,
-                "current_score": 58,
-            },
-        ]
+     out = [
+        {
+            "id": "rec_1",
+            "type": "resume",
+            "area": "Quantify impact bullets",
+            "priority": "high",
+            "timeframe": "next_1_3_weeks",  # ✅ Changed
+            "action": (
+                "Rewrite top 6 bullets to include metrics (%, ₹/$, time saved, scale). "
+                "Create: updated 1-page resume PDF + a proof-note per bullet (source of metric)."
+            ),
+            "estimated_impact": "Quantified impact is one of the strongest MBA signals for leadership + results.",
+            "score": 70,
+            "current_score": 60,
+        },
+        {
+            "id": "rec_2",
+            "type": "networking",
+            "area": "Leadership story bank",
+            "priority": "high",
+            "timeframe": "next_1_3_weeks",  # ✅ Changed
+            "action": (
+                "Write 3 STAR stories (Leadership, Failure, Conflict). "
+                "Create: 3 one-page story docs + 90-second spoken version for each."
+            ),
+            "estimated_impact": "Stronger essays/interviews and clearer AdCom narrative (why MBA/why now).",
+            "score": 72,
+            "current_score": 62,
+        },
+        {
+            "id": "rec_3",
+            "type": "career",
+            "area": "Post-MBA goal clarity",
+            "priority": "medium",
+            "timeframe": "next_3_months",  # ✅ Already correct
+            "action": (
+                "Draft a 1-page 'career hypothesis' (target roles, industries, 3 reasons, 3 proof points). "
+                "Create: 1-page doc + 10 networking questions tailored to that path."
+            ),
+            "estimated_impact": "Clear goals reduce AdCom risk and improve essay coherence.",
+            "score": 68,
+            "current_score": 58,
+        },
+    ]
 
     # safety: ensure all timeframes are valid keys
     for r in out:
@@ -1129,7 +1158,7 @@ def run_pipeline(
 
     # ✅ Optional compatibility: generate "action_plan" from recommendations,
     # even though your UI no longer needs ActionPlan.tsx.
-    action_plan = {"next_4_6_weeks": [], "next_3_months": []}
+    action_plan = {"next_1_3_weeks": [], "next_3_6_weeks": [],"next_3_months": []}
     for r in recommendations:
         tf = _normalize_timeframe_to_key(r.get("timeframe"))
         item = {
@@ -1138,10 +1167,8 @@ def run_pipeline(
             "priority": r.get("priority") or "medium",
             "current_score": r.get("current_score", None),
         }
-        if tf == "next_4_6_weeks":
-            action_plan["next_4_6_weeks"].append(item)
-        elif tf == "next_3_months":
-            action_plan["next_3_months"].append(item)
+        if tf in action_plan:
+            action_plan[tf].append(item)
 
     analysis = {
         "scores": scores,
