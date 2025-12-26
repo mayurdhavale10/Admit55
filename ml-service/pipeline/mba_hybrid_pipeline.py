@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-mba_llm_detailed_pipeline.py v5.6.0 (429-proof)
-Provider-agnostic multi-call MBA resume pipeline (Groq / OpenAI / Gemini)
+mba_llm_detailed_pipeline.py v5.6.2 (429-proof + AdCom always visible + actionable recs refresh)
 
-✅ What’s new vs your v5.5.1:
-- 429-proof LLM calling:
-  - smart retry on transient errors
-  - auto-switch to fallback provider/model on 429 (TPD/token/day or RPM)
-  - optional same-provider model downgrade on 429
-- Lower (but still good) token budgets by default for heavy steps
-- Guaranteed non-empty defaults so UI never breaks
-- Recommendations ALWAYS include BOTH `score` and `current_score` (0-100)
-- Narrative can be disabled (recommended) without breaking UI
+✅ Fixes requested:
+- ✅ AdCom panel INCLUDED + never "disappears" in UI (non-empty fallback placeholders)
+- ✅ Recommendations are more "actionable" and refresh reliably (cache-bust + stronger prompt + normalization)
+- ✅ 429-proof calling (retry + downgrade model + fallback provider/model)
+- ✅ UI-safe output (guaranteed fields + schema stability)
+- ✅ CLI narrative flag fixed (was always False in your pasted v5.6.0)
 
-ENV (optional but recommended):
+ENV (optional):
 - LLM_PROVIDER=groq|openai|gemini
 - GROQ_API_KEY / GROQ_MODEL / GROQ_API_URL
 - OPENAI_API_KEY / OPENAI_PRIMARY_MODEL / OPENAI_BASE_URL
@@ -24,7 +20,9 @@ Optional model downgrade envs (used on 429):
 - OPENAI_FALLBACK_MODEL=gpt-4o-mini
 - GEMINI_FALLBACK_MODEL=gemini-2.0-flash
 
-Note: Your UI does NOT require narrative. Disable it to save tokens.
+Optional cache control:
+- PIPELINE_DISABLE_CACHE=1   (disables in-memory prompt cache)
+- PIPELINE_CACHE_BUST=<any>  (string appended to cache key + prompts, forces refresh)
 """
 
 import os
@@ -35,11 +33,16 @@ import re
 import hashlib
 import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 import requests
 
 load_dotenv()
+
+PIPELINE_VERSION = "5.6.2"
+CACHE_BUST = (os.environ.get("PIPELINE_CACHE_BUST") or "").strip()
+DISABLE_CACHE = (os.environ.get("PIPELINE_DISABLE_CACHE") or "").strip() == "1"
+
 
 # ----------------------------
 # Optional PDF support (kept)
@@ -84,7 +87,7 @@ def _env_default_settings() -> LLMSettings:
     if provider == "openai" and openai_key:
         return LLMSettings(provider="openai", api_key=openai_key, model=openai_model, base_url=openai_base)
 
-    # Auto-pick in priority order if provider not set
+    # Auto-pick
     if groq_key:
         return LLMSettings(provider="groq", api_key=groq_key, model=groq_model, base_url=groq_base)
     if openai_key:
@@ -97,10 +100,7 @@ def _env_default_settings() -> LLMSettings:
 
 def _build_fallback_from_env(primary: LLMSettings) -> Optional[LLMSettings]:
     """
-    Fallback strategy:
-    - If primary is groq: fallback -> openai if available else gemini if available
-    - If primary is openai: fallback -> groq if available else gemini if available
-    - If primary is gemini: fallback -> groq if available else openai if available
+    Prefer a DIFFERENT provider for real fallback.
     """
     groq_key = os.environ.get("GROQ_API_KEY", "")
     groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -121,11 +121,9 @@ def _build_fallback_from_env(primary: LLMSettings) -> Optional[LLMSettings]:
     if gem_key:
         candidates.append(LLMSettings(provider="gemini", api_key=gem_key, model=gem_model))
 
-    # remove primary provider if possible, prefer different provider for true fallback
     different = [c for c in candidates if c.provider != primary.provider]
     if different:
         return different[0]
-    # else allow same provider fallback (still better than nothing)
     return candidates[0] if candidates else None
 
 
@@ -171,18 +169,18 @@ def extract_resume_entities(resume_text: str) -> Dict[str, set]:
 def is_specific(text: str, resume_entities: Dict[str, set], min_score: int = 2) -> bool:
     if not text:
         return False
-    text_lower = text.lower()
+    t = text.lower()
     score = 0
 
-    if any(num in text_lower for num in resume_entities.get("numbers", [])):
+    if any(num in t for num in resume_entities.get("numbers", [])):
         score += 2
-    if any(pct in text_lower for pct in resume_entities.get("percentages", [])):
+    if any(pct in t for pct in resume_entities.get("percentages", [])):
         score += 2
-    if any(curr in text_lower for curr in resume_entities.get("currencies", [])):
+    if any(curr in t for curr in resume_entities.get("currencies", [])):
         score += 2
-    if any(company in text_lower for company in resume_entities.get("companies", [])):
+    if any(company in t for company in resume_entities.get("companies", [])):
         score += 3
-    if any(role in text_lower for role in resume_entities.get("roles", [])):
+    if any(role in t for role in resume_entities.get("roles", [])):
         score += 1
 
     return score >= min_score
@@ -197,9 +195,21 @@ _PROMPT_CACHE: Dict[str, str] = {}
 def _cache_key(settings: LLMSettings, prompt: str, temperature: float, max_tokens: int, response_format: Optional[str]) -> str:
     h = hashlib.sha256()
     h.update(
-        (settings.provider + "|" + settings.model + "|" + str(temperature) + "|" + str(max_tokens) + "|" + str(response_format)).encode(
-            "utf-8"
-        )
+        (
+            settings.provider
+            + "|"
+            + settings.model
+            + "|"
+            + str(temperature)
+            + "|"
+            + str(max_tokens)
+            + "|"
+            + str(response_format)
+            + "|"
+            + PIPELINE_VERSION
+            + "|"
+            + CACHE_BUST
+        ).encode("utf-8")
     )
     h.update(prompt.encode("utf-8"))
     return h.hexdigest()
@@ -235,7 +245,6 @@ def _looks_like_429(status_code: int, text: str) -> bool:
 
 
 def _sleep_backoff(attempt: int) -> None:
-    # small jittered exponential backoff; keeps your app responsive
     base = min(2.0, 0.25 * (2 ** attempt))
     time.sleep(base + random.random() * 0.2)
 
@@ -250,8 +259,9 @@ def call_llm_once(
     if not settings.api_key:
         raise LLMError(f"Missing API key for provider={settings.provider}")
 
+    # Cache
     ck = _cache_key(settings, prompt, temperature, max_tokens, response_format)
-    if ck in _PROMPT_CACHE:
+    if (not DISABLE_CACHE) and ck in _PROMPT_CACHE:
         print(f"[llm] cache hit ({settings.provider}/{settings.model})", file=sys.stderr)
         return _PROMPT_CACHE[ck]
 
@@ -285,9 +295,10 @@ def call_llm_once(
         content = data["choices"][0]["message"]["content"]
         if not content:
             raise LLMError("Empty response")
-
         out = content.strip()
-        _PROMPT_CACHE[ck] = out
+
+        if not DISABLE_CACHE:
+            _PROMPT_CACHE[ck] = out
         return out
 
     if provider == "gemini":
@@ -322,7 +333,8 @@ def call_llm_once(
         if not out:
             raise LLMError("Empty response text from Gemini")
 
-        _PROMPT_CACHE[ck] = out
+        if not DISABLE_CACHE:
+            _PROMPT_CACHE[ck] = out
         return out
 
     raise LLMError(f"Unsupported provider: {settings.provider}")
@@ -342,34 +354,32 @@ def _downgraded_model_for(settings: LLMSettings) -> Optional[str]:
 def call_llm(
     settings: LLMSettings,
     prompt: str,
-    max_tokens: int = 2048,
+    max_tokens: int = 1200,
     temperature: float = 0.2,
-    response_format: Optional[str] = None,  # "json" or None
+    response_format: Optional[str] = None,
     fallback: Optional[LLMSettings] = None,
-    retries: int = 2,
+    retries: int = 1,
 ) -> str:
     """
-    429-proof calling:
-    - Try primary with small retries
-    - If 429 happens, try:
-        1) same-provider model downgrade (if configured)
-        2) fallback provider/model (if available)
+    429-proof:
+    - try primary (retries)
+    - if 429: try downgraded model (same provider)
+    - then try fallback provider
     """
-    # 1) primary attempts
     last_err: Optional[Exception] = None
+
     for a in range(retries + 1):
         try:
             return call_llm_once(settings, prompt, max_tokens, temperature, response_format)
         except LLMRateLimitError as e:
             last_err = e
-            print(f"[llm:{settings.provider}] rate-limited on attempt {a+1}: {str(e)[:200]}", file=sys.stderr)
+            print(f"[llm:{settings.provider}] rate-limited attempt {a+1}: {str(e)[:200]}", file=sys.stderr)
             _sleep_backoff(a)
         except Exception as e:
             last_err = e
             print(f"[llm:{settings.provider}] error attempt {a+1}: {str(e)[:200]}", file=sys.stderr)
             _sleep_backoff(a)
 
-    # 2) same-provider model downgrade (only if different)
     downgraded = _downgraded_model_for(settings)
     if downgraded and downgraded != settings.model:
         st2 = LLMSettings(
@@ -386,7 +396,6 @@ def call_llm(
             last_err = e
             print(f"[llm] downgraded model failed: {str(e)[:200]}", file=sys.stderr)
 
-    # 3) fallback provider/model
     if fallback and fallback.api_key:
         try:
             print(f"[llm] switching to fallback: {fallback.provider}/{fallback.model}", file=sys.stderr)
@@ -471,7 +480,10 @@ def _context_block(context: Optional[Dict[str, str]]) -> str:
     return "Context:\n" + "\n".join(lines) + "\n"
 
 
-SCORING_PROMPT = """You are an MBA admissions expert. Analyze this resume and score it on 8 dimensions (0-10 scale). Use the Context only to adjust emphasis (do NOT hallucinate facts).
+# ✅ cache-bust string embedded into prompts too (so even if cache is on, it changes keys)
+_PROMPT_PREFIX = f"PIPELINE_VERSION={PIPELINE_VERSION} CACHE_BUST={CACHE_BUST}\n"
+
+SCORING_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions expert. Analyze this resume and score it on 8 dimensions (0-10 scale). Use the Context only to adjust emphasis (do NOT hallucinate facts).
 
 {context}
 
@@ -490,8 +502,7 @@ Return ONLY valid JSON with this exact structure:
   "industry": <0-10>
 }}"""
 
-
-HEADER_SUMMARY_PROMPT = """You are an MBA admissions expert. Create a compelling header summary for this candidate.
+HEADER_SUMMARY_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions expert. Create a compelling header summary for this candidate.
 
 CRITICAL: Extract ONLY factual details from the resume. Do NOT invent or assume anything.
 
@@ -509,10 +520,12 @@ Return ONLY valid JSON:
   "highlights": ["Experience", "Skill Area", "Education", "Achievement", "Gap/Status", ...],
   "applicantArchetypeTitle": "Brief professional identity based on resume facts",
   "applicantArchetypeSubtitle": "Additional context (e.g., 'Second MBA Applicant', 'Career Switcher', etc.)"
-}}"""
+}}
 
+Rules:
+- highlights must be 8-12 items max and must be factual."""
 
-ADCOM_PANEL_PROMPT = """You are an MBA admissions committee member reviewing this candidate's profile.
+ADCOM_PANEL_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions committee member reviewing this candidate's profile.
 
 {context}
 
@@ -538,10 +551,9 @@ Provide honest AdCom perspective in JSON format:
 Rules:
 - Each array should have 3-5 items
 - Be specific and reference actual resume details
-- how_to_preempt must be actionable"""
+- how_to_preempt MUST be actionable (what to do next + how + within a timeframe)"""
 
-
-STRENGTHS_PROMPT = """You are an MBA admissions expert analyzing a resume.
+STRENGTHS_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions expert analyzing a resume.
 
 CRITICAL REQUIREMENT: You MUST reference SPECIFIC details from the resume in EVERY point:
 - Company names, exact metrics, project names, team sizes, technologies, titles, time periods
@@ -563,10 +575,9 @@ Return JSON:
   ]
 }}"""
 
+IMPROVEMENTS_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions expert analyzing gaps in this candidate's profile.
 
-IMPROVEMENTS_PROMPT = """You are an MBA admissions expert analyzing gaps in this candidate's profile.
-
-Every suggestion must be SPECIFIC to their profile and (optionally) aligned to the Context goal/timeline.
+Every suggestion must be SPECIFIC to their profile and aligned to Context goal/timeline if provided.
 
 {context}
 
@@ -588,8 +599,8 @@ Return JSON:
   ]
 }}"""
 
-
-RECOMMENDATIONS_PROMPT = """You are an MBA admissions strategist creating an action plan.
+# ✅ Stronger actionable recommendations prompt
+RECOMMENDATIONS_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions strategist creating an action plan.
 
 Make it highly specific and prioritized, aligned to Context (timeline matters).
 
@@ -615,19 +626,21 @@ Create 5-8 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this structu
       "type": "skill|test|extracurricular|career|resume|networking|other",
       "area": "Short label",
       "priority": "high|medium|low",
-      "action": "2-3 sentences with SPECIFIC steps tailored to their profile",
+      "timeframe": "e.g., 'Next 7 days'|'2-4 weeks'|'By <Month>'",
+      "action": "2-4 bullet-like sentences: WHAT to do, HOW to do it, and a concrete output (artifact) to produce",
       "estimated_impact": "1-2 sentences explaining MBA admissions benefit",
-      "score": 70
+      "current_score": 0-100,
+      "score": 0-100
     }}
   ]
 }}
 
-IMPORTANT:
-- score must be 0-100 integer
+Hard rules:
+- Every action must produce an OUTPUT artifact (e.g., '1-page leadership story', 'quantified impact bullets', 'portfolio link', 'mock interview answers')
+- Include at least 2 recommendations that directly improve RESUME BULLETS (quantification, structure, proof)
 - Do NOT recommend test prep if resume clearly includes GMAT >=700 or GRE >=325."""
 
-
-NARRATIVE_PROMPT = """You are an MBA admissions consultant writing a detailed profile assessment.
+NARRATIVE_PROMPT = _PROMPT_PREFIX + """You are an MBA admissions consultant writing a detailed profile assessment.
 
 Use ONLY resume facts + the already computed analysis. Do not invent.
 
@@ -658,14 +671,14 @@ Return ONLY markdown text."""
 
 
 # ============================================================
-# TOKEN BUDGETS (tuned to reduce 429 risk)
+# TOKEN BUDGETS (reduce 429 risk)
 # ============================================================
 TOKENS = {
     "scoring": 450,
-    "header_summary": 700,
+    "header_summary": 650,
     "strengths": 950,
     "improvements": 950,
-    "adcom_panel": 900,
+    "adcom_panel": 850,
     "recommendations": 1150,
     "narrative": 1200,
 }
@@ -674,12 +687,7 @@ TOKENS = {
 # ============================================================
 # PIPELINE STEPS
 # ============================================================
-def score_resume(
-    resume_text: str,
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> Dict[str, float]:
+def score_resume(resume_text: str, settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, float]:
     prompt = SCORING_PROMPT.format(resume=resume_text, context=_context_block(context))
     try:
         raw = call_llm(
@@ -692,7 +700,6 @@ def score_resume(
             retries=1,
         )
         data = parse_json_strictish(raw)
-
         normalized: Dict[str, float] = {}
         for k, v in data.items():
             try:
@@ -707,21 +714,15 @@ def score_resume(
         for rk in required:
             normalized.setdefault(rk, 5.0)
 
-        print(f"[scoring] ✓ ({settings.provider})", file=sys.stderr)
+        print("[scoring] ✓", file=sys.stderr)
         return normalized
     except Exception as e:
-        print(f"[scoring] ✗ fallback default: {str(e)[:200]}", file=sys.stderr)
+        print(f"[scoring] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
     return {k: 5.0 for k in ["academics", "test_readiness", "leadership", "extracurriculars", "international", "work_impact", "impact", "industry"]}
 
 
-def generate_header_summary(
-    resume_text: str,
-    scores: Dict[str, float],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> Dict[str, Any]:
+def generate_header_summary(resume_text: str, scores: Dict[str, float], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, Any]:
     prompt = HEADER_SUMMARY_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -744,7 +745,7 @@ def generate_header_summary(
             "applicantArchetypeTitle": _as_str(data.get("applicantArchetypeTitle", "")) or "MBA Candidate",
             "applicantArchetypeSubtitle": _as_str(data.get("applicantArchetypeSubtitle", "")),
         }
-        print(f"[header_summary] ✓", file=sys.stderr)
+        print("[header_summary] ✓", file=sys.stderr)
         return result
     except Exception as e:
         print(f"[header_summary] ✗ default: {str(e)[:200]}", file=sys.stderr)
@@ -757,17 +758,10 @@ def generate_header_summary(
     }
 
 
-def extract_strengths(
-    resume_text: str,
-    entities: Dict[str, set],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-    max_retries: int = 2,
-) -> List[Dict]:
+def extract_strengths(resume_text: str, entities: Dict[str, set], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings], max_retries: int = 2) -> List[Dict]:
     base_prompt = STRENGTHS_PROMPT.format(resume=resume_text, context=_context_block(context))
-
     cleaned: List[Dict] = []
+
     for attempt in range(max_retries):
         try:
             prompt = base_prompt
@@ -804,19 +798,14 @@ def extract_strengths(
 
             if cleaned and generic_ratio <= 0.6:
                 return cleaned
+
         except Exception as e:
             print(f"[strengths] ✗ attempt {attempt+1}: {str(e)[:200]}", file=sys.stderr)
 
     return cleaned or []
 
 
-def extract_improvements(
-    resume_text: str,
-    scores: Dict[str, float],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> List[Dict]:
+def extract_improvements(resume_text: str, scores: Dict[str, float], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> List[Dict]:
     prompt = IMPROVEMENTS_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -853,15 +842,7 @@ def extract_improvements(
     return []
 
 
-def generate_adcom_panel(
-    resume_text: str,
-    scores: Dict[str, float],
-    strengths: List[Dict],
-    improvements: List[Dict],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> Dict[str, List[str]]:
+def generate_adcom_panel(resume_text: str, scores: Dict[str, float], strengths: List[Dict], improvements: List[Dict], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, List[str]]:
     prompt = ADCOM_PANEL_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -880,22 +861,37 @@ def generate_adcom_panel(
             retries=1,
         )
         data = parse_json_strictish(raw)
-        result = {
-            "what_excites": [str(x) for x in _as_list(data.get("what_excites"))][:5],
-            "what_concerns": [str(x) for x in _as_list(data.get("what_concerns"))][:5],
-            "how_to_preempt": [str(x) for x in _as_list(data.get("how_to_preempt"))][:5],
-        }
+
+        exc = [str(x).strip() for x in _as_list(data.get("what_excites")) if str(x).strip()][:5]
+        con = [str(x).strip() for x in _as_list(data.get("what_concerns")) if str(x).strip()][:5]
+        pre = [str(x).strip() for x in _as_list(data.get("how_to_preempt")) if str(x).strip()][:5]
+
+        # ✅ ensure it NEVER becomes empty (so your UI won't hide it)
+        if not exc:
+            exc = ["AdCom view pending: rerun analysis for deeper strengths (rate-limit fallback)."]
+        if not con:
+            con = ["AdCom view pending: rerun analysis to surface concerns (rate-limit fallback)."]
+        if not pre:
+            pre = ["Try again in 2–3 minutes OR switch provider (Groq/OpenAI/Gemini)."]
+
         print("[adcom_panel] ✓", file=sys.stderr)
-        return result
+        return {"what_excites": exc, "what_concerns": con, "how_to_preempt": pre}
+
     except Exception as e:
         print(f"[adcom_panel] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
-    return {"what_excites": [], "what_concerns": [], "how_to_preempt": []}
+    # ✅ non-empty fallback placeholders
+    return {
+        "what_excites": ["AdCom panel not generated (temporary provider limit)."],
+        "what_concerns": ["AdCom panel not generated (temporary provider limit)."],
+        "how_to_preempt": ["Rerun in 2–3 minutes or change provider/model."],
+    }
 
 
 def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
     """
-    Guarantees BOTH `score` and `current_score` exist (0-100 int).
+    Guarantees BOTH `score` and `current_score` exist (0-100 int),
+    plus timeframe for better UI.
     """
     recs = _as_list(raw_recs)
     out: List[Dict] = []
@@ -906,31 +902,53 @@ def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
         score_val = r.get("score", r.get("current_score", r.get("rating", 70)))
         score_int = _clamp_int(score_val, 0, 100, 70)
 
+        current_val = r.get("current_score", score_int)
+        current_int = _clamp_int(current_val, 0, 100, score_int)
+
         out.append(
             {
                 "id": _as_str(r.get("id")) or f"rec_{i}",
                 "type": _as_str(r.get("type")) or "other",
                 "area": _as_str(r.get("area")) or "General",
-                "priority": _as_str(r.get("priority")) or "medium",
-                "action": _as_str(r.get("action")) or "Take a concrete next step based on the gap identified.",
+                "priority": (_as_str(r.get("priority")) or "medium").lower(),
+                "timeframe": _as_str(r.get("timeframe")) or "Next 2-4 weeks",
+                "action": _as_str(r.get("action")) or "Create one concrete output that improves this area.",
                 "estimated_impact": _as_str(r.get("estimated_impact")) or "Improves overall competitiveness.",
                 "score": score_int,
-                "current_score": score_int,
-                "timeframe": _as_str(r.get("timeframe", "")),
+                "current_score": current_int,
             }
         )
+
+    # ✅ if model returned nothing, still give useful actionable defaults (non-empty)
+    if not out:
+        out = [
+            {
+                "id": "rec_1",
+                "type": "resume",
+                "area": "Quantify impact",
+                "priority": "high",
+                "timeframe": "Next 7 days",
+                "action": "Rewrite top 6 bullets to include metrics (%, ₹/$, time saved). Produce: updated 1-page resume PDF + a 'metrics evidence' note per bullet.",
+                "estimated_impact": "Quantified impact is one of the strongest MBA signals for leadership + results.",
+                "score": 70,
+                "current_score": 60,
+            },
+            {
+                "id": "rec_2",
+                "type": "networking",
+                "area": "Narrative clarity",
+                "priority": "high",
+                "timeframe": "Next 2 weeks",
+                "action": "Write 3 stories (Leadership, Failure, Team conflict) in STAR format. Produce: 3 one-page story docs + 90-sec spoken version each.",
+                "estimated_impact": "Stronger essays/interviews and clearer AdCom 'why MBA / why now'.",
+                "score": 72,
+                "current_score": 62,
+            },
+        ]
     return out
 
 
-def extract_recommendations(
-    resume_text: str,
-    scores: Dict,
-    strengths: List,
-    improvements: List,
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> List[Dict]:
+def extract_recommendations(resume_text: str, scores: Dict, strengths: List, improvements: List, settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> List[Dict]:
     prompt = RECOMMENDATIONS_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -955,16 +973,10 @@ def extract_recommendations(
     except Exception as e:
         print(f"[recommendations] ✗ default: {str(e)[:200]}", file=sys.stderr)
 
-    return []
+    return _normalize_recommendations([])
 
 
-def generate_narrative(
-    resume_text: str,
-    analysis: Dict[str, Any],
-    settings: LLMSettings,
-    context: Optional[Dict[str, str]],
-    fallback: Optional[LLMSettings],
-) -> str:
+def generate_narrative(resume_text: str, analysis: Dict[str, Any], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> str:
     prompt = NARRATIVE_PROMPT.format(
         resume=resume_text,
         analysis=json.dumps(analysis, indent=2, ensure_ascii=False),
@@ -987,7 +999,7 @@ def run_pipeline(
     settings: Optional[LLMSettings] = None,
     fallback: Optional[LLMSettings] = None,
     context: Optional[Dict[str, str]] = None,
-    include_narrative: bool = False,  # ✅ default OFF (your UI doesn't need it)
+    include_narrative: bool = False,  # default OFF
 ) -> Dict[str, Any]:
     settings = settings or _env_default_settings()
     if fallback is None:
@@ -995,9 +1007,11 @@ def run_pipeline(
 
     start = time.time()
     print("\n" + "=" * 60, file=sys.stderr)
-    print(f"MBA ANALYSIS PIPELINE v5.6.0 ({settings.provider}/{settings.model})", file=sys.stderr)
+    print(f"MBA ANALYSIS PIPELINE v{PIPELINE_VERSION} ({settings.provider}/{settings.model})", file=sys.stderr)
     if fallback:
         print(f"Fallback: {fallback.provider}/{fallback.model}", file=sys.stderr)
+    if CACHE_BUST:
+        print(f"Cache bust: {CACHE_BUST}", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
 
     resume_text = resume_text or ""
@@ -1012,7 +1026,7 @@ def run_pipeline(
     adcom_panel = generate_adcom_panel(resume_text, scores, strengths, improvements, settings, context, fallback)
     recommendations = extract_recommendations(resume_text, scores, strengths, improvements, settings, context, fallback)
 
-    # ✅ guaranteed minimal non-empty defaults (UI safety)
+    # UI-safe guarantees
     if not header_summary.get("summary"):
         header_summary["summary"] = "Profile analysis complete. Review detailed sections below."
     if not isinstance(header_summary.get("highlights"), list):
@@ -1040,7 +1054,7 @@ def run_pipeline(
         "success": True,
         "original_resume": resume_text,
 
-        # root fields (your current frontend)
+        # root fields (frontend expects)
         "scores": scores,
         "header_summary": header_summary,
         "adcom_panel": adcom_panel,
@@ -1049,11 +1063,11 @@ def run_pipeline(
         "recommendations": recommendations,
         "narrative": narrative,
 
-        # compatibility layer (some UIs read result.analysis.*)
+        # compatibility layer
         "analysis": analysis,
 
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "5.6.0-429-proof",
+        "pipeline_version": f"{PIPELINE_VERSION}-429-proof-adcom-safe",
         "processing_meta": {
             "total_duration_seconds": duration,
             "provider": settings.provider,
@@ -1064,6 +1078,8 @@ def run_pipeline(
             "include_narrative": include_narrative,
             "cache_size": len(_PROMPT_CACHE),
             "token_budgets": TOKENS,
+            "cache_bust": CACHE_BUST,
+            "cache_disabled": DISABLE_CACHE,
         },
     }
 
@@ -1074,7 +1090,7 @@ def run_pipeline(
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="MBA Pipeline v5.6.0 (429-proof) Groq/OpenAI/Gemini")
+    parser = argparse.ArgumentParser(description=f"MBA Pipeline v{PIPELINE_VERSION} (429-proof + AdCom safe)")
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text OR path to a .txt file")
     parser.add_argument("--provider", default="", help="groq|openai|gemini (overrides env)")
     parser.add_argument("--model", default="", help="model name (overrides env)")
@@ -1117,7 +1133,7 @@ def main():
         settings=settings,
         fallback=None,  # auto-build from env
         context=context,
-        include_narrative=not args.no_narrative and False,  # ✅ default OFF
+        include_narrative=(not args.no_narrative),  # ✅ fixed: was broken in your pasted v5.6.0
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
