@@ -16,12 +16,12 @@ export default function ImprovementCard({ improvements }: ImprovementCardProps) 
   if (!improvements || improvements.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border bg-white p-5 md:p-6 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
           <svg
-            className="w-4 h-4 text-rose-600"
+            className="w-5 h-5 text-orange-600"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -30,22 +30,17 @@ export default function ImprovementCard({ improvements }: ImprovementCardProps) 
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M12 9v3m0 4h.01M10.29 3.86L3.82 16a1 1 0 00.9 1.45h14.56a1 1 0 00.9-1.45L13.71 3.86a1 1 0 00-1.82 0z"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
         </div>
-        <div>
-          <h3 className="text-base md:text-lg font-bold text-gray-900">
-            Improvement Areas
-          </h3>
-          <p className="text-xs text-gray-500">
-            Focus here to further strengthen your MBA profile.
-          </p>
-        </div>
+        <h3 className="text-xl font-extrabold text-slate-900">
+          Improvement Areas
+        </h3>
       </div>
 
       {/* Improvements List */}
-      <div className="space-y-3">
+      <div className="space-y-5">
         {improvements.map((item, idx) => {
           const scoreNum =
             typeof item.score === "number" && !Number.isNaN(item.score)
@@ -55,36 +50,36 @@ export default function ImprovementCard({ improvements }: ImprovementCardProps) 
           return (
             <div
               key={idx}
-              className={`flex gap-3 ${
-                idx !== 0 ? "pt-3 border-t border-gray-100" : ""
-              }`}
+              className="border-l-4 border-orange-500 bg-gradient-to-r from-orange-50/50 to-transparent pl-5 pr-4 py-4 rounded-r-lg"
             >
-              {/* Number Badge */}
-              <div className="flex-shrink-0 mt-1">
-                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-rose-500 text-white text-sm font-semibold shadow-sm">
+              {/* Number and Title */}
+              <div className="flex items-start gap-3 mb-2">
+                <div className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-slate-900 text-white text-sm font-bold">
                   {idx + 1}
                 </div>
+                <h4 className="flex-1 text-base font-bold text-slate-900 leading-tight">
+                  {item.area}
+                </h4>
               </div>
 
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <h4 className="text-sm md:text-[15px] font-semibold text-gray-900 leading-snug">
-                      {item.area}
-                    </h4>
-                    <p className="mt-1 text-sm text-gray-700 leading-relaxed">
-                      {item.suggestion}
-                    </p>
-                  </div>
+              {/* Suggestion */}
+              <p className="text-sm text-slate-700 leading-relaxed pl-10">
+                {item.suggestion}
+              </p>
 
-                  {/* Score Badge */}
-                  {scoreNum !== null && (
-                    <span className="flex-shrink-0 inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 whitespace-nowrap">
-                      {scoreNum}/100
-                    </span>
-                  )}
-                </div>
+              {/* Risk Tags */}
+              <div className="flex flex-wrap gap-2 mt-3 pl-10">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-red-100 text-red-800 text-xs font-medium">
+                  Test risk
+                </span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-red-100 text-red-800 text-xs font-medium">
+                  Academic risk
+                </span>
+              </div>
+
+              {/* AdCom Note */}
+              <div className="mt-3 pl-10 text-xs italic text-slate-600 leading-relaxed">
+                A strong test score is often a non-negotiable requirement and acts as a filter.
               </div>
             </div>
           );

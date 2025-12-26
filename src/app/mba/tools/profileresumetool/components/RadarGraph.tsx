@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import {
   Radar,
@@ -31,25 +30,42 @@ const ORDERED_KEYS: { key: string; label: string }[] = [
   { key: "Industry Exposure", label: "Industry" },
 ];
 
-// Custom tooltip to show “Subject: XX / 100”
+// Premium tooltip with score-based colors
 function RadarTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
-
   const item = payload[0]?.payload;
   if (!item) return null;
 
+  const score = item.fullScore;
+  const colorClass =
+    score >= 80
+      ? "border-emerald-400 bg-emerald-50"
+      : score >= 60
+      ? "border-teal-400 bg-teal-50"
+      : "border-amber-400 bg-amber-50";
+
+  const textColorClass =
+    score >= 80
+      ? "text-emerald-900"
+      : score >= 60
+      ? "text-teal-900"
+      : "text-amber-900";
+
   return (
-    <div className="rounded-xl bg-white/95 border border-emerald-100 px-3 py-2 shadow-md text-xs">
-      <div className="font-semibold text-gray-800">{item.subject}</div>
-      <div className="text-emerald-700 mt-0.5">
+    <div
+      className={`px-3 py-2 sm:px-4 sm:py-3 rounded-lg shadow-lg border-2 ${colorClass}`}
+    >
+      <p className={`font-bold text-xs sm:text-sm ${textColorClass}`}>{item.subject}</p>
+      <p className={`text-lg sm:text-xl font-extrabold mt-1 ${textColorClass}`}>
         {item.fullScore} / 100
-      </div>
+      </p>
     </div>
   );
 }
 
 export default function RadarGraph({ scores = {} }: RadarGraphProps) {
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Trigger animation after component mounts
   useEffect(() => {
@@ -59,75 +75,79 @@ export default function RadarGraph({ scores = {} }: RadarGraphProps) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Build chart data:
-  // - Treat incoming values as either 0–10 or 0–100
-  // - Store both normalized (0–10) and full (0–100) for tooltip
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Build chart data - using 0-100 scale directly
   const data = ORDERED_KEYS.map(({ key, label }) => {
     const raw = scores[key] ?? scores[label] ?? 0;
-    const fullScore = raw > 10 ? Math.max(0, Math.min(100, raw)) : raw * 10; // clamp & scale
-    const normalizedValue = fullScore / 10; // 0–10 for radar
-
+    const fullScore = raw > 10 ? Math.max(0, Math.min(100, raw)) : raw * 10; // clamp & scale to 100
     return {
       subject: label,
-      value: mounted ? normalizedValue : 0,
+      value: mounted ? fullScore : 0, // Use full 0-100 score
       fullScore: Math.round(fullScore),
     };
   });
 
   return (
-    <div className="w-full h-[380px] flex items-center justify-center">
+    <div className="w-full h-64 sm:h-80 md:h-96 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl shadow-inner p-2 sm:p-4">
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart
-          cx="50%"
-          cy="50%"
-          outerRadius="65%"
-          data={data}
-          margin={{ top: 24, right: 40, bottom: 24, left: 40 }}
+        <RadarChart 
+          data={data} 
+          margin={isMobile 
+            ? { top: 10, right: 10, bottom: 10, left: 10 } 
+            : { top: 20, right: 30, bottom: 20, left: 30 }
+          }
         >
-          {/* Gradient + subtle glow */}
+          {/* Minimal gradient */}
           <defs>
-            <linearGradient id="radarGradient" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#34d399" stopOpacity={0.9} />
-              <stop offset="100%" stopColor="#10b981" stopOpacity={0.5} />
+            <linearGradient id="radarFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.1} />
             </linearGradient>
           </defs>
-
-          <PolarGrid
-            stroke="#bbf7d0"
-            strokeWidth={1}
-            radialLines={false}
-          />
+          <PolarGrid stroke="#cbd5e1" strokeWidth={1} />
           <PolarAngleAxis
             dataKey="subject"
-            tick={{
-              fill: "#064e3b",
-              fontSize: 11,
-              fontWeight: 600,
+            tick={{ 
+              fill: "#475569", 
+              fontSize: isMobile ? 10 : 13, 
+              fontWeight: 600 
             }}
-            tickLine={false}
           />
           <PolarRadiusAxis
             angle={90}
-            domain={[0, 10]}
-            tick={{ fill: "#6ee7b7", fontSize: 10 }}
+            domain={[0, 100]}
+            tick={{ 
+              fill: "#64748b", 
+              fontSize: isMobile ? 9 : 11 
+            }}
             tickCount={6}
-            axisLine={false}
-            tickLine={false}
           />
-
-          <Tooltip content={<RadarTooltip />} />
-
           <Radar
-            name="Score"
             dataKey="value"
-            stroke="#059669"
-            strokeWidth={2.5}
-            fill="url(#radarGradient)"
+            stroke="#10b981"
+            fill="url(#radarFill)"
             fillOpacity={0.7}
-            animationDuration={1800}
+            strokeWidth={isMobile ? 2 : 2.5}
+            dot={{ 
+              r: isMobile ? 3 : 5, 
+              fill: "#10b981", 
+              strokeWidth: 2, 
+              stroke: "#fff" 
+            }}
+            isAnimationActive={true}
+            animationDuration={800}
             animationEasing="ease-out"
-            dot={{ fill: "#047857", r: 4, strokeWidth: 2, stroke: "#ecfdf5" }}
           />
+          <Tooltip content={<RadarTooltip />} cursor={false} />
         </RadarChart>
       </ResponsiveContainer>
     </div>

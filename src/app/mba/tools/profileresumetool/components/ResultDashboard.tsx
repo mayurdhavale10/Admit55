@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Image from "next/image";
 import RadarGraph from "./RadarGraph";
 import StrengthsCard from "./StrengthsCard";
 import ImprovementCard from "./ImprovementCard";
@@ -52,6 +53,14 @@ function computeAvgAndTotal(scores: Record<string, number>) {
   return { avg100: Math.round(avg), total100: total, avg10: avg / 10, total10: total / 10 };
 }
 
+// Helper to identify spike areas (top 3 scores)
+function getTopScores(radarInput: Array<{ key: string; label: string; value: number }>) {
+  return radarInput
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3)
+    .map((item) => item.label);
+}
+
 export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboardProps) {
   const scores: Record<string, number> = (data?.scores as Record<string, number>) || {};
 
@@ -63,6 +72,8 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
     label: LABEL_MAP[k] ?? k,
     value: normalizeScoreTo100(scores[k]),
   }));
+
+  const topScores = getTopScores([...radarInput]);
 
   // Strengths
   const backendStrengths = Array.isArray(data?.strengths) ? data.strengths : null;
@@ -339,8 +350,8 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
   return (
     <>
-      {/* ✅ FIXED: Now passing actual data from header_summary */}
-      <div className="mt-8">
+      {/* ✅ Header Summary */}
+      <div className="mt-4 md:mt-8 px-2 sm:px-0">
         <HeaderSummary
           candidateName={data?.candidate_name || data?.name}
           averageScore={avg10}
@@ -356,118 +367,146 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
-        {/* ROW 1: Left main + right sidebar */}
-        <div className="lg:col-span-9 space-y-6">
-          <div className="rounded-2xl bg-white p-6 shadow-sm border">
-            <div className="flex items-start justify-between gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 mt-4 md:mt-6 px-2 sm:px-0">
+        {/* ROW 1: REDESIGNED - Larger Radar Graph + Sidebar */}
+        <div className="lg:col-span-9 space-y-4 md:space-y-6">
+          {/* ✅ NEW: Larger Radar Chart with Spike Insight */}
+          <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-8 shadow-sm border">
+            {/* Header with Logo */}
+            <div className="flex items-start gap-3 md:gap-4 mb-3">
+              <Image
+                src="/logo/admit55_final_logo.webp"
+                alt="Admit55"
+                width={40}
+                height={40}
+                className="w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0"
+              />
               <div>
-                <h2 className="text-2xl font-extrabold text-slate-900">Profile Strength Analysis</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  Visual summary of your MBA readiness across key dimensions.
-                </p>
+                <h2 className="text-lg md:text-2xl font-extrabold text-slate-900">Profile Strength Analysis</h2>
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-xl bg-gradient-to-br from-white to-green-50 p-6">
-                <RadarGraph
-                  scores={radarInput.reduce((acc: Record<string, number>, r) => {
-                    acc[r.label] = r.value;
-                    return acc;
-                  }, {})}
-                />
+            {/* Spike Insight - MOVED UP */}
+            <div className="mb-4 md:mb-6 rounded-lg md:rounded-xl border-l-4 border-emerald-500 bg-emerald-50/50 p-3 md:p-5">
+              <div className="flex items-start gap-2 md:gap-3">
+                <div className="text-xl md:text-2xl flex-shrink-0">📊</div>
+                <div>
+                  <div className="text-xs md:text-sm font-bold text-emerald-900 mb-1 md:mb-2">Your Profile Spikes</div>
+                  <p className="text-xs md:text-sm text-slate-700 leading-relaxed">
+                    Successful admits typically show spikes in <span className="font-semibold">Test Readiness</span>, <span className="font-semibold">Work Impact</span>, and <span className="font-semibold">Leadership</span>. 
+                    Your strongest areas are: <span className="font-bold text-emerald-800">{topScores.join(", ")}</span>.
+                  </p>
+                </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {radarInput.map((r) => (
-                  <div
-                    key={r.key}
-                    className="bg-white rounded-xl p-4 border shadow-sm flex flex-col justify-between"
-                  >
-                    <div className="text-xs text-slate-700">{r.label}</div>
+            {/* Large Radar Chart */}
+            <div className="rounded-lg md:rounded-xl bg-gradient-to-br from-white to-green-50 p-4 md:p-8">
+              <RadarGraph
+                scores={radarInput.reduce((acc: Record<string, number>, r) => {
+                  acc[r.label] = r.value;
+                  return acc;
+                }, {})}
+              />
+            </div>
 
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="text-lg font-semibold text-slate-900">{Math.round(r.value)}</div>
-                      <div className="w-2/3">
-                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            style={{ width: `${r.value}%` }}
-                            className={`h-2 rounded-full ${r.value >= 70 ? "bg-emerald-500" : "bg-sky-500"}`}
-                          />
-                        </div>
+            {/* Score Breakdown Grid - MOVED BELOW */}
+            <div className="mt-4 md:mt-6 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+              {radarInput.map((r) => (
+                <div
+                  key={r.key}
+                  className="bg-white rounded-lg md:rounded-xl p-3 md:p-4 border shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="text-[10px] md:text-xs font-semibold text-slate-600 mb-1 md:mb-2 truncate">{r.label}</div>
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className="text-xl md:text-2xl font-bold text-slate-900">{Math.round(r.value)}</div>
+                    <div className="flex-1">
+                      <div className="h-1.5 md:h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          style={{ width: `${r.value}%` }}
+                          className={`h-1.5 md:h-2 rounded-full transition-all duration-500 ${
+                            r.value >= 80 ? "bg-emerald-500" : r.value >= 60 ? "bg-sky-500" : "bg-amber-500"
+                          }`}
+                        />
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* ✅ NEW: AdCom Panel + Action Plan (only if backend provides them) */}
-          {(whatExcites.length || whatConcerns.length || howToPreempt.length) ? (
-            <AdComPanel whatExcites={whatExcites} whatConcerns={whatConcerns} howToPreempt={howToPreempt} />
-          ) : null}
-
-          {(next4to6Weeks.length || next3Months.length) ? (
-            <ActionPlan next4to6Weeks={next4to6Weeks} next3Months={next3Months} />
-          ) : null}
         </div>
 
         {/* Sidebar (Quick summary + buttons) */}
-        <aside className="lg:col-span-3 space-y-5">
-          {/* Quick Summary */}
-          <div className="rounded-2xl bg-white p-4 shadow-sm border text-sm">
-            <div className="font-semibold mb-2 text-slate-900">Quick Summary</div>
+        <aside className="lg:col-span-3 space-y-4 md:space-y-5">
+          {/* Quick Summary - PROFESSIONAL REDESIGN */}
+          <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-5 shadow-md border border-slate-200">
+            <div className="flex items-center gap-2 mb-3 md:mb-4">
+              <Image
+                src="/logo/admit55_final_logo.webp"
+                alt="Admit55"
+                width={24}
+                height={24}
+                className="w-5 h-5 md:w-6 md:h-6 object-contain"
+              />
+              <h4 className="text-xs md:text-sm font-bold text-slate-900 uppercase tracking-wide">Profile Summary</h4>
+            </div>
 
-            <div className="text-slate-700 text-sm space-y-1">
-              <div>
-                <strong>Average score:</strong> {Math.round(avg10 * 10)}/100
+            {/* Score Display */}
+            <div className="mb-3 md:mb-4">
+              <div className="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Overall Score
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl md:text-4xl font-black text-slate-900">
+                  {Math.round(avg10 * 10)}
+                </span>
+                <span className="text-base md:text-lg font-semibold text-slate-500">/100</span>
               </div>
             </div>
 
             {onNewAnalysis && (
               <button
                 onClick={onNewAnalysis}
-                className="w-full mt-4 text-sm rounded-lg bg-blue-600 text-white py-2.5 font-medium hover:bg-blue-700 transition-colors"
+                className="w-full text-xs md:text-sm rounded-lg bg-red-600 text-white py-2.5 md:py-3 font-semibold hover:bg-red-700 transition-colors shadow-sm"
               >
-                🔄 New Analysis
+               🔄 New Analysis
               </button>
             )}
           </div>
 
           {/* Next Steps */}
-          <div className="rounded-2xl bg-sky-900 text-white p-5 shadow-sm">
-            <h4 className="font-semibold text-base mb-3">Next Steps</h4>
+          <div className="rounded-xl md:rounded-2xl bg-sky-900 text-white p-4 md:p-5 shadow-sm">
+            <h4 className="font-semibold text-sm md:text-base mb-3">Next Steps</h4>
 
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3">
               <button
                 onClick={downloadReport}
-                className="w-full text-sm rounded-lg bg-white text-sky-900 py-2.5 font-medium"
+                className="w-full text-xs md:text-sm rounded-lg bg-white text-sky-900 py-2 md:py-2.5 font-medium"
               >
                 ⤓ Download Report
               </button>
 
               <button
                 onClick={openEmailModal}
-                className="w-full text-sm rounded-lg bg-white/90 text-sky-900 py-2.5 font-medium hover:bg-white"
+                className="w-full text-xs md:text-sm rounded-lg bg-white/90 text-sky-900 py-2 md:py-2.5 font-medium hover:bg-white"
               >
                 ✉ Email Me This
               </button>
 
               <button
                 onClick={startOver}
-                className="w-full text-sm rounded-lg bg-transparent border border-white/40 text-white py-2.5 hover:bg-sky-800/60"
+                className="w-full text-xs md:text-sm rounded-lg bg-transparent border border-white/40 text-white py-2 md:py-2.5 hover:bg-sky-800/60"
               >
                 ↺ Start Over
               </button>
             </div>
           </div>
 
-          {/* Book a Session - compact */}
-          <div className="rounded-2xl bg-emerald-50 p-3 shadow-sm border">
-            <h5 className="font-semibold text-sm text-slate-900">Book a Session</h5>
-            <p className="text-[11px] text-slate-700 mt-1 leading-snug">
+          {/* Book a Session */}
+          <div className="rounded-xl md:rounded-2xl bg-emerald-50 p-3 shadow-sm border">
+            <h5 className="font-semibold text-xs md:text-sm text-slate-900">Book a Session</h5>
+            <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug">
               Get personalised guidance from alumni <span className="text-slate-500">(integration pending)</span>.
             </p>
 
@@ -484,44 +523,98 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               </a>
             </div>
           </div>
+
+          {/* Know More About Admit55 Card */}
+          <div className="rounded-xl md:rounded-2xl bg-emerald-50 p-3 md:p-4 shadow-sm border border-emerald-100">
+            <div className="flex items-center gap-2 mb-2">
+              <Image
+                src="/logo/admit55_final_logo.webp"
+                alt="Admit55"
+                width={24}
+                height={24}
+                className="w-5 h-5 md:w-6 md:h-6 object-contain"
+              />
+              <h5 className="font-semibold text-xs md:text-sm text-slate-900">Know more about Admit55</h5>
+            </div>
+            <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug mb-3">
+              Discover how we help aspiring MBA candidates achieve their dreams with personalized guidance and expert support.
+            </p>
+
+            <div className="mt-2">
+              <a
+                href="/"
+                className="inline-block w-full text-center rounded-md bg-emerald-600 hover:bg-emerald-700 transition-colors text-white px-3 py-2 text-xs font-medium"
+              >
+                Learn More →
+              </a>
+            </div>
+          </div>
+
+          {/* Get Improved Resume Card */}
+          <div className="rounded-xl md:rounded-2xl bg-red-50 p-3 md:p-4 shadow-sm border border-red-100">
+            <div className="flex items-center gap-2 mb-2">
+              <Image
+                src="/logo/admit55_final_logo.webp"
+                alt="Admit55"
+                width={20}
+                height={20}
+                className="w-5 h-5 object-contain"
+              />
+              <h5 className="font-semibold text-xs md:text-sm text-slate-900">Get Improved Resume</h5>
+            </div>
+            <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug mb-3">
+              Transform your resume with AI-powered recommendations tailored for top MBA programs.
+            </p>
+
+            <div className="mt-2">
+              <button
+                onClick={handleGenerateImprovedResume}
+                disabled={improving}
+                className={`inline-block w-full text-center rounded-md transition-colors text-white px-3 py-2 text-xs font-medium ${
+                  improving
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {improving ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Generating...
+                  </span>
+                ) : (
+                  "Generate Now"
+                )}
+              </button>
+            </div>
+          </div>
         </aside>
 
-        {/* ROW 2: Strengths + Improvements spanning FULL width (12 cols) */}
-        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        {/* ROW 2: Strengths + Improvements */}
+        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-stretch">
           <StrengthsCard strengths={strengths} />
-
-          <div className="flex flex-col gap-3">
-            <ImprovementCard improvements={improvements} />
-
-            <button
-              type="button"
-              onClick={handleGenerateImprovedResume}
-              disabled={improving}
-              className={`inline-flex items-center justify-center rounded-lg border text-xs md:text-sm font-medium px-4 py-2.5
-              ${
-                improving
-                  ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
-                  : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-              }`}
-            >
-              {improving ? (
-                <>
-                  <span className="inline-block w-3 h-3 mr-2 rounded-full border-2 border-rose-500 border-t-transparent animate-spin" />
-                  Generating Improved Resume…
-                </>
-              ) : (
-                <>✨ Get Improved Resume (based on these gaps)</>
-              )}
-            </button>
-          </div>
+          <ImprovementCard improvements={improvements} />
         </div>
 
-        {/* ROW 3: Recommendations + Improved Resume, full width */}
-        <div className="lg:col-span-12 space-y-6">
+        {/* ✅ ROW 3: AdCom Panel (MOVED HERE - right after improvements) */}
+        {(whatExcites.length || whatConcerns.length || howToPreempt.length) ? (
+          <div className="lg:col-span-12">
+            <AdComPanel whatExcites={whatExcites} whatConcerns={whatConcerns} howToPreempt={howToPreempt} />
+          </div>
+        ) : null}
+
+        {/* ROW 4: Action Plan */}
+        {(next4to6Weeks.length || next3Months.length) ? (
+          <div className="lg:col-span-12">
+            <ActionPlan next4to6Weeks={next4to6Weeks} next3Months={next3Months} />
+          </div>
+        ) : null}
+
+        {/* ROW 5: Recommendations + Improved Resume */}
+        <div className="lg:col-span-12 space-y-4 md:space-y-6">
           {/* Recommendations */}
-          <div className="rounded-2xl bg-white p-6 shadow-sm border">
-            <h3 className="text-xl font-semibold mb-3 text-slate-900">Actionable Recommendations</h3>
-            <div className="space-y-4">
+          <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-6 shadow-sm border">
+            <h3 className="text-lg md:text-xl font-semibold mb-3 text-slate-900">Actionable Recommendations</h3>
+            <div className="space-y-3 md:space-y-4">
               {recommendations.map((rec: any, idx: number) => (
                 <RecommendationCard key={rec.id ?? idx} recommendations={[rec]} />
               ))}
@@ -532,7 +625,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 type="button"
                 onClick={handleGenerateImprovedResume}
                 disabled={improving}
-                className={`inline-flex items-center rounded-lg text-xs md:text-sm font-medium px-4 py-2.5
+                className={`inline-flex items-center rounded-lg text-xs md:text-sm font-medium px-3 md:px-4 py-2 md:py-2.5
                 ${
                   improving
                     ? "bg-gray-100 text-gray-500 cursor-not-allowed"
@@ -545,32 +638,41 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                     Generating…
                   </>
                 ) : (
-                  <>✨ Improve Resume from Recommendations</>
+                  <>
+                    <Image
+                      src="/logo/admit55_final_logo.webp"
+                      alt="Admit55"
+                      width={16}
+                      height={16}
+                      className="w-4 h-4 object-contain mr-1.5"
+                    />
+                    Improve Resume from Recommendations
+                  </>
                 )}
               </button>
             </div>
           </div>
 
           {/* Improved Resume */}
-          <div ref={improvedRef} className="rounded-2xl bg-white border p-6 shadow-sm">
-            <h3 className="text-xl font-semibold mb-2 text-slate-900">Improved Resume</h3>
+          <div ref={improvedRef} className="rounded-xl md:rounded-2xl bg-white border p-4 md:p-6 shadow-sm">
+            <h3 className="text-lg md:text-xl font-semibold mb-2 text-slate-900">Improved Resume</h3>
 
             {!improvedResume && !improving && (
-              <p className="text-sm text-slate-600">
-                No improved resume generated yet. Use <span className="font-semibold">"Get Improved Resume"</span> to generate a refined draft.
+              <p className="text-xs md:text-sm text-slate-600">
+                No improved resume generated yet. Use <span className="font-semibold">"Improve Resume from Recommendations"</span> to generate a refined draft.
               </p>
             )}
 
             {improving && (
-              <p className="mt-2 text-sm text-sky-700 flex items-center gap-2">
+              <p className="mt-2 text-xs md:text-sm text-sky-700 flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
                 Improving your resume with advanced prompts…
               </p>
             )}
 
             {improvedResume && (
-              <div className="mt-4 rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 max-h-[480px] overflow-y-auto shadow-inner">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono text-gray-800">{improvedResume}</pre>
+              <div className="mt-4 rounded-lg md:rounded-xl border border-gray-200 bg-slate-50 px-4 md:px-5 py-3 md:py-4 max-h-[320px] md:max-h-[480px] overflow-y-auto shadow-inner">
+                <pre className="whitespace-pre-wrap text-xs md:text-sm leading-relaxed font-mono text-gray-800">{improvedResume}</pre>
               </div>
             )}
           </div>
@@ -579,21 +681,21 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
       {/* Email Modal */}
       {isEmailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-sky-100">
-            <div className="px-6 pt-5 pb-4 border-b border-sky-50 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-sky-100 flex items-center justify-center">
-                <span className="text-sky-700 text-lg">✉</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-xl max-w-md w-full border border-sky-100">
+            <div className="px-4 md:px-6 pt-4 md:pt-5 pb-3 md:pb-4 border-b border-sky-50 flex items-center gap-2 md:gap-3">
+              <div className="h-8 w-8 md:h-9 md:w-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-sky-700 text-base md:text-lg">✉</span>
               </div>
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Email your report</h2>
-                <p className="text-xs text-slate-500">
+                <h2 className="text-sm md:text-base font-semibold text-slate-900">Email your report</h2>
+                <p className="text-[10px] md:text-xs text-slate-500">
                   We'll send a PDF copy of your MBA profile report to your inbox.
                 </p>
               </div>
             </div>
 
-            <div className="px-6 pt-4 pb-2 space-y-3">
+            <div className="px-4 md:px-6 pt-3 md:pt-4 pb-2 space-y-3">
               <label className="block text-xs font-medium text-slate-700">
                 Email address
                 <input
@@ -607,17 +709,17 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
 
               {emailError && <p className="text-xs text-red-600">{emailError}</p>}
 
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[10px] md:text-[11px] text-slate-500">
                 You can forward this report to mentors or save it for your MBA applications later.
               </p>
             </div>
 
-            <div className="px-6 pb-4 pt-3 flex justify-end gap-3 bg-slate-50/60 rounded-b-2xl">
+            <div className="px-4 md:px-6 pb-3 md:pb-4 pt-2 md:pt-3 flex justify-end gap-2 md:gap-3 bg-slate-50/60 rounded-b-xl md:rounded-b-2xl">
               <button
                 type="button"
                 onClick={closeEmailModal}
                 disabled={emailSending}
-                className="px-4 py-2 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-60"
+                className="px-3 md:px-4 py-2 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-white disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -625,7 +727,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 type="button"
                 onClick={handleSendEmail}
                 disabled={emailSending}
-                className="px-4 py-2 text-xs font-medium rounded-lg bg-sky-900 text-white hover:bg-sky-800 disabled:opacity-60 flex items-center gap-2"
+                className="px-3 md:px-4 py-2 text-xs font-medium rounded-lg bg-sky-900 text-white hover:bg-sky-800 disabled:opacity-60 flex items-center gap-2"
               >
                 {emailSending && (
                   <span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
