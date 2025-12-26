@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-mba_llm_detailed_pipeline.py v5.5.0
+mba_llm_detailed_pipeline.py v5.5.1
 Provider-agnostic multi-call MBA resume pipeline (Groq / OpenAI / Gemini)
 
-NEW in v5.5.0: Added adcom_panel generation (what_excites, what_concerns, how_to_preempt)
+Fixes in v5.5.1:
+- Ensures output schema is UI-friendly + backward compatible:
+  * recommendations items ALWAYS include `score` (0-100) so old UI doesn't break
+  * also includes `current_score` alias (same value) for newer UI
+- Adds `analysis` root object as a compatibility layer (some frontends render from result.analysis.*)
+- Sanitizes / normalizes list fields so UI never gets null/invalid shapes
 """
 
 import os
@@ -13,7 +18,7 @@ import json
 import re
 import hashlib
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 import requests
 
@@ -42,13 +47,6 @@ class LLMSettings:
 
 
 def _env_default_settings() -> LLMSettings:
-    """
-    Default provider selection order:
-    1) LLM_PROVIDER (if set)
-    2) GROQ (if key exists)
-    3) GEMINI (if key exists)
-    4) OPENAI (if key exists)
-    """
     provider = (os.environ.get("LLM_PROVIDER") or "").strip().lower()
 
     groq_key = os.environ.get("GROQ_API_KEY", "")
@@ -59,7 +57,10 @@ def _env_default_settings() -> LLMSettings:
     gem_model = os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")
 
     openai_key = os.environ.get("OPENAI_API_KEY", "")
-    openai_model = os.environ.get("OPENAI_PRIMARY_MODEL", os.environ.get("OPENAI_FOURTHFALLBACK_MODEL", "gpt-4o-mini"))
+    openai_model = os.environ.get(
+        "OPENAI_PRIMARY_MODEL",
+        os.environ.get("OPENAI_FOURTHFALLBACK_MODEL", "gpt-4o-mini"),
+    )
     openai_base = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
 
     if provider == "groq" and groq_key:
@@ -69,7 +70,6 @@ def _env_default_settings() -> LLMSettings:
     if provider == "openai" and openai_key:
         return LLMSettings(provider="openai", api_key=openai_key, model=openai_model, base_url=openai_base)
 
-    # fallback auto
     if groq_key:
         return LLMSettings(provider="groq", api_key=groq_key, model=groq_model, base_url=groq_base)
     if gem_key:
@@ -77,7 +77,6 @@ def _env_default_settings() -> LLMSettings:
     if openai_key:
         return LLMSettings(provider="openai", api_key=openai_key, model=openai_model, base_url=openai_base)
 
-    # if nothing, create a "broken" config so error is explicit
     return LLMSettings(provider="groq", api_key="", model=groq_model, base_url=groq_base)
 
 
@@ -85,8 +84,7 @@ def _env_default_settings() -> LLMSettings:
 # ENTITY EXTRACTION (for specificity validation)
 # ============================================================
 def extract_resume_entities(resume_text: str) -> Dict[str, set]:
-    """Extract key entities from resume for validation."""
-    text = resume_text.lower()
+    text = (resume_text or "").lower()
     entities: Dict[str, set] = {
         "companies": set(),
         "numbers": set(),
@@ -100,7 +98,6 @@ def extract_resume_entities(resume_text: str) -> Dict[str, set]:
     entities["percentages"] = set(re.findall(r"\d+%", text))
     entities["currencies"] = set(re.findall(r"(?:rs\.?|inr|usd|\$|₹|eur|€)\s*\d+(?:[.,]\d+)?", text))
 
-    # Company name heuristic
     company_keywords = ["pvt", "ltd", "inc", "corp", "llc", "technologies", "solutions", "services", "labs", "systems"]
     words = re.findall(r"[a-z0-9&\-.]+", text)
     for i, w in enumerate(words):
@@ -123,7 +120,6 @@ def extract_resume_entities(resume_text: str) -> Dict[str, set]:
 
 
 def is_specific(text: str, resume_entities: Dict[str, set], min_score: int = 2) -> bool:
-    """Check if text references actual resume content."""
     if not text:
         return False
     text_lower = text.lower()
@@ -144,14 +140,18 @@ def is_specific(text: str, resume_entities: Dict[str, set], min_score: int = 2) 
 
 
 # ============================================================
-# CACHING (cheap, avoids wasting calls)
+# CACHING
 # ============================================================
 _PROMPT_CACHE: Dict[str, str] = {}
 
 
 def _cache_key(settings: LLMSettings, prompt: str, temperature: float, max_tokens: int, response_format: Optional[str]) -> str:
     h = hashlib.sha256()
-    h.update((settings.provider + "|" + settings.model + "|" + str(temperature) + "|" + str(max_tokens) + "|" + str(response_format)).encode("utf-8"))
+    h.update(
+        (settings.provider + "|" + settings.model + "|" + str(temperature) + "|" + str(max_tokens) + "|" + str(response_format)).encode(
+            "utf-8"
+        )
+    )
     h.update(prompt.encode("utf-8"))
     return h.hexdigest()
 
@@ -164,12 +164,11 @@ class LLMError(Exception):
 
 
 def _openai_compatible_url(base_url: str) -> str:
-    base = base_url.rstrip("/")
+    base = (base_url or "").rstrip("/")
     if base.endswith("/chat/completions"):
         return base
     if base.endswith("/v1"):
         return base + "/chat/completions"
-    # allow groq-style base https://api.groq.com/openai/v1
     if base.endswith("/openai/v1"):
         return base + "/chat/completions"
     return base + "/v1/chat/completions"
@@ -182,11 +181,6 @@ def call_llm(
     temperature: float = 0.2,
     response_format: Optional[str] = None,  # "json" or None
 ) -> str:
-    """
-    Provider-agnostic LLM call.
-    - groq/openai: OpenAI-compatible chat.completions
-    - gemini: generateContent API
-    """
     if not settings.api_key:
         raise LLMError(f"Missing API key for provider={settings.provider}")
 
@@ -198,11 +192,11 @@ def call_llm(
     provider = settings.provider.lower().strip()
 
     if provider in ("groq", "openai"):
-        url = _openai_compatible_url(settings.base_url or ("https://api.openai.com/v1" if provider == "openai" else "https://api.groq.com/openai/v1"))
-        headers = {
-            "Authorization": f"Bearer {settings.api_key}",
-            "Content-Type": "application/json",
-        }
+        url = _openai_compatible_url(
+            settings.base_url
+            or ("https://api.openai.com/v1" if provider == "openai" else "https://api.groq.com/openai/v1")
+        )
+        headers = {"Authorization": f"Bearer {settings.api_key}", "Content-Type": "application/json"}
         payload: Dict[str, Any] = {
             "model": settings.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -212,87 +206,65 @@ def call_llm(
         if response_format == "json":
             payload["response_format"] = {"type": "json_object"}
 
-        try:
-            print(f"[llm:{provider}] Calling {settings.model} (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
-            r = requests.post(url, headers=headers, json=payload, timeout=settings.timeout)
-            if r.status_code != 200:
-                raise LLMError(f"HTTP {r.status_code}: {r.text[:600]}")
+        print(f"[llm:{provider}] Calling {settings.model} (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
+        r = requests.post(url, headers=headers, json=payload, timeout=settings.timeout)
+        if r.status_code != 200:
+            raise LLMError(f"HTTP {r.status_code}: {r.text[:600]}")
 
-            data = r.json()
-            content = data["choices"][0]["message"]["content"]
-            if not content:
-                raise LLMError("Empty response")
+        data = r.json()
+        content = data["choices"][0]["message"]["content"]
+        if not content:
+            raise LLMError("Empty response")
 
-            out = content.strip()
-            _PROMPT_CACHE[ck] = out
-            return out
-
-        except requests.exceptions.Timeout:
-            raise LLMError(f"Timeout after {settings.timeout}s")
-        except Exception as e:
-            raise LLMError(f"Request failed: {e}")
+        out = content.strip()
+        _PROMPT_CACHE[ck] = out
+        return out
 
     if provider == "gemini":
         model = settings.model
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.api_key}"
         headers = {"Content-Type": "application/json"}
-
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": float(temperature),
-                "maxOutputTokens": int(max_tokens),
-            },
+            "generationConfig": {"temperature": float(temperature), "maxOutputTokens": int(max_tokens)},
         }
 
-        try:
-            print(f"[llm:gemini] Calling {model} (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
-            r = requests.post(url, headers=headers, json=payload, timeout=settings.timeout)
-            if r.status_code != 200:
-                raise LLMError(f"HTTP {r.status_code}: {r.text[:600]}")
+        print(f"[llm:gemini] Calling {model} (max_tokens={max_tokens}, temp={temperature})", file=sys.stderr)
+        r = requests.post(url, headers=headers, json=payload, timeout=settings.timeout)
+        if r.status_code != 200:
+            raise LLMError(f"HTTP {r.status_code}: {r.text[:600]}")
 
-            data = r.json()
-            candidates = data.get("candidates") or []
-            if not candidates:
-                raise LLMError("Empty candidates from Gemini")
+        data = r.json()
+        candidates = data.get("candidates") or []
+        if not candidates:
+            raise LLMError("Empty candidates from Gemini")
 
-            parts = (((candidates[0] or {}).get("content") or {}).get("parts")) or []
-            if not parts:
-                raise LLMError("Empty parts from Gemini")
+        parts = (((candidates[0] or {}).get("content") or {}).get("parts")) or []
+        if not parts:
+            raise LLMError("Empty parts from Gemini")
 
-            content = (parts[0] or {}).get("text") or ""
-            out = content.strip()
-            if not out:
-                raise LLMError("Empty response text from Gemini")
+        content = (parts[0] or {}).get("text") or ""
+        out = content.strip()
+        if not out:
+            raise LLMError("Empty response text from Gemini")
 
-            _PROMPT_CACHE[ck] = out
-            return out
-
-        except requests.exceptions.Timeout:
-            raise LLMError(f"Timeout after {settings.timeout}s")
-        except Exception as e:
-            raise LLMError(f"Request failed: {e}")
+        _PROMPT_CACHE[ck] = out
+        return out
 
     raise LLMError(f"Unsupported provider: {settings.provider}")
 
 
 # ============================================================
-# JSON PARSING HELPERS (important for Gemini)
+# JSON PARSING HELPERS
 # ============================================================
 def _extract_first_json_object(text: str) -> str:
-    """
-    Extract the first {...} JSON object from a string.
-    Helps when provider returns extra text.
-    """
     if not text:
         raise ValueError("Empty text")
 
-    # quick path
     text_strip = text.strip()
     if text_strip.startswith("{") and text_strip.endswith("}"):
         return text_strip
 
-    # find first balanced json object
     start = text.find("{")
     if start == -1:
         raise ValueError("No JSON object start found")
@@ -311,9 +283,6 @@ def _extract_first_json_object(text: str) -> str:
 
 
 def parse_json_strictish(raw: str) -> Dict[str, Any]:
-    """
-    Try strict json.loads, else try extracting first JSON object.
-    """
     try:
         return json.loads(raw)
     except Exception:
@@ -321,14 +290,30 @@ def parse_json_strictish(raw: str) -> Dict[str, Any]:
         return json.loads(j)
 
 
+def _as_list(x: Any) -> List[Any]:
+    if x is None:
+        return []
+    if isinstance(x, list):
+        return x
+    return []
+
+
+def _as_str(x: Any) -> str:
+    return x.strip() if isinstance(x, str) else ""
+
+
+def _clamp_int(n: Any, lo: int, hi: int, default: int) -> int:
+    try:
+        v = int(float(n))
+        return max(lo, min(hi, v))
+    except Exception:
+        return default
+
+
 # ============================================================
-# PROMPTS (context-aware)
+# PROMPTS
 # ============================================================
 def _context_block(context: Optional[Dict[str, str]]) -> str:
-    """
-    context keys you mentioned:
-    - goal, timeline, tier, test_status, concern
-    """
     if not context:
         return "Context: (none provided)\n"
 
@@ -337,10 +322,8 @@ def _context_block(context: Optional[Dict[str, str]]) -> str:
     for k in ["goal", "timeline", "tier", "test_status", "concern"]:
         if k in safe and safe[k]:
             lines.append(f"- {k}: {safe[k]}")
-
     if not lines:
         return "Context: (none provided)\n"
-
     return "Context:\n" + "\n".join(lines) + "\n"
 
 
@@ -382,24 +365,7 @@ Return ONLY valid JSON:
   "highlights": ["Experience", "Skill Area", "Education", "Achievement", "Gap/Status", ...],
   "applicantArchetypeTitle": "Brief professional identity based on resume facts",
   "applicantArchetypeSubtitle": "Additional context (e.g., 'Second MBA Applicant', 'Career Switcher', etc.)"
-}}
-
-Rules for highlights (8-12 items max):
-- Experience: "X years experience" (if clear from resume)
-- Work areas: Actual roles/functions from resume (e.g., "Corporate Strategy", "Product Management")
-- Education: School names, degrees, certifications from resume
-- Achievements: "Leadership", "Quantified Impact" (if resume shows it)
-- Test status: "No GMAT/GRE", "GMAT 720", etc. (ONLY if mentioned in resume)
-- International: "Limited International Exposure" or "Global Experience" (based on resume)
-- Other factual tags from resume
-
-For applicantArchetypeTitle:
-- Use actual role/industry from resume + functional area
-- Example: "Experienced Engineer | Product & Strategy" or "Finance Professional | Investment Banking"
-
-For applicantArchetypeSubtitle:
-- Add relevant context like "Second MBA Applicant", "Career Switcher", "Early Career Professional"
-- ONLY if clearly evident from resume or context"""
+}}"""
 
 
 ADCOM_PANEL_PROMPT = """You are an MBA admissions committee member reviewing this candidate's profile.
@@ -420,29 +386,15 @@ Improvements:
 
 Provide honest AdCom perspective in JSON format:
 {{
-  "what_excites": [
-    "Specific strength from resume that stands out",
-    "Another compelling aspect",
-    ...
-  ],
-  "what_concerns": [
-    "Specific gap or weakness that raises questions",
-    "Another concern",
-    ...
-  ],
-  "how_to_preempt": [
-    "Specific action to address first concern",
-    "Action for second concern",
-    ...
-  ]
+  "what_excites": ["...", "...", "..."],
+  "what_concerns": ["...", "...", "..."],
+  "how_to_preempt": ["...", "...", "..."]
 }}
 
 Rules:
 - Each array should have 3-5 items
 - Be specific and reference actual resume details
-- what_excites: genuine strengths that make candidate memorable
-- what_concerns: real gaps that could hurt application
-- how_to_preempt: actionable steps to address each concern"""
+- how_to_preempt must be actionable"""
 
 
 STRENGTHS_PROMPT = """You are an MBA admissions expert analyzing a resume.
@@ -465,9 +417,7 @@ Return JSON:
   "strengths": [
     {{"title": "...", "summary": "...", "score": 85}}
   ]
-}}
-
-If you cannot find specific details, explicitly say: "Insufficient specifics in resume text" in the summary."""
+}}"""
 
 
 IMPROVEMENTS_PROMPT = """You are an MBA admissions expert analyzing gaps in this candidate's profile.
@@ -513,7 +463,7 @@ Strengths:
 Improvements:
 {improvements}
 
-Create 5-8 PRIORITIZED RECOMMENDATIONS. Format:
+Create 5-8 PRIORITIZED RECOMMENDATIONS. Return ONLY valid JSON with this structure:
 {{
   "recommendations": [
     {{
@@ -528,7 +478,9 @@ Create 5-8 PRIORITIZED RECOMMENDATIONS. Format:
   ]
 }}
 
-IMPORTANT: If resume clearly shows strong test score (e.g., GMAT ≥700 / GRE ≥325), do NOT recommend test prep."""
+IMPORTANT:
+- score must be 0-100 integer
+- Do NOT recommend test prep if resume clearly includes GMAT >=700 or GRE >=325."""
 
 
 NARRATIVE_PROMPT = """You are an MBA admissions consultant writing a detailed profile assessment.
@@ -564,46 +516,43 @@ Return ONLY markdown text."""
 # ============================================================
 # PIPELINE STEPS
 # ============================================================
-def score_resume(resume_text: str, settings: LLMSettings, context: Optional[Dict[str, str]], fallback: LLMSettings) -> Dict[str, float]:
+def score_resume(resume_text: str, settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, float]:
     prompt = SCORING_PROMPT.format(resume=resume_text, context=_context_block(context))
 
     for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
         try:
-            raw = call_llm(st, prompt, max_tokens=600, temperature=0.1, response_format="json" if st.provider in ("groq", "openai") else None)
+            raw = call_llm(
+                st,
+                prompt,
+                max_tokens=600,
+                temperature=0.1,
+                response_format="json" if st.provider in ("groq", "openai") else None,
+            )
             data = parse_json_strictish(raw)
 
             normalized: Dict[str, float] = {}
             for k, v in data.items():
-                n = float(v)
+                try:
+                    n = float(v)
+                except Exception:
+                    n = 5.0
                 if n > 10:
                     n = n / 10.0
                 normalized[k] = round(max(0.0, min(10.0, n)), 2)
 
-            # ensure keys exist
             required = ["academics", "test_readiness", "leadership", "extracurriculars", "international", "work_impact", "impact", "industry"]
             for rk in required:
                 normalized.setdefault(rk, 5.0)
 
             print(f"[scoring] ✓ ({st.provider}) {normalized}", file=sys.stderr)
             return normalized
-
         except Exception as e:
             print(f"[scoring] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
 
-    return {
-        "academics": 5.0,
-        "test_readiness": 5.0,
-        "leadership": 5.0,
-        "extracurriculars": 5.0,
-        "international": 5.0,
-        "work_impact": 5.0,
-        "impact": 5.0,
-        "industry": 5.0,
-    }
+    return {k: 5.0 for k in ["academics", "test_readiness", "leadership", "extracurriculars", "international", "work_impact", "impact", "industry"]}
 
 
-def generate_header_summary(resume_text: str, scores: Dict[str, float], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: LLMSettings) -> Dict[str, Any]:
-    """Generate summary, highlights, and archetype for UI header."""
+def generate_header_summary(resume_text: str, scores: Dict[str, float], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: Optional[LLMSettings]) -> Dict[str, Any]:
     prompt = HEADER_SUMMARY_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -612,23 +561,26 @@ def generate_header_summary(resume_text: str, scores: Dict[str, float], settings
 
     for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
         try:
-            raw = call_llm(st, prompt, max_tokens=1200, temperature=0.2, response_format="json" if st.provider in ("groq", "openai") else None)
+            raw = call_llm(
+                st,
+                prompt,
+                max_tokens=1200,
+                temperature=0.2,
+                response_format="json" if st.provider in ("groq", "openai") else None,
+            )
             data = parse_json_strictish(raw)
 
             result = {
-                "summary": data.get("summary", ""),
-                "highlights": data.get("highlights", [])[:18],  # max 18 chips
-                "applicantArchetypeTitle": data.get("applicantArchetypeTitle", ""),
-                "applicantArchetypeSubtitle": data.get("applicantArchetypeSubtitle", ""),
+                "summary": _as_str(data.get("summary", "")),
+                "highlights": _as_list(data.get("highlights", []))[:18],
+                "applicantArchetypeTitle": _as_str(data.get("applicantArchetypeTitle", "")),
+                "applicantArchetypeSubtitle": _as_str(data.get("applicantArchetypeSubtitle", "")),
             }
-
             print(f"[header_summary] ✓ ({st.provider}) generated summary + {len(result['highlights'])} highlights", file=sys.stderr)
             return result
-
         except Exception as e:
             print(f"[header_summary] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
 
-    # Fallback
     return {
         "summary": "Profile analysis complete. Review detailed sections below.",
         "highlights": [],
@@ -644,9 +596,8 @@ def generate_adcom_panel(
     improvements: List[Dict],
     settings: LLMSettings,
     context: Optional[Dict[str, str]],
-    fallback: LLMSettings,
+    fallback: Optional[LLMSettings],
 ) -> Dict[str, List[str]]:
-    """Generate AdCom perspective: what excites, what concerns, how to preempt."""
     prompt = ADCOM_PANEL_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -657,67 +608,91 @@ def generate_adcom_panel(
 
     for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
         try:
-            raw = call_llm(st, prompt, max_tokens=1800, temperature=0.25, response_format="json" if st.provider in ("groq", "openai") else None)
+            raw = call_llm(
+                st,
+                prompt,
+                max_tokens=1800,
+                temperature=0.25,
+                response_format="json" if st.provider in ("groq", "openai") else None,
+            )
             data = parse_json_strictish(raw)
 
             result = {
-                "what_excites": data.get("what_excites", []),
-                "what_concerns": data.get("what_concerns", []),
-                "how_to_preempt": data.get("how_to_preempt", []),
+                "what_excites": [str(x) for x in _as_list(data.get("what_excites"))][:5],
+                "what_concerns": [str(x) for x in _as_list(data.get("what_concerns"))][:5],
+                "how_to_preempt": [str(x) for x in _as_list(data.get("how_to_preempt"))][:5],
             }
-
-            print(f"[adcom_panel] ✓ ({st.provider}) excites={len(result['what_excites'])}, concerns={len(result['what_concerns'])}, preempt={len(result['how_to_preempt'])}", file=sys.stderr)
+            print(
+                f"[adcom_panel] ✓ ({st.provider}) excites={len(result['what_excites'])}, concerns={len(result['what_concerns'])}, preempt={len(result['how_to_preempt'])}",
+                file=sys.stderr,
+            )
             return result
-
         except Exception as e:
             print(f"[adcom_panel] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
 
-    # Fallback
-    return {
-        "what_excites": [],
-        "what_concerns": [],
-        "how_to_preempt": [],
-    }
+    return {"what_excites": [], "what_concerns": [], "how_to_preempt": []}
 
 
-def extract_strengths(resume_text: str, entities: Dict[str, set], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: LLMSettings, max_retries: int = 2) -> List[Dict]:
+def extract_strengths(
+    resume_text: str,
+    entities: Dict[str, set],
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+    max_retries: int = 2,
+) -> List[Dict]:
     base_prompt = STRENGTHS_PROMPT.format(resume=resume_text, context=_context_block(context))
-
-    # Try provider(s). Within each provider, allow a retry if too generic.
     providers_to_try = [settings] + ([fallback] if fallback else [])
 
     for st in providers_to_try:
-        prompt = base_prompt
         for attempt in range(max_retries):
             try:
+                prompt = base_prompt
                 if attempt > 0:
                     prompt = base_prompt + "\n\nWARNING: Previous attempt was too generic. MUST include resume-specific companies/metrics/roles. Return only JSON."
 
-                raw = call_llm(st, prompt, max_tokens=2200, temperature=0.2, response_format="json" if st.provider in ("groq", "openai") else None)
-                data = parse_json_strictish(raw)
-                strengths = data.get("strengths", []) or []
-
-                specific_count = sum(
-                    1 for s in strengths if is_specific(f"{s.get('title','')} {s.get('summary','')}", entities, min_score=3)
+                raw = call_llm(
+                    st,
+                    prompt,
+                    max_tokens=2200,
+                    temperature=0.2,
+                    response_format="json" if st.provider in ("groq", "openai") else None,
                 )
-                generic_ratio = 1 - (specific_count / max(1, len(strengths)))
+                data = parse_json_strictish(raw)
+                strengths = _as_list(data.get("strengths")) or []
 
-                print(f"[strengths] ({st.provider}) attempt {attempt+1}: {specific_count}/{len(strengths)} specific (generic {generic_ratio:.0%})", file=sys.stderr)
+                cleaned: List[Dict] = []
+                for s in strengths:
+                    if not isinstance(s, dict):
+                        continue
+                    cleaned.append(
+                        {
+                            "title": _as_str(s.get("title")),
+                            "summary": _as_str(s.get("summary")),
+                            "score": _clamp_int(s.get("score"), 0, 100, 70),
+                        }
+                    )
 
-                if strengths and generic_ratio <= 0.5:
-                    print(f"[strengths] ✓ using {st.provider} extracted {len(strengths)}", file=sys.stderr)
-                    return strengths
+                specific_count = sum(1 for s in cleaned if is_specific(f"{s.get('title','')} {s.get('summary','')}", entities, min_score=3))
+                generic_ratio = 1 - (specific_count / max(1, len(cleaned)))
+                print(f"[strengths] ({st.provider}) attempt {attempt+1}: {specific_count}/{len(cleaned)} specific (generic {generic_ratio:.0%})", file=sys.stderr)
 
-                # If all generic, retry (same provider) once more; else move provider
-
+                if cleaned and generic_ratio <= 0.5:
+                    print(f"[strengths] ✓ using {st.provider} extracted {len(cleaned)}", file=sys.stderr)
+                    return cleaned
             except Exception as e:
                 print(f"[strengths] ✗ ({st.provider}) attempt {attempt+1} failed: {e}", file=sys.stderr)
-                continue
 
     return []
 
 
-def extract_improvements(resume_text: str, scores: Dict[str, float], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: LLMSettings) -> List[Dict]:
+def extract_improvements(
+    resume_text: str,
+    scores: Dict[str, float],
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+) -> List[Dict]:
     prompt = IMPROVEMENTS_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -726,20 +701,79 @@ def extract_improvements(resume_text: str, scores: Dict[str, float], settings: L
 
     for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
         try:
-            raw = call_llm(st, prompt, max_tokens=2200, temperature=0.2, response_format="json" if st.provider in ("groq", "openai") else None)
+            raw = call_llm(
+                st,
+                prompt,
+                max_tokens=2200,
+                temperature=0.2,
+                response_format="json" if st.provider in ("groq", "openai") else None,
+            )
             data = parse_json_strictish(raw)
-            improvements = data.get("improvements", []) or []
+            improvements = _as_list(data.get("improvements")) or []
 
-            print(f"[improvements] ✓ ({st.provider}) {len(improvements)} areas", file=sys.stderr)
-            return improvements
+            cleaned: List[Dict] = []
+            for it in improvements:
+                if not isinstance(it, dict):
+                    continue
+                cleaned.append(
+                    {
+                        "area": _as_str(it.get("area")),
+                        "suggestion": _as_str(it.get("suggestion")),
+                        "score": _clamp_int(it.get("score"), 0, 100, 65),
+                    }
+                )
 
+            print(f"[improvements] ✓ ({st.provider}) {len(cleaned)} areas", file=sys.stderr)
+            return cleaned
         except Exception as e:
             print(f"[improvements] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
 
     return []
 
 
-def extract_recommendations(resume_text: str, scores: Dict, strengths: List, improvements: List, settings: LLMSettings, context: Optional[Dict[str, str]], fallback: LLMSettings) -> List[Dict]:
+def _normalize_recommendations(raw_recs: Any) -> List[Dict]:
+    """
+    IMPORTANT: guarantees BOTH `score` and `current_score` exist
+    so old UI (score) and new UI (current_score) both render.
+    """
+    recs = _as_list(raw_recs)
+    out: List[Dict] = []
+    for i, r in enumerate(recs, start=1):
+        if not isinstance(r, dict):
+            continue
+
+        # accept either key coming from LLM, but always output both
+        score_val = r.get("score", r.get("current_score", r.get("rating", 70)))
+        score_int = _clamp_int(score_val, 0, 100, 70)
+
+        out.append(
+            {
+                "id": _as_str(r.get("id")) or f"rec_{i}",
+                "type": _as_str(r.get("type")) or "other",
+                "area": _as_str(r.get("area")) or "General",
+                "priority": _as_str(r.get("priority")) or "medium",
+                "action": _as_str(r.get("action")),
+                "estimated_impact": _as_str(r.get("estimated_impact")),
+                # backward compat:
+                "score": score_int,
+                # forward compat:
+                "current_score": score_int,
+                # optional extras (don’t break UI if ignored):
+                "timeframe": _as_str(r.get("timeframe", "")),
+            }
+        )
+    return out
+
+
+def extract_recommendations(
+    resume_text: str,
+    scores: Dict,
+    strengths: List,
+    improvements: List,
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+) -> List[Dict]:
     prompt = RECOMMENDATIONS_PROMPT.format(
         resume=resume_text,
         scores=json.dumps(scores, indent=2),
@@ -750,20 +784,30 @@ def extract_recommendations(resume_text: str, scores: Dict, strengths: List, imp
 
     for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
         try:
-            raw = call_llm(st, prompt, max_tokens=2800, temperature=0.3, response_format="json" if st.provider in ("groq", "openai") else None)
+            raw = call_llm(
+                st,
+                prompt,
+                max_tokens=2800,
+                temperature=0.3,
+                response_format="json" if st.provider in ("groq", "openai") else None,
+            )
             data = parse_json_strictish(raw)
-            recs = data.get("recommendations", []) or []
-
-            print(f"[recommendations] ✓ ({st.provider}) {len(recs)} items", file=sys.stderr)
-            return recs
-
+            cleaned = _normalize_recommendations(data.get("recommendations"))
+            print(f"[recommendations] ✓ ({st.provider}) {len(cleaned)} items", file=sys.stderr)
+            return cleaned
         except Exception as e:
             print(f"[recommendations] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
 
     return []
 
 
-def generate_narrative(resume_text: str, analysis: Dict[str, Any], settings: LLMSettings, context: Optional[Dict[str, str]], fallback: LLMSettings) -> str:
+def generate_narrative(
+    resume_text: str,
+    analysis: Dict[str, Any],
+    settings: LLMSettings,
+    context: Optional[Dict[str, str]],
+    fallback: Optional[LLMSettings],
+) -> str:
     prompt = NARRATIVE_PROMPT.format(
         resume=resume_text,
         analysis=json.dumps(analysis, indent=2, ensure_ascii=False),
@@ -772,15 +816,12 @@ def generate_narrative(resume_text: str, analysis: Dict[str, Any], settings: LLM
 
     for attempt, st in enumerate([settings, fallback] if fallback else [settings], start=1):
         try:
-            # narrative is expensive, so keep it bounded
             out = call_llm(st, prompt, max_tokens=2200, temperature=0.35, response_format=None)
-
             print(f"[narrative] ✓ ({st.provider}) {len(out)} chars", file=sys.stderr)
             return out
-
         except Exception as e:
             print(f"[narrative] ✗ attempt {attempt} failed: {e}", file=sys.stderr)
-    
+
     return "Narrative generation failed."
 
 
@@ -794,58 +835,49 @@ def run_pipeline(
     context: Optional[Dict[str, str]] = None,
     include_narrative: bool = True,
 ) -> Dict[str, Any]:
-    """
-    Execute multi-call pipeline.
-    - include_narrative=True keeps your "detailed explanation" section.
-    - If you want to save cost, set include_narrative=False (UI can still show cards from JSON).
-    """
     settings = settings or _env_default_settings()
 
-    # default fallback: if primary is groq -> gemini else groq
     if fallback is None:
         if settings.provider == "groq" and os.environ.get("GEMINI_API_KEY"):
             fallback = LLMSettings(
                 provider="gemini",
                 api_key=os.environ.get("GEMINI_API_KEY", ""),
-                model=os.environ.get("GEMINI_SECONDARYFALLBACK_MODEL", os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash"))
+                model=os.environ.get("GEMINI_SECONDARYFALLBACK_MODEL", os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")),
             )
         elif settings.provider != "groq" and os.environ.get("GROQ_API_KEY"):
             fallback = LLMSettings(
                 provider="groq",
                 api_key=os.environ.get("GROQ_API_KEY", ""),
                 model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                base_url=os.environ.get("GROQ_API_URL", "https://api.groq.com/openai/v1")
+                base_url=os.environ.get("GROQ_API_URL", "https://api.groq.com/openai/v1"),
             )
         else:
             fallback = None
 
     start = time.time()
     print("\n" + "=" * 60, file=sys.stderr)
-    print(f"MBA ANALYSIS PIPELINE v5.5.0 ({settings.provider}/{settings.model})", file=sys.stderr)
+    print(f"MBA ANALYSIS PIPELINE v5.5.1 ({settings.provider}/{settings.model})", file=sys.stderr)
     if fallback:
         print(f"Fallback: {fallback.provider}/{fallback.model}", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
 
+    resume_text = resume_text or ""
     entities = extract_resume_entities(resume_text)
 
-    # Step 1: Score
     scores = score_resume(resume_text, settings, context, fallback)
-    
-    # Step 2: Header Summary
     header_summary = generate_header_summary(resume_text, scores, settings, context, fallback)
-    
-    # Step 3: Strengths, Improvements
+
     strengths = extract_strengths(resume_text, entities, settings, context, fallback, max_retries=2)
     improvements = extract_improvements(resume_text, scores, settings, context, fallback)
-    
-    # Step 4: AdCom Panel (NEW in v5.5.0)
+
     adcom_panel = generate_adcom_panel(resume_text, scores, strengths, improvements, settings, context, fallback)
-    
-    # Step 5: Recommendations
+
     recommendations = extract_recommendations(resume_text, scores, strengths, improvements, settings, context, fallback)
 
     analysis = {
         "scores": scores,
+        "header_summary": header_summary,
+        "adcom_panel": adcom_panel,
         "strengths": strengths,
         "improvements": improvements,
         "recommendations": recommendations,
@@ -860,18 +892,27 @@ def run_pipeline(
     print(f"PIPELINE COMPLETE in {duration}s", file=sys.stderr)
     print("=" * 60 + "\n", file=sys.stderr)
 
+    # IMPORTANT: return BOTH:
+    # - root fields (your current frontend)
+    # - analysis object (older frontend / safer compatibility)
     return {
         "success": True,
         "original_resume": resume_text,
+
+        # root (current)
         "scores": scores,
         "header_summary": header_summary,
-        "adcom_panel": adcom_panel,  # NEW in v5.5.0
+        "adcom_panel": adcom_panel,
         "strengths": strengths,
         "improvements": improvements,
         "recommendations": recommendations,
         "narrative": narrative,
+
+        # compatibility layer (some UIs read from result.analysis.*)
+        "analysis": analysis,
+
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pipeline_version": "5.5.0-llm-agnostic",
+        "pipeline_version": "5.5.1-llm-agnostic",
         "processing_meta": {
             "total_duration_seconds": duration,
             "provider": settings.provider,
@@ -891,7 +932,7 @@ def run_pipeline(
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="MBA Pipeline v5.5.0 (Groq/OpenAI/Gemini)")
+    parser = argparse.ArgumentParser(description="MBA Pipeline v5.5.1 (Groq/OpenAI/Gemini)")
     parser.add_argument("resume_text", nargs="?", default="", help="Resume text OR path to a .txt file")
     parser.add_argument("--provider", default="", help="groq|openai|gemini (overrides env)")
     parser.add_argument("--model", default="", help="model name (overrides env)")
@@ -924,9 +965,8 @@ def main():
     context = None
     if args.context.strip():
         try:
-            context = json.loads(args.context)
-            if not isinstance(context, dict):
-                context = None
+            ctx = json.loads(args.context)
+            context = ctx if isinstance(ctx, dict) else None
         except Exception:
             context = None
 

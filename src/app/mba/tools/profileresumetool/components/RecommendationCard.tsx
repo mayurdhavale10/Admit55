@@ -7,9 +7,12 @@ export interface RecommendationItem {
   type?: string;
   area?: string;
   priority?: "high" | "medium" | "low" | string;
+  // NEW pipeline uses current_score, older ones might use score
   current_score?: number | null;
-  action: string;
-  estimated_impact?: string;
+  score?: number | null;
+
+  action?: string | null;
+  estimated_impact?: string | null;
 }
 
 interface RecommendationCardProps {
@@ -19,7 +22,7 @@ interface RecommendationCardProps {
 export default function RecommendationCard({
   recommendations,
 }: RecommendationCardProps) {
-  if (!recommendations || recommendations.length === 0) return null;
+  if (!Array.isArray(recommendations) || recommendations.length === 0) return null;
 
   return (
     <section className="rounded-3xl border border-sky-100 bg-gradient-to-b from-sky-50 to-cyan-50 px-6 py-6 md:px-8 md:py-8 shadow-sm w-full">
@@ -31,6 +34,7 @@ export default function RecommendationCard({
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -53,15 +57,26 @@ export default function RecommendationCard({
       {/* Recommendations List */}
       <div className="space-y-4 md:space-y-5">
         {recommendations.map((item, idx) => {
-          const scoreText =
-            typeof item.current_score === "number" &&
-            !Number.isNaN(item.current_score)
-              ? `${Math.round(item.current_score)}/100`
+          const rawScore =
+            typeof item.current_score === "number"
+              ? item.current_score
+              : typeof item.score === "number"
+              ? item.score
               : null;
+
+          const scoreText =
+            typeof rawScore === "number" && !Number.isNaN(rawScore)
+              ? `${Math.round(rawScore)}/100`
+              : null;
+
+          const actionText =
+            typeof item.action === "string" && item.action.trim().length > 0
+              ? item.action.trim()
+              : "Action not provided.";
 
           return (
             <div
-              key={item.id ?? idx}
+              key={item.id ?? `${idx}-${item.area ?? "rec"}`}
               className="rounded-2xl bg-white/95 border border-sky-100 px-4 py-4 md:px-6 md:py-5 shadow-sm"
             >
               <div className="flex gap-4">
@@ -80,11 +95,13 @@ export default function RecommendationCard({
                         {item.area}
                       </span>
                     )}
+
                     {item.priority && (
                       <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 border border-amber-100">
-                        Priority: {item.priority.toString().toUpperCase()}
+                        Priority: {String(item.priority).toUpperCase()}
                       </span>
                     )}
+
                     {scoreText && (
                       <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 border border-slate-100">
                         Current: {scoreText}
@@ -93,7 +110,7 @@ export default function RecommendationCard({
                   </div>
 
                   <p className="text-sm md:text-base text-slate-800 leading-relaxed">
-                    {item.action}
+                    {actionText}
                   </p>
 
                   {item.estimated_impact && (
