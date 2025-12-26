@@ -10,10 +10,6 @@ import RecommendationCard from "./RecommendationCard";
 // ✅ NEW
 import HeaderSummary from "./HeaderSummary";
 import AdComPanel from "./AdComPanel";
-import ActionPlan from "./ActionPlan";
-
-// ✅ types for ActionPlan (fixes: string[] not assignable to ActionItem[])
-import type { ActionItem } from "./ActionPlan";
 
 interface ResultDashboardProps {
   data: any;
@@ -61,69 +57,6 @@ function getTopScores(radarInput: Array<{ key: string; label: string; value: num
     .sort((a, b) => b.value - a.value)
     .slice(0, 3)
     .map((item) => item.label);
-}
-
-/** ✅ Converts pipeline string[] OR object[] into ActionItem[] expected by ActionPlan */
-function toActionItems(input: any): ActionItem[] {
-  if (!Array.isArray(input)) return [];
-
-  return input
-    .map((x: any, idx: number) => {
-      // If pipeline returned strings
-      if (typeof x === "string") {
-        const text = x.trim();
-        if (!text) return null;
-        return {
-          title: `Action ${idx + 1}`,
-          description: text,
-          priority: "medium",
-        } as ActionItem;
-      }
-
-      // If pipeline returned objects already
-      if (x && typeof x === "object") {
-        const title =
-          typeof x.title === "string" && x.title.trim()
-            ? x.title.trim()
-            : typeof x.area === "string" && x.area.trim()
-            ? x.area.trim()
-            : `Action ${idx + 1}`;
-
-        const description =
-          typeof x.description === "string" && x.description.trim()
-            ? x.description.trim()
-            : typeof x.action === "string" && x.action.trim()
-            ? x.action.trim()
-            : typeof x.text === "string" && x.text.trim()
-            ? x.text.trim()
-            : "";
-
-        if (!description) return null;
-
-        const priority =
-          typeof x.priority === "string" && x.priority.trim()
-            ? x.priority.trim()
-            : "medium";
-
-        const current_score =
-          typeof x.current_score === "number"
-            ? x.current_score
-            : typeof x.score === "number"
-            ? x.score
-            : null;
-
-        return {
-          ...x,
-          title,
-          description,
-          priority,
-          current_score,
-        } as ActionItem;
-      }
-
-      return null;
-    })
-    .filter(Boolean) as ActionItem[];
 }
 
 export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboardProps) {
@@ -225,7 +158,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         estimated_impact: "Should meaningfully improve competitiveness",
         current_score: typeof imp.score === "number" ? imp.score : null,
         score: typeof imp.score === "number" ? imp.score : null,
-        timeframe: "Next 4–6 weeks",
+        timeframe: "next_4_6_weeks",
       }))) as any[];
 
   // ✅ AdCom Panel
@@ -235,41 +168,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
   const whatConcerns: string[] = Array.isArray(adcom?.what_concerns) ? adcom.what_concerns : [];
   const howToPreempt: string[] = Array.isArray(adcom?.how_to_preempt) ? adcom.how_to_preempt : [];
 
-  // ✅ Action Plan: accept either your own action_plan OR fallback to recommendations split by timeframe
-  const actionPlan = data?.action_plan || data?.plan || null;
-
-  const next4to6Weeks: ActionItem[] = toActionItems(actionPlan?.next_4_6_weeks);
-  const next3Months: ActionItem[] = toActionItems(actionPlan?.next_3_months);
-
-  // If backend didn't send action_plan, build it from recommendations (so UI never empty)
-  const derived4to6 = recommendations
-    .filter((r: any) => (r?.timeframe || "").toLowerCase().includes("week"))
-    .slice(0, 4)
-    .map((r: any, i: number) => ({
-      title: r.area || `Action ${i + 1}`,
-      description: r.action || "",
-      priority: r.priority || "medium",
-      current_score: r.current_score ?? null,
-    })) as ActionItem[];
-
-  const derived3mo = recommendations
-    .filter((r: any) => (r?.timeframe || "").toLowerCase().includes("month"))
-    .slice(0, 4)
-    .map((r: any, i: number) => ({
-      title: r.area || `Action ${i + 1}`,
-      description: r.action || "",
-      priority: r.priority || "medium",
-      current_score: r.current_score ?? null,
-    })) as ActionItem[];
-
-  const finalNext4to6Weeks = next4to6Weeks.length ? next4to6Weeks : derived4to6;
-  const finalNext3Months = next3Months.length ? next3Months : derived3mo;
-
   // ✅ Header Summary (real pipeline data, with safe fallback)
   const headerSummary =
     data?.header_summary || {
-      summary:
-        "Profile analysis complete. Review the detailed sections below.",
+      summary: "Profile analysis complete. Review the detailed sections below.",
       highlights: [],
       applicantArchetypeTitle: "MBA Candidate",
       applicantArchetypeSubtitle: "",
@@ -422,12 +324,8 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                     Successful admits typically show spikes in{" "}
                     <span className="font-semibold">Test Readiness</span>,{" "}
                     <span className="font-semibold">Work Impact</span>, and{" "}
-                    <span className="font-semibold">Leadership</span>. Your
-                    strongest areas are:{" "}
-                    <span className="font-bold text-emerald-800">
-                      {topScores.join(", ")}
-                    </span>
-                    .
+                    <span className="font-semibold">Leadership</span>. Your strongest areas are:{" "}
+                    <span className="font-bold text-emerald-800">{topScores.join(", ")}</span>.
                   </p>
                 </div>
               </div>
@@ -500,9 +398,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 <span className="text-3xl md:text-4xl font-black text-slate-900">
                   {Math.round(avg10 * 10)}
                 </span>
-                <span className="text-base md:text-lg font-semibold text-slate-500">
-                  /100
-                </span>
+                <span className="text-base md:text-lg font-semibold text-slate-500">/100</span>
               </div>
             </div>
 
@@ -517,9 +413,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           </div>
 
           <div className="rounded-xl md:rounded-2xl bg-sky-900 text-white p-4 md:p-5 shadow-sm">
-            <h4 className="font-semibold text-sm md:text-base mb-3">
-              Next Steps
-            </h4>
+            <h4 className="font-semibold text-sm md:text-base mb-3">Next Steps</h4>
 
             <div className="space-y-2 md:space-y-3">
               <button
@@ -546,9 +440,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
           </div>
 
           <div className="rounded-xl md:rounded-2xl bg-emerald-50 p-3 shadow-sm border">
-            <h5 className="font-semibold text-xs md:text-sm text-slate-900">
-              Book a Session
-            </h5>
+            <h5 className="font-semibold text-xs md:text-sm text-slate-900">Book a Session</h5>
             <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug">
               Get personalised guidance from alumni{" "}
               <span className="text-slate-500">(integration pending)</span>.
@@ -577,13 +469,10 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 height={24}
                 className="w-5 h-5 md:w-6 md:h-6 object-contain"
               />
-              <h5 className="font-semibold text-xs md:text-sm text-slate-900">
-                Know more about Admit55
-              </h5>
+              <h5 className="font-semibold text-xs md:text-sm text-slate-900">Know more about Admit55</h5>
             </div>
             <p className="text-[10px] md:text-[11px] text-slate-700 mt-1 leading-snug mb-3">
-              Discover how we help aspiring MBA candidates achieve their dreams
-              with personalized guidance and expert support.
+              Discover how we help aspiring MBA candidates achieve their dreams with personalized guidance and expert support.
             </p>
 
             <div className="mt-2">
@@ -606,31 +495,14 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
         {/* ROW 3: AdCom Panel */}
         {whatExcites.length || whatConcerns.length || howToPreempt.length ? (
           <div className="lg:col-span-12">
-            <AdComPanel
-              whatExcites={whatExcites}
-              whatConcerns={whatConcerns}
-              howToPreempt={howToPreempt}
-            />
+            <AdComPanel whatExcites={whatExcites} whatConcerns={whatConcerns} howToPreempt={howToPreempt} />
           </div>
         ) : null}
 
-        {/* ROW 4: Action Plan (always tries to show something derived) */}
-        {(finalNext4to6Weeks.length || finalNext3Months.length) ? (
-          <div className="lg:col-span-12">
-            <ActionPlan
-              next4to6Weeks={finalNext4to6Weeks}
-              next3Months={finalNext3Months}
-            />
-          </div>
-        ) : null}
-
-        {/* ROW 5: Recommendations (✅ render ONCE) */}
+        {/* ✅ ROW 4: Action Plan (RecommendationCard only; render ONCE) */}
         <div className="lg:col-span-12 space-y-4 md:space-y-6">
           <div className="rounded-xl md:rounded-2xl bg-white p-4 md:p-6 shadow-sm border">
-            <h3 className="text-lg md:text-xl font-semibold mb-3 text-slate-900">
-              Actionable Recommendations
-            </h3>
-
+            <h3 className="text-lg md:text-xl font-semibold mb-3 text-slate-900">Your Action Plan</h3>
             <RecommendationCard recommendations={recommendations} />
           </div>
         </div>
@@ -645,9 +517,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
                 <span className="text-sky-700 text-base md:text-lg">✉</span>
               </div>
               <div>
-                <h2 className="text-sm md:text-base font-semibold text-slate-900">
-                  Email your report
-                </h2>
+                <h2 className="text-sm md:text-base font-semibold text-slate-900">Email your report</h2>
                 <p className="text-[10px] md:text-xs text-slate-500">
                   We'll send a PDF copy of your MBA profile report to your inbox.
                 </p>
@@ -669,8 +539,7 @@ export default function ResultDashboard({ data, onNewAnalysis }: ResultDashboard
               {emailError && <p className="text-xs text-red-600">{emailError}</p>}
 
               <p className="text-[10px] md:text-[11px] text-slate-500">
-                You can forward this report to mentors or save it for your MBA
-                applications later.
+                You can forward this report to mentors or save it for your MBA applications later.
               </p>
             </div>
 
