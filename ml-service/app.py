@@ -261,7 +261,7 @@ async def analyze_resume(
             settings=settings,
             fallback=None,
             context=context_dict,
-            include_narrative=True,  # Set to False to save tokens
+            include_narrative=False,  # Set to False to save tokens
         )
 
         print("[API] Analysis complete", file=sys.stderr)
