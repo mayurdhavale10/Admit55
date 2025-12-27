@@ -15,6 +15,12 @@ def as_str(x: Any) -> str:
     return x.strip() if isinstance(x, str) else ""
 
 
+# ✅ NEW: Add alias for underscore version
+def _as_str(x: Any) -> str:
+    """Alias for as_str (for backwards compatibility)"""
+    return as_str(x)
+
+
 def clamp_int(n: Any, lo: int, hi: int, default: int) -> int:
     try:
         v = int(float(n))
