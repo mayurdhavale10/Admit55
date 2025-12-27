@@ -49,12 +49,12 @@ ACTION STRUCTURE:
   "id": "rec_1",
   "type": "skill|test|extracurricular|career|resume|networking|other",
   "area": "Short label",
-  "priority": "high|medium|low",  // high = blocks other work, medium = important, low = nice-to-have
-  "timeframe": "next_1_3_weeks | next_3_6_weeks | next_3_months",  // EXACT string match
+  "priority": "high|medium|low",
+  "timeframe": "next_1_3_weeks | next_3_6_weeks | next_3_months",
   "action": "3-4 sentences: WHAT (specific task), HOW (exact steps), OUTPUT (deliverable to produce), WHY (how it helps admissions)",
   "estimated_impact": "1-2 sentences: quantify improvement (e.g., 'Raises work_impact score from 6→8')",
   "current_score": <0-100>,
-  "score": <0-100>  // Expected score after completing action
+  "score": <0-100>
 }}
 
 GOOD EXAMPLE (URGENT timeline):

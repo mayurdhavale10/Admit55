@@ -26,28 +26,25 @@ For each improvement:
 1. area: Short label (e.g., "GMAT Score Gap", "Leadership Evidence")
 2. suggestion: 2-3 sentences with SPECIFIC, ACTIONABLE advice tied to their background + timeline
 3. score: Current rating (0-100)
-4. target_score: What they need for their target tier (0-100)
 
 GOOD EXAMPLE:
 {{
   "area": "Quantitative Impact Evidence",
   "suggestion": "Your Flipkart PM work mentions 'improved user retention' but lacks numbers. Dig into analytics: even rough estimates like '10-15% retention lift' or '500K+ users affected' make claims credible. For M7 schools, quantified impact is non-negotiable—add 3-5 metrics to your resume bullets by end of Week 2.",
-  "score": 45,
-  "target_score": 75
+  "score": 45
 }}
 
 BAD EXAMPLE (too vague):
 {{
   "area": "Leadership",
   "suggestion": "Try to get more leadership experience.",
-  "score": 50,
-  "target_score": 70
+  "score": 50
 }}
 
 Return JSON:
 {{
   "improvements": [
-    {{"area": "...", "suggestion": "...", "score": <0-100>, "target_score": <0-100>}}
+    {{"area": "...", "suggestion": "...", "score": <0-100>}}
   ]
 }}
 """

@@ -1,7 +1,7 @@
 # ml-service/pipeline/tools/profileresumetool/prompts/adcom_panel.py
 from __future__ import annotations
 
-_PROMPT_PREFIX = """You are an MBA AdCom member reviewing this candidate for {target_tier} schools.
+_PROMPT_PREFIX = """You are an MBA AdCom member reviewing this candidate for their target schools.
 
 """
 
@@ -30,7 +30,7 @@ WHAT_EXCITES:
 WHAT_CONCERNS:
 - 3-5 items that make AdCom pause or question fit
 - Be brutally honest (consultant clients PAY for honesty)
-- Compare to typical {target_tier} admits
+- Compare to typical target tier admits
 
 HOW_TO_PREEMPT:
 - 3-5 ACTIONABLE tactics to address concerns BEFORE applications
