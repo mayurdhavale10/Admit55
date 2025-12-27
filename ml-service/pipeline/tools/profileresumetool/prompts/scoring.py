@@ -38,7 +38,6 @@ Return ONLY valid JSON:
   "international": <0-10>,
   "work_impact": <0-10>,
   "impact": <0-10>,
-  "industry": <0-10>,
-  "consultant_note": "1 sentence explaining how scores align with their goal/tier (like a consultant would)"
+  "industry": <0-10>
 }}
 """
