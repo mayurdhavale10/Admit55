@@ -1,10 +1,14 @@
+# ml-service/pipeline/tools/profileresumetool/steps/scoring.py
 from __future__ import annotations
 
 import json
 import re
 from typing import Any, Dict, Optional, Tuple
-from urllib import request as urlrequest
-from urllib.error import HTTPError, URLError
+
+# ✅ NEW: Use requests instead of urllib
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 # --- robust import for SCORING_PROMPT (works even if prompts/ has no __init__.py) ---
@@ -16,6 +20,17 @@ except Exception:
     SCORING_PROMPT = importlib.import_module(
         "pipeline.tools.profileresumetool.prompts.scoring"
     ).SCORING_PROMPT
+
+
+# ✅ NEW: Reuse session (better for TLS + avoids WAF blocks)
+_SESSION = requests.Session()
+_RETRY = Retry(
+    total=2,
+    backoff_factor=0.6,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset(["POST"]),
+)
+_SESSION.mount("https://", HTTPAdapter(max_retries=_RETRY))
 
 
 def _get(s: Any, key: str, default: Any = None) -> Any:
@@ -74,18 +89,34 @@ def _extract_first_json(text: str) -> Optional[str]:
     return None
 
 
-def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeout: int) -> Dict[str, Any]:
-    data = json.dumps(payload).encode("utf-8")
-    req = urlrequest.Request(url, data=data, headers=headers, method="POST")
+# ✅ REPLACED: Use requests instead of urllib
+def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeout: int = 60) -> Dict[str, Any]:
+    """
+    POST JSON to LLM API using requests library (avoids Cloudflare WAF blocks).
+    """
+    h = dict(headers or {})
+    
+    # ✅ WAF-friendly headers (helps avoid bot detection)
+    h.setdefault("User-Agent", "Admit55-MBA-Tool/3.0 (+https://admit55.onrender.com)")
+    h.setdefault("Accept", "application/json")
+    h.setdefault("Content-Type", "application/json")
+
     try:
-        with urlrequest.urlopen(req, timeout=timeout) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            return json.loads(body)
-    except HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else str(e)
-        raise RuntimeError(f"HTTPError {e.code} from {url}: {body[:900]}")
-    except URLError as e:
-        raise RuntimeError(f"URLError calling {url}: {e}")
+        resp = _SESSION.post(url, headers=h, json=payload, timeout=timeout)
+        
+        # Check for errors
+        if resp.status_code >= 400:
+            error_body = resp.text[:900] if resp.text else f"HTTP {resp.status_code}"
+            raise RuntimeError(f"HTTP {resp.status_code} from {url}: {error_body}")
+        
+        return resp.json()
+        
+    except requests.exceptions.Timeout:
+        raise RuntimeError(f"Request timeout after {timeout}s to {url}")
+    except requests.exceptions.ConnectionError as e:
+        raise RuntimeError(f"Connection error to {url}: {str(e)}")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Request failed to {url}: {str(e)}")
 
 
 def _call_llm_json_once(
