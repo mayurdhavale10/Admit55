@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 # ------------------------------------------------------------
 # Path setup (so `pipeline/...` imports work on Render/local)
@@ -151,6 +152,15 @@ except Exception:
 
 
 # ------------------------------------------------------------
+# ✅ NEW: Pydantic models for request validation
+# ------------------------------------------------------------
+class AnalyzeTextRequest(BaseModel):
+    """Request model for text-based analysis"""
+    resume_text: str
+    discovery_answers: Optional[Dict[str, str]] = None
+
+
+# ------------------------------------------------------------
 # FastAPI app
 # ------------------------------------------------------------
 APP_VERSION = PIPELINE_VERSION
@@ -214,31 +224,46 @@ async def health():
             "multi_provider": True,
             "context_aware": True,
             "modular_architecture": True,
+            "consultant_mode": True,  # ✅ NEW
+            "discovery_questions": True,  # ✅ NEW
         },
     }
 
 
 # ============================================================
-# /analyze — ProfileResumeTool (NO narrative)
+# /analyze — ProfileResumeTool with Discovery Context
 # ============================================================
 @app.post("/analyze")
 async def analyze_resume(
     file: Optional[UploadFile] = File(None),
     resume_text: Optional[str] = Form(None),
-    context: Optional[str] = Form(None),  # optional JSON string
+    discovery_answers: Optional[str] = Form(None),  # ✅ NEW: JSON string of discovery Q&A
+    context: Optional[str] = Form(None),  # Legacy: optional JSON string (kept for backwards compat)
 ):
     """
-    Analyze resume from PDF file or direct text.
+    Analyze resume from PDF file or direct text with optional discovery context.
     
     Args:
         file: PDF file upload (optional)
         resume_text: Direct resume text (optional)
-        context: Optional JSON string with context (goal, timeline, tier, etc.)
+        discovery_answers: JSON string with discovery Q&A answers (optional)
+        context: Legacy context field (optional, for backwards compatibility)
     
     Returns:
         Complete analysis with scores, header_summary, strengths, improvements,
-        adcom_panel, recommendations (NO narrative to save tokens)
+        adcom_panel, recommendations. If discovery_answers provided, includes
+        consultant_summary and discovery_context.
     """
+    # Handle both FormData (file upload) and JSON body (text input)
+    is_json_request = False
+    parsed_body = None
+    
+    # Check if this is a JSON request
+    if not file and not resume_text:
+        # This might be a JSON request body, but FastAPI doesn't parse it yet
+        # We'll handle this in the exception below
+        pass
+
     if not file and not resume_text:
         raise HTTPException(status_code=400, detail="Provide either 'file' (PDF) or 'resume_text'")
 
@@ -278,23 +303,38 @@ async def analyze_resume(
         print(f"[API] Truncating resume from {len(resume_text)} to 50000 chars", file=sys.stderr)
         resume_text = resume_text[:50000]
 
-    # Parse context JSON (optional)
-    context_dict: Optional[Dict[str, Any]] = None
-    if context:
+    # ✅ NEW: Parse discovery_answers (prioritize over legacy context)
+    discovery_dict: Optional[Dict[str, str]] = None
+    
+    if discovery_answers:
+        try:
+            parsed = json.loads(discovery_answers)
+            if isinstance(parsed, dict):
+                discovery_dict = parsed
+                print(f"[API] ✅ Received discovery answers: {list(discovery_dict.keys())}", file=sys.stderr)
+                print(f"[API] 🎯 CONSULTANT MODE ACTIVE", file=sys.stderr)
+        except Exception as e:
+            print(f"[API] ⚠️  Invalid discovery_answers JSON, ignoring: {str(e)}", file=sys.stderr)
+    
+    # Legacy context support (fallback)
+    if not discovery_dict and context:
         try:
             parsed = json.loads(context)
-            context_dict = parsed if isinstance(parsed, dict) else None
-            if context_dict:
-                print(f"[API] Received context: {list(context_dict.keys())}", file=sys.stderr)
+            if isinstance(parsed, dict):
+                discovery_dict = parsed
+                print(f"[API] ℹ️  Using legacy context field: {list(discovery_dict.keys())}", file=sys.stderr)
         except Exception as e:
             print(f"[API] Invalid context JSON, ignoring: {str(e)}", file=sys.stderr)
-            context_dict = None
 
     # Run pipeline
     try:
         print(f"[API] Starting analysis for {len(resume_text)} character resume", file=sys.stderr)
         print("=" * 60, file=sys.stderr)
         print(f"MBA RESUME ANALYSIS PIPELINE v{PIPELINE_VERSION}", file=sys.stderr)
+        if discovery_dict:
+            print("🎯 MODE: CONSULTANT (Discovery Q&A provided)", file=sys.stderr)
+        else:
+            print("📊 MODE: GENERIC (No discovery context)", file=sys.stderr)
         print("=" * 60, file=sys.stderr)
 
         settings = env_default_settings()
@@ -309,27 +349,87 @@ async def analyze_resume(
         
         print(f"[API] Using provider: {prov}, model: {mod}", file=sys.stderr)
 
-        # ✅ FIXED: Removed include_narrative parameter (orchestrator doesn't accept it)
+        # ✅ MODIFIED: Pass discovery_answers to pipeline
         result = run_profile_pipeline(
             resume_text=resume_text,
             settings=settings,
             fallback=None,  # auto-built inside orchestrator
-            context=context_dict,
+            discovery_answers=discovery_dict,  # ✅ NEW
         )
 
         print("[API] ✅ Analysis complete", file=sys.stderr)
         print(f"[API] Result keys: {list(result.keys())}", file=sys.stderr)
+        
+        # ✅ NEW: Log consultant mode status
+        if result.get("processing_meta", {}).get("consultant_mode"):
+            print("[API] ✅ Consultant mode output generated", file=sys.stderr)
         
         # Verify key fields
         if "header_summary" in result:
             print(f"[API] ✅ header_summary: {list(result['header_summary'].keys())}", file=sys.stderr)
         if "recommendations" in result:
             print(f"[API] ✅ recommendations: {len(result.get('recommendations', []))} items", file=sys.stderr)
+        if "consultant_summary" in result and result["consultant_summary"]:
+            print(f"[API] ✅ consultant_summary present", file=sys.stderr)
 
         return result
 
     except Exception as e:
         print(f"[API] ❌ Analysis failed: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=f"Analysis pipeline failed: {str(e)}")
+
+
+# ✅ NEW: JSON endpoint for text-based analysis (alternative to FormData)
+@app.post("/analyze-json")
+async def analyze_resume_json(request: AnalyzeTextRequest):
+    """
+    Alternative JSON endpoint for text-based analysis (no file upload).
+    Useful for frontend applications that prefer JSON over FormData.
+    
+    Args:
+        request: AnalyzeTextRequest with resume_text and optional discovery_answers
+        
+    Returns:
+        Same as /analyze endpoint
+    """
+    resume_text = request.resume_text.strip()
+    
+    if len(resume_text) < 50:
+        raise HTTPException(status_code=400, detail="Resume text too short (min 50 chars)")
+    
+    if len(resume_text) > 50000:
+        print(f"[API] Truncating resume from {len(resume_text)} to 50000 chars", file=sys.stderr)
+        resume_text = resume_text[:50000]
+    
+    discovery_dict = request.discovery_answers
+    
+    try:
+        print(f"[API] Starting JSON analysis for {len(resume_text)} character resume", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
+        print(f"MBA RESUME ANALYSIS PIPELINE v{PIPELINE_VERSION}", file=sys.stderr)
+        if discovery_dict:
+            print("🎯 MODE: CONSULTANT (Discovery Q&A provided)", file=sys.stderr)
+            print(f"[API] Discovery keys: {list(discovery_dict.keys())}", file=sys.stderr)
+        else:
+            print("📊 MODE: GENERIC (No discovery context)", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
+
+        settings = env_default_settings()
+
+        result = run_profile_pipeline(
+            resume_text=resume_text,
+            settings=settings,
+            fallback=None,
+            discovery_answers=discovery_dict,
+        )
+
+        print("[API] ✅ JSON analysis complete", file=sys.stderr)
+        return result
+
+    except Exception as e:
+        print(f"[API] ❌ JSON analysis failed: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
         raise HTTPException(status_code=500, detail=f"Analysis pipeline failed: {str(e)}")
@@ -418,4 +518,6 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     print(f"[STARTUP] Starting server on port {port}", file=sys.stderr)
     print(f"[STARTUP] Pipeline version: {PIPELINE_VERSION}", file=sys.stderr)
+    print(f"[STARTUP] Consultant mode: ✅ ENABLED", file=sys.stderr)
+    print(f"[STARTUP] Discovery questions: ✅ SUPPORTED", file=sys.stderr)
     uvicorn.run(app, host="0.0.0.0", port=port)

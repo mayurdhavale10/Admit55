@@ -15,6 +15,14 @@ from .steps.improvements import run_improvements
 from .steps.adcom_panel import run_adcom_panel
 from .steps.recommendations import run_recommendations
 
+# ✅ NEW: Import context builder
+from .steps.context_builder import (
+    build_consultant_context,
+    format_context_for_prompt,
+    should_prioritize_test_prep,
+    get_recommendation_distribution,
+)
+
 
 # ---------------------------------------------------------------------
 # Settings (robust: uses pipeline.core.settings if available, else local)
@@ -149,10 +157,17 @@ def run_pipeline(
     resume_text: str,
     settings: Optional[LLMSettings] = None,
     fallback: Optional[LLMSettings] = None,
-    context: Optional[Dict[str, str]] = None,
+    discovery_answers: Optional[Dict[str, str]] = None,  # ✅ NEW: Accept discovery answers
 ) -> Dict[str, Any]:
     """
-    ProfilerResumeTool pipeline (NO narrative).
+    ProfilerResumeTool pipeline with optional consultant-mode context.
+    
+    Args:
+        resume_text: Resume content to analyze
+        settings: Primary LLM settings
+        fallback: Fallback LLM settings
+        discovery_answers: Optional Q&A answers for consultant mode
+        
     Output fields match UI:
       scores, header_summary, strengths, improvements, adcom_panel, recommendations (+ optional action_plan).
     """
@@ -164,6 +179,19 @@ def run_pipeline(
 
     resume_text = resume_text or ""
 
+    # ✅ NEW: Build consultant context from discovery answers
+    context = build_consultant_context(discovery_answers) if discovery_answers else {}
+    consultant_mode = bool(context)
+    
+    # ✅ NEW: Format context for logging/debugging
+    context_summary = format_context_for_prompt(context) if context else "Generic mode (no discovery context)"
+    
+    print(f"[ProfileResumeTool] Pipeline starting...")
+    print(f"[ProfileResumeTool] Mode: {'CONSULTANT' if consultant_mode else 'GENERIC'}")
+    if consultant_mode:
+        print(f"[ProfileResumeTool] Context:\n{context_summary}")
+
+    # Run all steps with context
     scores = run_scoring(resume_text, settings, fallback, context)
     header_summary = _safe_header_summary(run_header_summary(resume_text, scores, settings, fallback, context))
 
@@ -172,6 +200,14 @@ def run_pipeline(
 
     adcom_panel = _safe_adcom_panel(run_adcom_panel(resume_text, scores, strengths, improvements, settings, fallback, context))
     recommendations = run_recommendations(resume_text, scores, strengths, improvements, settings, fallback, context)
+
+    # ✅ NEW: Extract consultant summary from recommendations if present
+    consultant_summary = None
+    if isinstance(recommendations, dict) and "consultant_summary" in recommendations:
+        consultant_summary = recommendations.pop("consultant_summary")
+        recommendations = recommendations.get("recommendations", [])
+    elif not isinstance(recommendations, list):
+        recommendations = []
 
     action_plan = _build_action_plan_from_recs(recommendations)
 
@@ -187,6 +223,18 @@ def run_pipeline(
         "action_plan": action_plan,  # optional compatibility
     }
 
+    # ✅ NEW: Build discovery_context for frontend
+    discovery_context = None
+    if consultant_mode:
+        discovery_context = {
+            "goal_type": discovery_answers.get("goal_type"),
+            "target_schools": discovery_answers.get("target_schools"),
+            "timeline": discovery_answers.get("timeline"),
+            "test_status": discovery_answers.get("test_status"),
+            "work_experience": discovery_answers.get("work_experience"),
+            "biggest_concern": discovery_answers.get("biggest_concern"),
+        }
+
     return {
         "success": True,
         "original_resume": resume_text,
@@ -197,6 +245,10 @@ def run_pipeline(
         "improvements": improvements,
         "adcom_panel": adcom_panel,
         "recommendations": recommendations,
+
+        # ✅ NEW: Consultant-specific fields
+        "consultant_summary": consultant_summary,
+        "discovery_context": discovery_context,
 
         # optional compatibility if any old frontend reads it
         "action_plan": action_plan,
@@ -212,6 +264,7 @@ def run_pipeline(
             "model": settings.model,
             "fallback_provider": fallback.provider if fallback else None,
             "fallback_model": fallback.model if fallback else None,
-            "context_provided": bool(context),
+            "consultant_mode": consultant_mode,  # ✅ NEW
+            "context_provided": consultant_mode,
         },
     }

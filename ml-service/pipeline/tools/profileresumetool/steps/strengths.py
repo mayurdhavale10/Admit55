@@ -1,54 +1,43 @@
-# ml-service/pipeline/tools/profileresumetool/steps/strengths.py
+# ml-service/pipeline/tools/profileresumetool/prompts/strengths.py
 from __future__ import annotations
 
-import json
-from typing import Any, Dict, List, Optional
+_PROMPT_PREFIX = """You are a ₹90,000 MBA admissions consultant highlighting what makes this candidate COMPETITIVE FOR THEIR GOAL.
 
-from pipeline.core.llm.retry import call_llm
-from pipeline.core.parsing.json_parse import parse_json_strictish
+"""
 
-from ..version import PIPELINE_VERSION, TOKENS
-from ..prompts import context_block, prompt_prefix
-from ..prompts.strengths import STRENGTHS_PROMPT
-from . import as_list, as_str, clamp_int, response_format_for
+STRENGTHS_PROMPT = _PROMPT_PREFIX + """CLIENT CONTEXT:
+{context}
 
-def run_strengths(resume_text: str, settings, fallback, context: Optional[Dict[str, str]], max_retries: int = 2) -> List[Dict[str, Any]]:
-    base = prompt_prefix(PIPELINE_VERSION) + STRENGTHS_PROMPT.format(
-        resume=resume_text or "",
-        context=context_block(context),
-    )
+Resume:
+{resume}
 
-    for attempt in range(max_retries):
-        prompt = base
-        if attempt > 0:
-            prompt += "\n\nWARNING: Previous attempt too generic. MUST include resume-specific companies/metrics/roles. Return only JSON."
+Extract 4-6 TOP STRENGTHS that are RELEVANT TO THEIR STATED GOAL AND TARGET TIER.
 
-        try:
-            raw = call_llm(
-                settings=settings,
-                prompt=prompt,
-                max_tokens=TOKENS["strengths"],
-                temperature=0.2,
-                response_format=response_format_for(getattr(settings, "provider", "")),
-                fallback=fallback,
-                retries=1,
-            )
-            data = parse_json_strictish(raw)
-            items = as_list(data.get("strengths"))
-        except Exception:
-            items = []
+CRITICAL REQUIREMENTS:
+- Every strength MUST reference SPECIFIC details: company names, metrics, projects, team sizes, technologies, titles, time periods
+- Frame strengths as "Why AdCom would like this FOR YOUR GOAL" (not generic praise)
+- If targeting M7: Strengths must be M7-caliber (e.g., "Led 15-person team" is great for Top 25, table stakes for M7)
+- If goal = "consulting pivot": Highlight analytical/problem-solving work
+- If goal = "entrepreneurship": Highlight ownership/risk-taking
 
-        cleaned: List[Dict[str, Any]] = []
-        for s in items:
-            if not isinstance(s, dict):
-                continue
-            cleaned.append({
-                "title": as_str(s.get("title")) or "Strength",
-                "summary": as_str(s.get("summary")) or "",
-                "score": clamp_int(s.get("score"), 0, 100, 70),
-            })
+GOOD EXAMPLE:
+{{
+  "title": "High-Impact Product Leadership at Scale",
+  "summary": "Led pricing strategy at Swiggy (15M+ users) that increased GMV by ₹50Cr in 6 months. Managed 3 engineers + 2 analysts across 4 cities. AdComs value this scale + measurable impact, especially for tech/PM roles post-MBA.",
+  "score": 88
+}}
 
-        if cleaned:
-            return cleaned
+BAD EXAMPLE (too generic):
+{{
+  "title": "Strong Leadership",
+  "summary": "Has good leadership experience and worked at a well-known company.",
+  "score": 75
+}}
 
-    return []
+Return JSON:
+{{
+  "strengths": [
+    {{"title": "...", "summary": "...", "score": <0-100>}}
+  ]
+}}
+"""

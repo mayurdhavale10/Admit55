@@ -1,3 +1,4 @@
+// src/app/mba/tools/profileresumetool/utils/api.ts
 "use client";
 
 export interface AnalyzeResponse {
@@ -31,6 +32,7 @@ export interface AnalyzeResponse {
     action: string;
     estimated_impact: string;
     score: number | null;
+    timeframe?: string; // ✅ NEW: next_1_3_weeks, next_3_6_weeks, next_3_months
   }[];
   gaps: {
     area: string;
@@ -42,6 +44,17 @@ export interface AnalyzeResponse {
     explanation: string;
   };
   improved_resume: string;
+  // ✅ NEW: Discovery context info
+  discovery_context?: {
+    goal_type?: string;
+    target_schools?: string;
+    timeline?: string;
+    test_status?: string;
+    work_experience?: string;
+    biggest_concern?: string;
+  };
+  // ✅ NEW: Consultant summary
+  consultant_summary?: string;
   upload_meta?: {
     original_filename: string;
     format: string;
@@ -59,6 +72,7 @@ export interface AnalyzeResponse {
     scoring_system: string;
     average_score: number;
     total_score: number;
+    consultant_mode?: boolean; // ✅ NEW: true if discovery answers provided
   };
   generated_at: string;
   pipeline_version: string;
@@ -78,9 +92,17 @@ export interface RewriteResponse {
 /* ---------------------------------------------------------
    FILE UPLOAD + FULL ANALYSIS
 --------------------------------------------------------- */
-export async function analyzeResumeFile(file: File): Promise<AnalyzeResponse> {
+export async function analyzeResumeFile(
+  file: File,
+  discoveryAnswers?: Record<string, string> | null
+): Promise<AnalyzeResponse> {
   const form = new FormData();
   form.append("file", file);
+
+  // ✅ NEW: Add discovery answers if provided
+  if (discoveryAnswers) {
+    form.append("discovery_answers", JSON.stringify(discoveryAnswers));
+  }
 
   const res = await fetch("/api/mba/profileresumetool/analyze", {
     method: "POST",
@@ -88,7 +110,7 @@ export async function analyzeResumeFile(file: File): Promise<AnalyzeResponse> {
   });
 
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({ error: "Failed to analyze resume" }));
     throw new Error(err.error || err.details || "Failed to analyze resume");
   }
 
@@ -99,16 +121,20 @@ export async function analyzeResumeFile(file: File): Promise<AnalyzeResponse> {
    DIRECT TEXT ANALYSIS
 --------------------------------------------------------- */
 export async function analyzeResumeText(
-  text: string
+  text: string,
+  discoveryAnswers?: Record<string, string> | null
 ): Promise<AnalyzeResponse> {
   const res = await fetch("/api/mba/profileresumetool/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume_text: text }),
+    body: JSON.stringify({
+      resume_text: text,
+      discovery_answers: discoveryAnswers || null, // ✅ NEW
+    }),
   });
 
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({ error: "Failed to analyze text" }));
     throw new Error(err.error || err.details || "Failed to analyze text");
   }
 
@@ -126,7 +152,7 @@ export async function rewriteResume(text: string): Promise<RewriteResponse> {
   });
 
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({ error: "Rewrite failed" }));
     throw new Error(err.error || err.details || "Rewrite failed");
   }
 
@@ -151,6 +177,7 @@ export async function checkAnalyzeHealth(): Promise<{
     pdf_extraction: string;
     docx_extraction: string;
     max_file_size_mb: number;
+    discovery_questions_enabled?: boolean; // ✅ NEW
   };
   timestamp: string;
 }> {

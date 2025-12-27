@@ -7,12 +7,17 @@ import ResumeUploader from "./components/ResumeUploader";
 import QuickForm from "./components/QuickForm";
 import LoadingState from "./components/LoadingState";
 import ResultDashboard from "./components/ResultDashboard";
+import DiscoveryQuestions from "./components/DiscoveryQuestions"; // ✅ NEW
 
 import { analyzeResumeFile, analyzeResumeText } from "./utils/api";
 
 type TabType = "form" | "upload";
+type FlowStage = "discovery" | "input" | "results"; // ✅ NEW
 
 export default function ProfileResumeToolClient() {
+  const [flowStage, setFlowStage] = useState<FlowStage>("discovery"); // ✅ NEW
+  const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, string> | null>(null); // ✅ NEW
+  
   const [activeTab, setActiveTab] = useState<TabType>("form");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -38,6 +43,20 @@ export default function ProfileResumeToolClient() {
     setTimeout(() => scrollToSection(tab), 50);
   };
 
+  // ✅ NEW: Handle discovery completion
+  const handleDiscoveryComplete = (answers: Record<string, string>) => {
+    setDiscoveryAnswers(answers);
+    setFlowStage("input");
+    setTimeout(() => scrollToSection("form"), 100);
+  };
+
+  // ✅ NEW: Handle discovery skip
+  const handleDiscoverySkip = () => {
+    setDiscoveryAnswers(null); // No answers = generic mode
+    setFlowStage("input");
+    setTimeout(() => scrollToSection("form"), 100);
+  };
+
   /** Handle File Upload **/
   const handleFileUpload = async (file: File) => {
     if (loading) return;
@@ -46,8 +65,10 @@ export default function ProfileResumeToolClient() {
     setResult(null);
 
     try {
-      const res = await analyzeResumeFile(file);
+      // ✅ MODIFIED: Pass discovery answers to API
+      const res = await analyzeResumeFile(file, discoveryAnswers);
       setResult(res);
+      setFlowStage("results"); // ✅ NEW
     } catch (err: any) {
       setError(err?.message || "Failed to process file.");
     } finally {
@@ -73,8 +94,10 @@ Extracurriculars: ${formData.extracurriculars}
 GMAT/GRE: ${formData.gmatScore}
       `.trim();
 
-      const res = await analyzeResumeText(textData);
+      // ✅ MODIFIED: Pass discovery answers to API
+      const res = await analyzeResumeText(textData, discoveryAnswers);
       setResult(res);
+      setFlowStage("results"); // ✅ NEW
     } catch (err: any) {
       setError(err?.message || "Failed to analyze profile.");
     } finally {
@@ -82,12 +105,13 @@ GMAT/GRE: ${formData.gmatScore}
     }
   };
 
-  /** Handle New Analysis - Clear results and show form **/
+  /** Handle New Analysis - Clear everything and restart **/
   const handleNewAnalysis = () => {
     setResult(null);
     setError(null);
+    setDiscoveryAnswers(null); // ✅ Clear discovery answers
+    setFlowStage("discovery"); // ✅ Restart from discovery
     setActiveTab("form");
-    setTimeout(() => scrollToSection("form"), 50);
   };
 
   return (
@@ -111,60 +135,82 @@ GMAT/GRE: ${formData.gmatScore}
             <span className="text-4xl md:text-6xl font-bold text-white">Admit55</span>
           </div>
           <p className="text-center text-blue-100 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-            Get an AI-powered analysis of your MBA readiness in minutes. Upload
-            your resume or answer a few questions.
+            Get an AI-powered analysis of your MBA readiness in minutes. 
+            {flowStage === "discovery" && " Start by answering a few quick questions."}
+            {flowStage === "input" && " Upload your resume or answer a few questions."}
           </p>
 
-          {/* Tabs */}
-          <div className="flex justify-center gap-3 mb-6">
-            <button
-              onClick={() => handleTabClick("form")}
-              className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
-                activeTab === "form"
-                  ? "bg-white text-blue-900 shadow-xl scale-105"
-                  : "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30"
-              }`}
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              Quick Form
-            </button>
+          {/* ✅ MODIFIED: Only show tabs when in "input" stage */}
+          {flowStage === "input" && (
+            <>
+              {/* Tabs */}
+              <div className="flex justify-center gap-3 mb-6">
+                <button
+                  onClick={() => handleTabClick("form")}
+                  className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
+                    activeTab === "form"
+                      ? "bg-white text-blue-900 shadow-xl scale-105"
+                      : "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30"
+                  }`}
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Quick Form
+                </button>
 
-            <button
-              onClick={() => handleTabClick("upload")}
-              className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
-                activeTab === "upload"
-                  ? "bg-white text-blue-900 shadow-xl scale-105"
-                  : "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30"
-              }`}
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              Upload Resume
-            </button>
-          </div>
+                <button
+                  onClick={() => handleTabClick("upload")}
+                  className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all ${
+                    activeTab === "upload"
+                      ? "bg-white text-blue-900 shadow-xl scale-105"
+                      : "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30"
+                  }`}
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  Upload Resume
+                </button>
+              </div>
+
+              {/* ✅ NEW: Show context badge if questions were answered */}
+              {discoveryAnswers && (
+                <div className="flex justify-center mb-4">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/20 backdrop-blur-md rounded-full text-white text-sm font-medium border border-emerald-400/30">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Consultant Mode Active - You'll get personalized recommendations
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           {/* AI Badge */}
           <div className="flex justify-center mb-6">
@@ -190,10 +236,20 @@ GMAT/GRE: ${formData.gmatScore}
 
       {/* Main Content - WIDER CONTAINER */}
       <div className="py-10 px-4">
-        {/* Changed from max-w-4xl to max-w-7xl for wider layout */}
         <div className="max-w-7xl mx-auto">
-          {/* Both sections are always rendered; we just hide the inactive one */}
-          {!loading && !result && (
+          
+          {/* ✅ NEW: Discovery Questions Stage */}
+          {flowStage === "discovery" && !loading && !result && (
+            <div className="mt-6">
+              <DiscoveryQuestions
+                onComplete={handleDiscoveryComplete}
+                onSkip={handleDiscoverySkip}
+              />
+            </div>
+          )}
+
+          {/* ✅ MODIFIED: Input Stage (Form/Upload) */}
+          {flowStage === "input" && !loading && !result && (
             <div className="mt-6 space-y-6 max-w-4xl mx-auto">
               <div
                 ref={quickFormRef}
@@ -226,7 +282,7 @@ GMAT/GRE: ${formData.gmatScore}
           )}
 
           {/* Results Dashboard - FULL WIDTH */}
-          {result && !loading && (
+          {result && !loading && flowStage === "results" && (
             <div className="mt-10">
               <ResultDashboard
                 data={result}
