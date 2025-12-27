@@ -2,7 +2,7 @@
 
 PIPELINE_VERSION = "5.7.0"
 
-# Token budgets (keep here so orchestrator/steps can import consistently)
+# token budgets (optional but good to keep centralized)
 TOKENS = {
     "scoring": 450,
     "header_summary": 650,
