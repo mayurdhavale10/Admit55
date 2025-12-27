@@ -4,9 +4,11 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from .version import PIPELINE_VERSION
+
+# Steps (your modular pipeline)
 from .steps import normalize_timeframe_to_key
 from .steps.scoring import run_scoring
 from .steps.header_summary import run_header_summary
@@ -15,7 +17,7 @@ from .steps.improvements import run_improvements
 from .steps.adcom_panel import run_adcom_panel
 from .steps.recommendations import run_recommendations
 
-# ✅ NEW: Import context builder
+# Consultant context builder (NEW)
 from .steps.context_builder import (
     build_consultant_context,
     format_context_for_prompt,
@@ -25,7 +27,7 @@ from .steps.context_builder import (
 
 
 # ---------------------------------------------------------------------
-# Settings (robust: uses pipeline.core.settings if available, else local)
+# Settings (robust: accepts dict OR dataclass-like objects OR None)
 # ---------------------------------------------------------------------
 @dataclass
 class LLMSettings:
@@ -70,6 +72,38 @@ def _env_default_settings() -> LLMSettings:
     return LLMSettings(provider="groq", api_key="", model=groq_model, base_url=groq_base)
 
 
+def _coerce_settings(x: Any) -> LLMSettings:
+    """
+    Accepts:
+      - None -> env defaults
+      - dict  -> LLMSettings(**dict)
+      - object with attrs provider/api_key/model/base_url/timeout
+    """
+    if x is None:
+        return _env_default_settings()
+
+    if isinstance(x, LLMSettings):
+        return x
+
+    if isinstance(x, dict):
+        # tolerate extra keys
+        return LLMSettings(
+            provider=(x.get("provider") or "groq"),
+            api_key=(x.get("api_key") or ""),
+            model=(x.get("model") or "llama-3.3-70b-versatile"),
+            base_url=x.get("base_url"),
+            timeout=int(x.get("timeout") or 60),
+        )
+
+    # dataclass-like settings object (e.g., from pipeline.core.settings)
+    provider = getattr(x, "provider", None) or "groq"
+    api_key = getattr(x, "api_key", None) or ""
+    model = getattr(x, "model", None) or "llama-3.3-70b-versatile"
+    base_url = getattr(x, "base_url", None)
+    timeout = int(getattr(x, "timeout", 60) or 60)
+    return LLMSettings(provider=provider, api_key=api_key, model=model, base_url=base_url, timeout=timeout)
+
+
 def _build_fallback_from_env(primary: LLMSettings) -> Optional[LLMSettings]:
     """Prefer a different provider if keys exist."""
     groq_key = os.environ.get("GROQ_API_KEY", "")
@@ -83,7 +117,7 @@ def _build_fallback_from_env(primary: LLMSettings) -> Optional[LLMSettings]:
     gem_key = os.environ.get("GEMINI_API_KEY", "")
     gem_model = os.environ.get("GEMINI_PRIMARY_MODEL", "gemini-2.0-flash")
 
-    candidates = []
+    candidates: list[LLMSettings] = []
     if groq_key:
         candidates.append(LLMSettings(provider="groq", api_key=groq_key, model=groq_model, base_url=groq_base))
     if openai_key:
@@ -97,6 +131,9 @@ def _build_fallback_from_env(primary: LLMSettings) -> Optional[LLMSettings]:
     return candidates[0] if candidates else None
 
 
+# ---------------------------------------------------------------------
+# Safety wrappers (never crash the UI shape)
+# ---------------------------------------------------------------------
 def _safe_header_summary(h: Any) -> Dict[str, Any]:
     if not isinstance(h, dict):
         return {
@@ -126,13 +163,11 @@ def _safe_adcom_panel(a: Any) -> Dict[str, Any]:
         a["what_concerns"] = ["AdCom view pending: rerun analysis to surface concerns (temporary provider limit)."]
     if not a["how_to_preempt"]:
         a["how_to_preempt"] = ["Rerun in 2–3 minutes OR switch provider/model (Groq/OpenAI/Gemini)."]
-
     return a
 
 
 def _build_action_plan_from_recs(recommendations: Any) -> Dict[str, Any]:
     action_plan = {"next_1_3_weeks": [], "next_3_6_weeks": [], "next_3_months": []}
-
     if not isinstance(recommendations, list):
         return action_plan
 
@@ -153,79 +188,74 @@ def _build_action_plan_from_recs(recommendations: Any) -> Dict[str, Any]:
     return action_plan
 
 
+# ---------------------------------------------------------------------
+# Main entry (this is what app.py imports and calls)
+# ---------------------------------------------------------------------
 def run_pipeline(
     resume_text: str,
-    settings: Optional[LLMSettings] = None,
-    fallback: Optional[LLMSettings] = None,
-    discovery_answers: Optional[Dict[str, str]] = None,  # ✅ NEW: Accept discovery answers
+    settings: Optional[Union[LLMSettings, Dict[str, Any], Any]] = None,
+    fallback: Optional[Union[LLMSettings, Dict[str, Any], Any]] = None,
+    discovery_answers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
-    ProfilerResumeTool pipeline with optional consultant-mode context.
-    
-    Args:
-        resume_text: Resume content to analyze
-        settings: Primary LLM settings
-        fallback: Fallback LLM settings
-        discovery_answers: Optional Q&A answers for consultant mode
-        
-    Output fields match UI:
-      scores, header_summary, strengths, improvements, adcom_panel, recommendations (+ optional action_plan).
+    ProfileResumeTool pipeline with optional consultant-mode context.
+    Called from ml-service/app.py.
+
+    Returns keys used by frontend:
+      scores, header_summary, strengths, improvements, adcom_panel, recommendations,
+      consultant_summary (optional), discovery_context (optional), action_plan, processing_meta.
     """
     start = time.time()
 
-    settings = settings or _env_default_settings()
-    if fallback is None:
-        fallback = _build_fallback_from_env(settings)
+    # Normalize settings types (dict/object -> LLMSettings)
+    primary = _coerce_settings(settings)
+    fb = None if fallback is None else _coerce_settings(fallback)
+    if fb is None:
+        fb = _build_fallback_from_env(primary)
 
-    resume_text = resume_text or ""
+    resume_text = (resume_text or "").strip()
 
-    # ✅ NEW: Build consultant context from discovery answers
+    # Build context
     context = build_consultant_context(discovery_answers) if discovery_answers else {}
     consultant_mode = bool(context)
-    
-    # ✅ NEW: Format context for logging/debugging
-    context_summary = format_context_for_prompt(context) if context else "Generic mode (no discovery context)"
-    
+
     print(f"[ProfileResumeTool] Pipeline starting...")
     print(f"[ProfileResumeTool] Mode: {'CONSULTANT' if consultant_mode else 'GENERIC'}")
     if consultant_mode:
-        print(f"[ProfileResumeTool] Context:\n{context_summary}")
+        try:
+            print(f"[ProfileResumeTool] Context:\n{format_context_for_prompt(context)}")
+        except Exception:
+            print("[ProfileResumeTool] Context formatting failed (non-fatal).")
 
-    # Run all steps with context
-    scores = run_scoring(resume_text, settings, fallback, context)
-    header_summary = _safe_header_summary(run_header_summary(resume_text, scores, settings, fallback, context))
+    # Run steps (keep UI shape stable)
+    scores = run_scoring(resume_text, primary, fb, context)
 
-    strengths = run_strengths(resume_text, settings, fallback, context, max_retries=2)
-    improvements = run_improvements(resume_text, scores, settings, fallback, context)
+    header_summary = _safe_header_summary(
+        run_header_summary(resume_text, scores, primary, fb, context)
+    )
 
-    adcom_panel = _safe_adcom_panel(run_adcom_panel(resume_text, scores, strengths, improvements, settings, fallback, context))
-    recommendations = run_recommendations(resume_text, scores, strengths, improvements, settings, fallback, context)
+    strengths = run_strengths(resume_text, primary, fb, context, max_retries=2)
+    improvements = run_improvements(resume_text, scores, primary, fb, context)
 
-    # ✅ NEW: Extract consultant summary from recommendations if present
+    adcom_panel = _safe_adcom_panel(
+        run_adcom_panel(resume_text, scores, strengths, improvements, primary, fb, context)
+    )
+
+    recommendations_out = run_recommendations(resume_text, scores, strengths, improvements, primary, fb, context)
+
     consultant_summary = None
-    if isinstance(recommendations, dict) and "consultant_summary" in recommendations:
-        consultant_summary = recommendations.pop("consultant_summary")
-        recommendations = recommendations.get("recommendations", [])
-    elif not isinstance(recommendations, list):
+    recommendations = recommendations_out
+    if isinstance(recommendations_out, dict):
+        consultant_summary = recommendations_out.get("consultant_summary")
+        recommendations = recommendations_out.get("recommendations", [])
+    if not isinstance(recommendations, list):
         recommendations = []
 
     action_plan = _build_action_plan_from_recs(recommendations)
-
     duration = round(time.time() - start, 2)
 
-    analysis = {
-        "scores": scores,
-        "header_summary": header_summary,
-        "strengths": strengths,
-        "improvements": improvements,
-        "adcom_panel": adcom_panel,
-        "recommendations": recommendations,
-        "action_plan": action_plan,  # optional compatibility
-    }
-
-    # ✅ NEW: Build discovery_context for frontend
     discovery_context = None
-    if consultant_mode:
+    if consultant_mode and isinstance(discovery_answers, dict):
         discovery_context = {
             "goal_type": discovery_answers.get("goal_type"),
             "target_schools": discovery_answers.get("target_schools"),
@@ -234,6 +264,16 @@ def run_pipeline(
             "work_experience": discovery_answers.get("work_experience"),
             "biggest_concern": discovery_answers.get("biggest_concern"),
         }
+
+    analysis = {
+        "scores": scores,
+        "header_summary": header_summary,
+        "strengths": strengths,
+        "improvements": improvements,
+        "adcom_panel": adcom_panel,
+        "recommendations": recommendations,
+        "action_plan": action_plan,
+    }
 
     return {
         "success": True,
@@ -246,25 +286,27 @@ def run_pipeline(
         "adcom_panel": adcom_panel,
         "recommendations": recommendations,
 
-        # ✅ NEW: Consultant-specific fields
+        # Consultant-mode extras
         "consultant_summary": consultant_summary,
         "discovery_context": discovery_context,
 
-        # optional compatibility if any old frontend reads it
+        # Backward compat / UI convenience
         "action_plan": action_plan,
-
-        # compatibility layer
         "analysis": analysis,
 
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "pipeline_version": f"{PIPELINE_VERSION}-profileresumetool",
+
         "processing_meta": {
             "total_duration_seconds": duration,
-            "provider": settings.provider,
-            "model": settings.model,
-            "fallback_provider": fallback.provider if fallback else None,
-            "fallback_model": fallback.model if fallback else None,
-            "consultant_mode": consultant_mode,  # ✅ NEW
+            "provider": primary.provider,
+            "model": primary.model,
+            "fallback_provider": fb.provider if fb else None,
+            "fallback_model": fb.model if fb else None,
+            "consultant_mode": consultant_mode,
             "context_provided": consultant_mode,
+            # Optional helpers (safe to ignore in UI)
+            "prioritize_test_prep": bool(should_prioritize_test_prep(context)) if consultant_mode else False,
+            "recommendation_distribution": get_recommendation_distribution(context) if consultant_mode else None,
         },
     }
