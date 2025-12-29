@@ -7,15 +7,17 @@ interface QuestionFieldProps {
   question: BschoolQuestion;
   value: unknown;
   onChange: (id: string, value: unknown) => void;
+  disabled?: boolean;
 }
 
 export default function QuestionField({
   question,
   value,
   onChange,
+  disabled,
 }: QuestionFieldProps) {
   const handleTextChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => onChange(question.id, e.target.value);
 
   const handleNumberChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -46,6 +48,7 @@ export default function QuestionField({
           </span>
         )}
       </div>
+
       {helper}
 
       <div className="mt-2">
@@ -55,7 +58,19 @@ export default function QuestionField({
             value={(value as string) ?? ""}
             onChange={handleTextChange}
             placeholder={question.placeholder}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70"
+            disabled={disabled}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70 disabled:opacity-50"
+          />
+        )}
+
+        {question.type === "text" && (
+          <input
+            type="text"
+            value={(value as string) ?? ""}
+            onChange={handleTextChange}
+            placeholder={question.placeholder}
+            disabled={disabled}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70 disabled:opacity-50"
           />
         )}
 
@@ -68,7 +83,9 @@ export default function QuestionField({
             onChange={handleNumberChange}
             min={question.min}
             max={question.max}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70"
+            placeholder={question.placeholder}
+            disabled={disabled}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70 disabled:opacity-50"
           />
         )}
 
@@ -81,10 +98,11 @@ export default function QuestionField({
               step={question.step ?? 1}
               value={typeof value === "number" ? value : question.min ?? 0}
               onChange={handleNumberChange}
-              className="flex-1 accent-emerald-500"
+              disabled={disabled}
+              className="flex-1 accent-emerald-500 disabled:opacity-50"
             />
             <span className="w-10 text-right text-xs text-emerald-700">
-              {typeof value === "number" ? value : question.min ?? 0}y
+              {typeof value === "number" ? value : question.min ?? 0}
             </span>
           </div>
         )}
@@ -93,7 +111,8 @@ export default function QuestionField({
           <select
             value={(value as string) ?? ""}
             onChange={handleSelectChange}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70"
+            disabled={disabled}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70 disabled:opacity-50"
           >
             <option value="">Select an option</option>
             {question.options?.map((opt) => (
@@ -109,7 +128,9 @@ export default function QuestionField({
             multiple
             value={Array.isArray(value) ? (value as string[]) : []}
             onChange={handleMultiSelectChange}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70"
+            disabled={disabled}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-400/70 disabled:opacity-50"
+            size={Math.min(question.options?.length ?? 6, 6)}
           >
             {question.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>

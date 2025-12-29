@@ -1,134 +1,166 @@
-import { BschoolMatchResponse, toDisplaySchool, mapTierForDisplay } from "@src/lib/bschoolmatch/types";
-import BSchoolCard from "./BSchoolCard";
-import EmptyState from "./EmptyState";
-import ErrorState from "./ErrorState";
+"use client";
+
+import KeyInsightsList from "./KeyInsightsList";
+import TieredMatches from "./TieredMatches";
+import FitStoryStrength from "./FitStoryStrength";
+import ApplicationStrategy from "./ApplicationStrategy";
+import ActionPlanTimeline from "./ActionPlanTimeline";
+import CTASection from "./CTASection";
 import LoadingState from "./LoadingState";
+import ErrorState from "./ErrorState";
+import EmptyState from "./EmptyState";
 
 interface MatchResultsProps {
-  result: BschoolMatchResponse | null;
-  isLoading: boolean;
-  error: string | null;
+  result?: any;
+  isLoading?: boolean;
+  error?: string | null;
   onRetry?: () => void;
 }
 
-export default function MatchResults({
-  result,
-  isLoading,
-  error,
-  onRetry,
+export default function MatchResults({ 
+  result, 
+  isLoading, 
+  error, 
+  onRetry 
 }: MatchResultsProps) {
-  const hasResults = !!result;
-
+  // Loading state
   if (isLoading) {
-    return <LoadingState />;
+    return (
+      <div className="rounded-3xl bg-white p-8 shadow-xl border border-slate-100">
+        <LoadingState />
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full border-3 border-sky-600 border-t-transparent animate-spin" />
+            <p className="text-sm text-slate-600">Analyzing your profile...</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+            <p className="text-sm text-slate-600">Matching 50+ schools...</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full border-3 border-amber-600 border-t-transparent animate-spin" />
+            <p className="text-sm text-slate-600">Generating fit analysis...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  // Error state
   if (error) {
     return <ErrorState message={error} onRetry={onRetry} />;
   }
 
-  if (!hasResults || !result) {
+  // Empty state
+  if (!result) {
     return <EmptyState />;
   }
 
-  const { summary, matches } = result;
+  // Extract data from result
+  const keyInsights = result?.key_insights || result?.insights || [];
+  
+  const schools = {
+    ambitious: result?.schools_by_tier?.ambitious || result?.ambitious || [],
+    target: result?.schools_by_tier?.target || result?.target || [],
+    safe: result?.schools_by_tier?.safe || result?.safe || []
+  };
 
-  // ✅ FIX: Convert backend matches to display format BEFORE filtering
-  const displayMatches = matches.map(toDisplaySchool);
+  const fitStory = {
+    strengths: result?.fit_story?.strengths || result?.strengths || [],
+    concerns: result?.fit_story?.concerns || result?.concerns || [],
+    improvements: result?.fit_story?.improvements || result?.fixes || []
+  };
+
+  const strategy = result?.strategy || {};
+  
+  const timeline = result?.action_plan || result?.timeline || {};
+
+  // Download handler
+  const handleDownload = async () => {
+    try {
+      const res = await fetch("/api/mba/bschool-match/report-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ report: result })
+      });
+
+      if (!res.ok) {
+        alert("Failed to generate PDF report.");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bschool_match_report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Download failed", e);
+      alert("Could not generate report for download.");
+    }
+  };
+
+  const handleBookSession = () => {
+    alert("Booking flow will be added - redirecting to calendar...");
+  };
+
+  const handleStartOver = () => {
+    window.location.href = "/mba/tools/bschool-match";
+  };
 
   return (
-    <div className="space-y-5">
-      {/* Summary card */}
-      <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-sm">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Overall Match Summary
+    <div className="space-y-8">
+      {/* 1. Key Insights */}
+      {keyInsights.length > 0 && (
+        <KeyInsightsList insights={keyInsights} />
+      )}
+
+      {/* 2. Tiered School Matches */}
+      <TieredMatches schools={schools} />
+
+      {/* 3. Fit Story Analysis */}
+      <FitStoryStrength 
+        strengths={fitStory.strengths}
+        concerns={fitStory.concerns}
+        improvements={fitStory.improvements}
+      />
+
+      {/* 4. Application Strategy */}
+      <ApplicationStrategy strategy={strategy} />
+
+      {/* 5. Action Plan Timeline */}
+      <ActionPlanTimeline timeline={timeline} />
+
+      {/* 6. CTA Section */}
+      <CTASection 
+        onDownload={handleDownload}
+        onBookSession={handleBookSession}
+        onStartOver={handleStartOver}
+      />
+
+      {/* Meta info footer */}
+      {result?.processing_meta && (
+        <div className="text-center text-xs text-slate-400 pt-4 border-t border-slate-100">
+          <p>
+            Generated using {result.processing_meta.model || "AI"} • 
+            {result.processing_meta.total_duration_seconds 
+              ? ` Processed in ${result.processing_meta.total_duration_seconds}s`
+              : ""
+            }
           </p>
-          {summary.risk_profile && (
-            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700">
-              Risk profile:&nbsp;
-              <span className="capitalize">{summary.risk_profile}</span>
-            </span>
+          {result?.generated_at && (
+            <p className="mt-1">
+              {new Date(result.generated_at).toLocaleString()}
+            </p>
           )}
         </div>
-
-        <h2 className="mt-2 text-lg font-semibold text-slate-900">
-          {summary.headline || summary.profile_snapshot}
-        </h2>
-
-        <p className="mt-2 text-sm leading-relaxed text-slate-700">
-          {summary.narrative || summary.target_strategy}
-        </p>
-
-        {(summary.key_drivers || summary.key_factors) && 
-         (summary.key_drivers?.length || summary.key_factors?.length) ? (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {(summary.key_drivers || summary.key_factors || []).map((driver, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700"
-              >
-                {driver}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      {/* Tier columns */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {(["ambitious", "target", "safe"] as const).map((backendTier) => {
-          // ✅ FIX: Filter displayMatches (which are BschoolMatchSchoolDisplay)
-          const schools = displayMatches.filter((s) => s.tier === backendTier);
-          
-          const displayTier = mapTierForDisplay(backendTier);
-          
-          const tierLabel =
-            displayTier === "dream"
-              ? "Dream"
-              : displayTier === "competitive"
-              ? "Competitive"
-              : "Safe";
-
-          const tierAccentClasses =
-            displayTier === "dream"
-              ? "border-pink-300 bg-pink-50 text-pink-800"
-              : displayTier === "competitive"
-              ? "border-sky-300 bg-sky-50 text-sky-800"
-              : "border-emerald-300 bg-emerald-50 text-emerald-800";
-
-          return (
-            <div
-              key={backendTier}
-              className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm"
-            >
-              <div
-                className={`inline-flex items-center justify-between gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${tierAccentClasses}`}
-              >
-                <span>{tierLabel}</span>
-                <span className="text-[10px] opacity-80">
-                  {schools.length} match{schools.length === 1 ? "" : "es"}
-                </span>
-              </div>
-
-              <div className="mt-3 space-y-3">
-                {schools.length === 0 && (
-                  <p className="text-xs text-slate-500">
-                    No strong {tierLabel.toLowerCase()} matches yet. Try
-                    tweaking geography, budget or risk preference and run the
-                    match again.
-                  </p>
-                )}
-
-                {/* ✅ FIX: Pass BschoolMatchSchoolDisplay to BSchoolCard */}
-                {schools.map((school) => (
-                  <BSchoolCard key={school.id} school={school} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      )}
     </div>
   );
 }

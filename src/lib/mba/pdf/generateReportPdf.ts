@@ -1,10 +1,5 @@
 // src/lib/mba/pdf/generateReportPdf.ts
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type RGB,
-} from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type RGB } from "pdf-lib";
 import fs from "fs";
 import path from "path";
 
@@ -46,29 +41,26 @@ function normalizeScoreTo100(v: any): number {
 }
 
 function sanitizeTextForPdf(text: string): string {
-  return text.replace(/[^\x00-\x7F]/g, (char) => {
+  return String(text || "").replace(/[^\x00-\x7F]/g, (char) => {
     const map: Record<string, string> = {
-      '\u2192': '->',
-      '\u2713': 'v',
-      '\u2709': 'email',
-      '\u2913': 'download',
-      '\u21BA': 'reload',
-      '\u2022': '-',
-      '\u2026': '...',
-      '\u2014': '-',
-      '\u2013': '-',
-      '\u201C': '"',
-      '\u201D': '"',
-      '\u2018': "'",
-      '\u2019': "'",
-      '\u00D7': 'x',
-      '\u00F7': '/',
-      '\u2728': '*',
-      '\u1F4A1': '!',
-      '\u1F4C8': '^',
-      '\u1F31F': '*',
+      "\u2192": "->",
+      "\u2713": "v",
+      "\u2709": "email",
+      "\u2913": "download",
+      "\u21BA": "reload",
+      "\u2022": "-",
+      "\u2026": "...",
+      "\u2014": "-",
+      "\u2013": "-",
+      "\u201C": '"',
+      "\u201D": '"',
+      "\u2018": "'",
+      "\u2019": "'",
+      "\u00D7": "x",
+      "\u00F7": "/",
+      "\u2728": "*",
     };
-    return map[char] || '';
+    return map[char] || "";
   });
 }
 
@@ -88,8 +80,7 @@ function addWrappedText(options: {
   const color: RGB = options.color ?? rgb(0, 0, 0);
 
   const sanitizedText = sanitizeTextForPdf(options.text);
-  const words = sanitizedText.split(" ");
-  let line = "";
+  const paragraphs = sanitizedText.split(/\n+/g);
 
   const drawLine = (l: string) => {
     if (!l.trim()) return;
@@ -97,27 +88,57 @@ function addWrappedText(options: {
     y -= lineHeight;
   };
 
-  for (const word of words) {
-    const testLine = line ? `${line} ${word}` : word;
-    const testWidth = font.widthOfTextAtSize(testLine, size);
-    if (testWidth > maxWidth) {
-      drawLine(line);
-      line = word;
-    } else {
-      line = testLine;
-    }
-  }
+  for (const para of paragraphs) {
+    const words = para.split(" ");
+    let line = "";
 
-  if (line) {
-    drawLine(line);
+    for (const word of words) {
+      const testLine = line ? `${line} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, size);
+
+      if (testWidth > maxWidth) {
+        drawLine(line);
+        line = word;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) drawLine(line);
+
+    // paragraph spacing
+    y -= Math.max(0, lineHeight * 0.25);
   }
 
   return y;
 }
 
-export async function generateReportPdf(
-  report: MbaReportPayload
-): Promise<Uint8Array> {
+function wrapLines(text: string, font: any, size: number, maxWidth: number): string[] {
+  const sanitizedText = sanitizeTextForPdf(text);
+  const paragraphs = sanitizedText.split(/\n+/g);
+  const all: string[] = [];
+
+  for (const para of paragraphs) {
+    const words = para.split(" ");
+    let line = "";
+    for (const w of words) {
+      const test = line ? `${line} ${w}` : w;
+      if (font.widthOfTextAtSize(test, size) > maxWidth) {
+        if (line) all.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    }
+    if (line) all.push(line);
+    all.push(""); // paragraph break marker (empty line)
+  }
+
+  // trim trailing empty markers
+  while (all.length && all[all.length - 1] === "") all.pop();
+  return all;
+}
+
+export async function generateReportPdf(report: MbaReportPayload): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -129,7 +150,7 @@ export async function generateReportPdf(
   const subtitleSize = 14;
   const bodySize = 10;
   const smallSize = 9;
-  const lineHeight = 14;
+
   const marginX = 50;
   const topMargin = 50;
   const bottomMargin = 60;
@@ -145,9 +166,7 @@ export async function generateReportPdf(
   };
 
   const checkSpace = (needed: number) => {
-    if (cursorY < bottomMargin + needed) {
-      newPage();
-    }
+    if (cursorY < bottomMargin + needed) newPage();
   };
 
   // Color Palette
@@ -167,52 +186,68 @@ export async function generateReportPdf(
   // ---------------------------------------------------------------------------
   // COVER PAGE WITH LOGO
   // ---------------------------------------------------------------------------
-  const candidateName = sanitizeTextForPdf(
-    report.candidate_name || report.name || "MBA Applicant"
-  );
+  const candidateName = sanitizeTextForPdf(report.candidate_name || report.name || "MBA Applicant");
   const email = sanitizeTextForPdf(report.email || "");
 
-  // Embed logo
-  let logoImage = null;
+  // ✅ Embed PNG logo (pdf-lib supports PNG/JPG; NOT WebP)
+  let logoImage: any = null;
   try {
-    const logoPath = path.join(process.cwd(), "public", "logo", "admit55_final_logo.webp");
+    const logoPath = path.join(process.cwd(), "public", "logo", "admit55_final_logo.png");
     const logoBytes = fs.readFileSync(logoPath);
     logoImage = await pdfDoc.embedPng(logoBytes);
   } catch (err) {
     console.error("Failed to embed logo:", err);
   }
 
-  // Header Bar with gradient effect
+  const headerBarHeight = 140;
+  const headerBarY = height - headerBarHeight;
+
   page.drawRectangle({
     x: 0,
-    y: height - 140,
-    width: width,
-    height: 140,
+    y: headerBarY,
+    width,
+    height: headerBarHeight,
     color: rgb(0.0, 0.3, 0.55),
   });
 
-  // Draw logo if available
+  // Draw logo if available (scaled to a fixed height)
+  let logoW = 0;
   if (logoImage) {
-    const logoDims = logoImage.scale(0.15);
+    const desiredH = 42;
+    const scale = desiredH / logoImage.height;
+    const dims = logoImage.scale(scale);
+    logoW = dims.width;
+
     page.drawImage(logoImage, {
       x: marginX,
-      y: height - 70,
-      width: logoDims.width,
-      height: logoDims.height,
+      y: headerBarY + (headerBarHeight - dims.height) / 2,
+      width: dims.width,
+      height: dims.height,
     });
   }
 
-  page.drawText("MBA PROFILE REPORT", {
-    x: marginX + (logoImage ? 80 : 0),
+  const titleX = marginX + (logoW ? logoW + 16 : 0);
+
+  // ✅ Title text updated
+  page.drawText("YOUR MBA PROFILE REPORT", {
+    x: titleX,
     y: height - 60,
     size: titleSize,
     font: fontBold,
     color: colors.white,
   });
 
+  page.drawText("by Admit55", {
+    x: titleX,
+    y: height - 82,
+    size: 12,
+    font: fontRegular,
+    color: rgb(0.9, 0.9, 0.9),
+  });
+
   page.drawText(`Prepared for: ${candidateName}`, {
     x: marginX,
-    y: height - 95,
+    y: height - 112,
     size: subtitleSize,
     font: fontRegular,
     color: colors.white,
@@ -221,7 +256,7 @@ export async function generateReportPdf(
   if (email) {
     page.drawText(`Email: ${email}`, {
       x: marginX,
-      y: height - 118,
+      y: height - 132,
       size: bodySize,
       font: fontRegular,
       color: rgb(0.9, 0.9, 0.9),
@@ -230,19 +265,35 @@ export async function generateReportPdf(
 
   cursorY = height - 180;
 
-  // Summary Section
+  // ---------------------------------------------------------------------------
+  // EXECUTIVE SUMMARY (✅ FIXED: dynamic box height so no overlap)
+  // ---------------------------------------------------------------------------
   const headerSummary = report.header_summary || {};
-  const summary = sanitizeTextForPdf(
-    headerSummary.summary || "Your comprehensive MBA profile analysis."
-  );
+  const summary = sanitizeTextForPdf(headerSummary.summary || "Your comprehensive MBA profile analysis.");
 
-  checkSpace(100);
-  
+  const boxPadding = 14;
+  const boxTitleSize = 12;
+  const boxTitleGap = 18;
+  const summaryLineHeight = 12;
+  const summaryMaxWidth = width - 2 * marginX;
+
+  const summaryLines = wrapLines(summary, fontRegular, bodySize, summaryMaxWidth);
+  const effectiveLineCount =
+    summaryLines.filter((l) => l !== "").length + summaryLines.filter((l) => l === "").length * 0.5;
+
+  const boxHeight =
+    boxPadding + boxTitleSize + boxTitleGap + Math.ceil(effectiveLineCount) * summaryLineHeight + boxPadding;
+
+  checkSpace(boxHeight + 40);
+
+  const boxTopY = cursorY;
+  const boxY = boxTopY - boxHeight;
+
   page.drawRectangle({
     x: marginX - 10,
-    y: cursorY - 60,
+    y: boxY,
     width: width - 2 * marginX + 20,
-    height: 80,
+    height: boxHeight,
     color: colors.emeraldLight,
     borderColor: colors.emerald,
     borderWidth: 2,
@@ -250,33 +301,31 @@ export async function generateReportPdf(
 
   page.drawText("EXECUTIVE SUMMARY", {
     x: marginX,
-    y: cursorY - 20,
-    size: 12,
+    y: boxTopY - boxPadding - 2,
+    size: boxTitleSize,
     font: fontBold,
     color: colors.emerald,
   });
 
-  cursorY = addWrappedText({
-    page,
-    text: summary,
-    x: marginX,
-    y: cursorY - 38,
-    maxWidth: width - 2 * marginX,
-    lineHeight: 12,
-    font: fontRegular,
-    size: bodySize,
-    color: colors.slate,
-  });
+  let textY = boxTopY - boxPadding - 2 - boxTitleGap;
+  for (const ln of summaryLines) {
+    if (ln === "") {
+      textY -= Math.round(summaryLineHeight * 0.5);
+      continue;
+    }
+    page.drawText(ln, {
+      x: marginX,
+      y: textY,
+      size: bodySize,
+      font: fontRegular,
+      color: colors.slate,
+    });
+    textY -= summaryLineHeight;
+  }
 
-  cursorY -= 40;
+  cursorY = boxY - 30;
 
-  // Remove/Don't show archetype
-  // const archetype = sanitizeTextForPdf(...) - REMOVED
-
-  const generated = report.downloaded_at
-    ? new Date(report.downloaded_at)
-    : new Date();
-
+  const generated = report.downloaded_at ? new Date(report.downloaded_at) : new Date();
   page.drawText(`Generated: ${generated.toLocaleDateString()} at ${generated.toLocaleTimeString()}`, {
     x: marginX,
     y: cursorY,
@@ -292,11 +341,10 @@ export async function generateReportPdf(
   // ---------------------------------------------------------------------------
   newPage();
 
-  // Section Header
   page.drawRectangle({
     x: 0,
     y: cursorY + 10,
-    width: width,
+    width,
     height: 40,
     color: colors.slateLight,
   });
@@ -315,13 +363,11 @@ export async function generateReportPdf(
   const scoreEntries = Object.entries(scores);
 
   if (scoreEntries.length > 0) {
-    // Calculate average
     const avgScore = Math.round(
-      scoreEntries.reduce((sum, [_, v]) => sum + normalizeScoreTo100(v), 0) / scoreEntries.length
+      scoreEntries.reduce((sum, [, v]) => sum + normalizeScoreTo100(v), 0) / scoreEntries.length
     );
 
-    // Average Score Box
-    checkSpace(60);
+    checkSpace(80);
     page.drawRectangle({
       x: marginX,
       y: cursorY - 50,
@@ -350,15 +396,12 @@ export async function generateReportPdf(
 
     cursorY -= 70;
 
-    // Score Grid
     const colWidth = 250;
     const rowHeight = 35;
 
     for (let i = 0; i < scoreEntries.length; i++) {
       const [key, raw] = scoreEntries[i];
-      const label = sanitizeTextForPdf(
-        key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-      );
+      const label = sanitizeTextForPdf(key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
       const score = normalizeScoreTo100(raw);
 
       const col = i % 2;
@@ -367,9 +410,8 @@ export async function generateReportPdf(
       const x = marginX + col * colWidth;
       const y = cursorY - row * rowHeight;
 
-      checkSpace(rowHeight + 10);
+      checkSpace(rowHeight + 20);
 
-      // Score label
       page.drawText(label, {
         x,
         y,
@@ -378,7 +420,6 @@ export async function generateReportPdf(
         color: colors.slate,
       });
 
-      // Score value
       page.drawText(`${score}`, {
         x: x + 140,
         y,
@@ -387,7 +428,6 @@ export async function generateReportPdf(
         color: score >= 70 ? colors.emerald : colors.amber,
       });
 
-      // Progress bar background
       page.drawRectangle({
         x,
         y: y - 15,
@@ -396,12 +436,10 @@ export async function generateReportPdf(
         color: colors.slateLight,
       });
 
-      // Progress bar fill
-      const barWidth = (180 * score) / 100;
       page.drawRectangle({
         x,
         y: y - 15,
-        width: barWidth,
+        width: (180 * score) / 100,
         height: 6,
         color: score >= 70 ? colors.emerald : colors.amber,
       });
@@ -409,9 +447,8 @@ export async function generateReportPdf(
 
     cursorY -= Math.ceil(scoreEntries.length / 2) * rowHeight + 40;
 
-    // Add visual radar/spider graph representation
     checkSpace(250);
-    
+
     page.drawText("Score Distribution Graph", {
       x: marginX,
       y: cursorY,
@@ -419,17 +456,15 @@ export async function generateReportPdf(
       font: fontBold,
       color: colors.slate,
     });
-    
+
     cursorY -= 30;
-    
-    // Draw simple bar chart
+
     const chartX = marginX;
     const chartY = cursorY - 180;
     const chartWidth = width - 2 * marginX;
     const chartHeight = 150;
     const barSpacing = chartWidth / scoreEntries.length;
-    
-    // Draw chart background
+
     page.drawRectangle({
       x: chartX,
       y: chartY,
@@ -439,8 +474,7 @@ export async function generateReportPdf(
       borderColor: rgb(0.85, 0.85, 0.85),
       borderWidth: 1,
     });
-    
-    // Draw horizontal grid lines
+
     for (let i = 0; i <= 4; i++) {
       const y = chartY + (chartHeight * i) / 4;
       page.drawLine({
@@ -449,8 +483,7 @@ export async function generateReportPdf(
         color: rgb(0.9, 0.9, 0.9),
         thickness: 0.5,
       });
-      
-      // Y-axis labels
+
       page.drawText(`${25 * i}`, {
         x: chartX - 25,
         y: y - 5,
@@ -459,15 +492,13 @@ export async function generateReportPdf(
         color: rgb(0.5, 0.5, 0.5),
       });
     }
-    
-    // Draw bars
+
     scoreEntries.forEach(([key, raw], i) => {
       const score = normalizeScoreTo100(raw);
       const barWidth = barSpacing * 0.7;
       const barHeight = (chartHeight * score) / 100;
       const x = chartX + barSpacing * i + barSpacing * 0.15;
-      
-      // Bar
+
       page.drawRectangle({
         x,
         y: chartY,
@@ -475,8 +506,7 @@ export async function generateReportPdf(
         height: barHeight,
         color: score >= 70 ? colors.emerald : score >= 50 ? colors.amber : colors.red,
       });
-      
-      // Score label on top
+
       page.drawText(`${score}`, {
         x: x + barWidth / 2 - 8,
         y: chartY + barHeight + 5,
@@ -484,18 +514,17 @@ export async function generateReportPdf(
         font: fontBold,
         color: colors.slate,
       });
-      
-      // X-axis label (rotated text simulation with shortened labels)
+
       const label = key.replace(/_/g, " ").substring(0, 8);
       page.drawText(label, {
-        x: x,
+        x,
         y: chartY - 15,
         size: 7,
         font: fontRegular,
         color: colors.slate,
       });
     });
-    
+
     cursorY = chartY - 30;
   }
 
@@ -509,7 +538,7 @@ export async function generateReportPdf(
     page.drawRectangle({
       x: 0,
       y: cursorY + 10,
-      width: width,
+      width,
       height: 40,
       color: colors.emeraldLight,
     });
@@ -531,7 +560,6 @@ export async function generateReportPdf(
       const summary = sanitizeTextForPdf(s.summary || "");
       const score = typeof s.score === "number" ? normalizeScoreTo100(s.score) : null;
 
-      // Strength Box
       page.drawRectangle({
         x: marginX - 5,
         y: cursorY - 55,
@@ -540,7 +568,6 @@ export async function generateReportPdf(
         color: colors.emeraldLight,
       });
 
-      // Left border accent
       page.drawRectangle({
         x: marginX - 5,
         y: cursorY - 55,
@@ -549,7 +576,6 @@ export async function generateReportPdf(
         color: colors.emerald,
       });
 
-      // Number badge
       page.drawCircle({
         x: marginX + 15,
         y: cursorY - 15,
@@ -565,7 +591,6 @@ export async function generateReportPdf(
         color: colors.white,
       });
 
-      // Title
       page.drawText(title, {
         x: marginX + 35,
         y: cursorY - 15,
@@ -574,7 +599,6 @@ export async function generateReportPdf(
         color: colors.slate,
       });
 
-      // Score badge
       if (score !== null) {
         page.drawText(`${score}/100`, {
           x: width - marginX - 60,
@@ -585,7 +609,6 @@ export async function generateReportPdf(
         });
       }
 
-      // Summary
       cursorY = addWrappedText({
         page,
         text: summary,
@@ -612,7 +635,7 @@ export async function generateReportPdf(
     page.drawRectangle({
       x: 0,
       y: cursorY + 10,
-      width: width,
+      width,
       height: 40,
       color: colors.redLight,
     });
@@ -713,7 +736,7 @@ export async function generateReportPdf(
     page.drawRectangle({
       x: 0,
       y: cursorY + 10,
-      width: width,
+      width,
       height: 40,
       color: colors.amberLight,
     });
@@ -824,7 +847,7 @@ export async function generateReportPdf(
     page.drawRectangle({
       x: 0,
       y: cursorY + 10,
-      width: width,
+      width,
       height: 40,
       color: colors.slateLight,
     });
@@ -839,7 +862,6 @@ export async function generateReportPdf(
 
     cursorY -= 50;
 
-    // Group by timeframe
     const buckets: Record<string, any[]> = {
       "1-3 weeks": [],
       "3-6 weeks": [],
@@ -848,19 +870,15 @@ export async function generateReportPdf(
 
     recommendations.forEach((rec) => {
       const tf = (rec.timeframe || "").toLowerCase();
-      if (tf.includes("1-3") || tf.includes("1_3")) {
-        buckets["1-3 weeks"].push(rec);
-      } else if (tf.includes("3-6") || tf.includes("4-6")) {
-        buckets["3-6 weeks"].push(rec);
-      } else {
-        buckets["3 months"].push(rec);
-      }
+      if (tf.includes("1-3") || tf.includes("1_3")) buckets["1-3 weeks"].push(rec);
+      else if (tf.includes("3-6") || tf.includes("4-6")) buckets["3-6 weeks"].push(rec);
+      else buckets["3 months"].push(rec);
     });
 
     Object.entries(buckets).forEach(([timeframe, items]) => {
       if (items.length === 0) return;
 
-      checkSpace(50);
+      checkSpace(70);
 
       page.drawText(`Next ${timeframe}:`, {
         x: marginX,
@@ -872,7 +890,7 @@ export async function generateReportPdf(
       cursorY -= 18;
 
       items.slice(0, 3).forEach((rec, i) => {
-        checkSpace(50);
+        checkSpace(60);
 
         const area = sanitizeTextForPdf(rec.area || "General");
         const action = sanitizeTextForPdf(rec.action || "");
@@ -912,8 +930,10 @@ export async function generateReportPdf(
   // ---------------------------------------------------------------------------
   const pages = pdfDoc.getPages();
   pages.forEach((pg, idx) => {
+    const { width: pw } = pg.getSize();
+
     pg.drawText(`Page ${idx + 1} of ${pages.length}`, {
-      x: width / 2 - 30,
+      x: pw / 2 - 30,
       y: 30,
       size: 8,
       font: fontRegular,
@@ -921,7 +941,7 @@ export async function generateReportPdf(
     });
 
     pg.drawText("Generated by Admit55", {
-      x: width - 150,
+      x: pw - 150,
       y: 30,
       size: 8,
       font: fontRegular,
@@ -929,6 +949,5 @@ export async function generateReportPdf(
     });
   });
 
-  const pdfBytes = await pdfDoc.save();
-  return pdfBytes;
+  return await pdfDoc.save();
 }
