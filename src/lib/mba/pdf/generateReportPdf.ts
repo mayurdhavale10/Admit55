@@ -5,18 +5,33 @@ import {
   rgb,
   type RGB,
 } from "pdf-lib";
+import fs from "fs";
+import path from "path";
 
 export interface MbaReportPayload {
   scores?: Record<string, number>;
   strengths?: { title?: string; summary?: string; score?: number }[];
   improvements?: { area?: string; suggestion?: string; score?: number }[];
   recommendations?: {
+    id?: string;
     area?: string;
     action?: string;
     priority?: string;
     estimated_impact?: string;
     current_score?: number;
+    timeframe?: string;
   }[];
+  adcom_panel?: {
+    what_excites?: string[];
+    what_concerns?: string[];
+    how_to_preempt?: string[];
+  };
+  header_summary?: {
+    summary?: string;
+    highlights?: string[];
+    applicantArchetypeTitle?: string;
+    applicantArchetypeSubtitle?: string;
+  };
   candidate_name?: string;
   email?: string;
   downloaded_at?: string;
@@ -30,11 +45,33 @@ function normalizeScoreTo100(v: any): number {
   return Math.round(Math.max(0, Math.min(100, n)));
 }
 
-/**
- * Simple wrapped text helper for one page.
- * Caller is responsible for checking space / adding new pages.
- * Returns updated y position.
- */
+function sanitizeTextForPdf(text: string): string {
+  return text.replace(/[^\x00-\x7F]/g, (char) => {
+    const map: Record<string, string> = {
+      '\u2192': '->',
+      '\u2713': 'v',
+      '\u2709': 'email',
+      '\u2913': 'download',
+      '\u21BA': 'reload',
+      '\u2022': '-',
+      '\u2026': '...',
+      '\u2014': '-',
+      '\u2013': '-',
+      '\u201C': '"',
+      '\u201D': '"',
+      '\u2018': "'",
+      '\u2019': "'",
+      '\u00D7': 'x',
+      '\u00F7': '/',
+      '\u2728': '*',
+      '\u1F4A1': '!',
+      '\u1F4C8': '^',
+      '\u1F31F': '*',
+    };
+    return map[char] || '';
+  });
+}
+
 function addWrappedText(options: {
   page: any;
   text: string;
@@ -45,23 +82,18 @@ function addWrappedText(options: {
   font: any;
   size: number;
   color?: RGB;
-}) {
-  const { page, text, x, maxWidth, lineHeight, font, size } = options;
+}): number {
+  const { page, x, maxWidth, lineHeight, font, size } = options;
   let { y } = options;
   const color: RGB = options.color ?? rgb(0, 0, 0);
 
-  const words = text.split(" ");
+  const sanitizedText = sanitizeTextForPdf(options.text);
+  const words = sanitizedText.split(" ");
   let line = "";
 
   const drawLine = (l: string) => {
     if (!l.trim()) return;
-    page.drawText(l, {
-      x,
-      y,
-      size,
-      font,
-      color,
-    });
+    page.drawText(l, { x, y, size, font, color });
     y -= lineHeight;
   };
 
@@ -87,18 +119,22 @@ export async function generateReportPdf(
   report: MbaReportPayload
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   let page = pdfDoc.addPage();
   let { width, height } = page.getSize();
 
-  const titleSize = 22;
-  const subtitleSize = 12;
+  const titleSize = 24;
+  const subtitleSize = 14;
   const bodySize = 10;
+  const smallSize = 9;
   const lineHeight = 14;
   const marginX = 50;
-  const topMargin = 60;
+  const topMargin = 50;
   const bottomMargin = 60;
+
+  let cursorY = height - topMargin;
 
   const newPage = () => {
     page = pdfDoc.addPage();
@@ -108,383 +144,790 @@ export async function generateReportPdf(
     cursorY = height - topMargin;
   };
 
-  // ---------------------------------------------------------------------------
-  // HEADER
-  // ---------------------------------------------------------------------------
-  const candidateName =
-    report.candidate_name ||
-    report.name ||
-    report.profile_name ||
-    "MBA Applicant";
-  const email = report.email || report.contact_email || "";
+  const checkSpace = (needed: number) => {
+    if (cursorY < bottomMargin + needed) {
+      newPage();
+    }
+  };
 
-  page.drawText("MBA Profile Report", {
-    x: marginX,
-    y: height - topMargin,
+  // Color Palette
+  const colors = {
+    primary: rgb(0.0, 0.35, 0.6),
+    emerald: rgb(0.0, 0.7, 0.4),
+    emeraldLight: rgb(0.9, 0.98, 0.95),
+    red: rgb(0.8, 0.1, 0.1),
+    redLight: rgb(0.99, 0.95, 0.95),
+    amber: rgb(0.92, 0.6, 0.0),
+    amberLight: rgb(0.99, 0.97, 0.9),
+    slate: rgb(0.15, 0.15, 0.2),
+    slateLight: rgb(0.95, 0.96, 0.97),
+    white: rgb(1, 1, 1),
+  };
+
+  // ---------------------------------------------------------------------------
+  // COVER PAGE WITH LOGO
+  // ---------------------------------------------------------------------------
+  const candidateName = sanitizeTextForPdf(
+    report.candidate_name || report.name || "MBA Applicant"
+  );
+  const email = sanitizeTextForPdf(report.email || "");
+
+  // Embed logo
+  let logoImage = null;
+  try {
+    const logoPath = path.join(process.cwd(), "public", "logo", "admit55_final_logo.webp");
+    const logoBytes = fs.readFileSync(logoPath);
+    logoImage = await pdfDoc.embedPng(logoBytes);
+  } catch (err) {
+    console.error("Failed to embed logo:", err);
+  }
+
+  // Header Bar with gradient effect
+  page.drawRectangle({
+    x: 0,
+    y: height - 140,
+    width: width,
+    height: 140,
+    color: rgb(0.0, 0.3, 0.55),
+  });
+
+  // Draw logo if available
+  if (logoImage) {
+    const logoDims = logoImage.scale(0.15);
+    page.drawImage(logoImage, {
+      x: marginX,
+      y: height - 70,
+      width: logoDims.width,
+      height: logoDims.height,
+    });
+  }
+
+  page.drawText("MBA PROFILE REPORT", {
+    x: marginX + (logoImage ? 80 : 0),
+    y: height - 60,
     size: titleSize,
-    font,
-    color: rgb(0.1, 0.1, 0.2),
+    font: fontBold,
+    color: colors.white,
   });
 
-  let cursorY = height - topMargin - 30;
-
-  page.drawText(`Candidate: ${candidateName}`, {
+  page.drawText(`Prepared for: ${candidateName}`, {
     x: marginX,
-    y: cursorY,
+    y: height - 95,
     size: subtitleSize,
-    font,
+    font: fontRegular,
+    color: colors.white,
   });
-  cursorY -= lineHeight;
 
   if (email) {
     page.drawText(`Email: ${email}`, {
       x: marginX,
-      y: cursorY,
-      size: subtitleSize,
-      font,
+      y: height - 118,
+      size: bodySize,
+      font: fontRegular,
+      color: rgb(0.9, 0.9, 0.9),
     });
-    cursorY -= lineHeight;
   }
+
+  cursorY = height - 180;
+
+  // Summary Section
+  const headerSummary = report.header_summary || {};
+  const summary = sanitizeTextForPdf(
+    headerSummary.summary || "Your comprehensive MBA profile analysis."
+  );
+
+  checkSpace(100);
+  
+  page.drawRectangle({
+    x: marginX - 10,
+    y: cursorY - 60,
+    width: width - 2 * marginX + 20,
+    height: 80,
+    color: colors.emeraldLight,
+    borderColor: colors.emerald,
+    borderWidth: 2,
+  });
+
+  page.drawText("EXECUTIVE SUMMARY", {
+    x: marginX,
+    y: cursorY - 20,
+    size: 12,
+    font: fontBold,
+    color: colors.emerald,
+  });
+
+  cursorY = addWrappedText({
+    page,
+    text: summary,
+    x: marginX,
+    y: cursorY - 38,
+    maxWidth: width - 2 * marginX,
+    lineHeight: 12,
+    font: fontRegular,
+    size: bodySize,
+    color: colors.slate,
+  });
+
+  cursorY -= 40;
+
+  // Remove/Don't show archetype
+  // const archetype = sanitizeTextForPdf(...) - REMOVED
 
   const generated = report.downloaded_at
     ? new Date(report.downloaded_at)
     : new Date();
 
-  page.drawText(`Generated on: ${generated.toLocaleString()}`, {
+  page.drawText(`Generated: ${generated.toLocaleDateString()} at ${generated.toLocaleTimeString()}`, {
     x: marginX,
     y: cursorY,
-    size: bodySize,
-    font,
+    size: smallSize,
+    font: fontRegular,
+    color: rgb(0.5, 0.5, 0.5),
   });
-  cursorY -= lineHeight * 2;
+
+  cursorY -= 60;
 
   // ---------------------------------------------------------------------------
-  // SCORE SUMMARY + MINI BARS
+  // SCORE DASHBOARD
   // ---------------------------------------------------------------------------
+  newPage();
+
+  // Section Header
+  page.drawRectangle({
+    x: 0,
+    y: cursorY + 10,
+    width: width,
+    height: 40,
+    color: colors.slateLight,
+  });
+
+  page.drawText("PROFILE STRENGTH ANALYSIS", {
+    x: marginX,
+    y: cursorY,
+    size: 18,
+    font: fontBold,
+    color: colors.slate,
+  });
+
+  cursorY -= 50;
+
   const scores = report.scores || {};
-  const scoreEntries = Object.entries(scores) as [string, any][];
+  const scoreEntries = Object.entries(scores);
 
-  if (cursorY < bottomMargin + 4 * lineHeight) {
-    newPage();
-  }
+  if (scoreEntries.length > 0) {
+    // Calculate average
+    const avgScore = Math.round(
+      scoreEntries.reduce((sum, [_, v]) => sum + normalizeScoreTo100(v), 0) / scoreEntries.length
+    );
 
-  page.drawText("Score Summary (0–100)", {
-    x: marginX,
-    y: cursorY,
-    size: subtitleSize,
-    font,
-    color: rgb(0.0, 0.35, 0.5),
-  });
-  cursorY -= lineHeight;
-
-  const leftColX = marginX;
-  const rightColX = marginX + 220;
-  const barWidth = 130;
-  const barHeight = 6;
-
-  const drawScoreRow = (
-    x: number,
-    y: number,
-    label: string,
-    score: number
-  ) => {
-    page.drawText(label, {
-      x,
-      y,
-      size: bodySize,
-      font,
-    });
-
-    page.drawText(`${score}`, {
-      x,
-      y: y - lineHeight + 4,
-      size: bodySize,
-      font,
-      color: rgb(0.15, 0.55, 0.3),
-    });
-
-    // background bar
+    // Average Score Box
+    checkSpace(60);
     page.drawRectangle({
-      x: x + 50,
-      y: y - lineHeight + 6,
-      width: barWidth,
-      height: barHeight,
-      color: rgb(0.9, 0.93, 0.96),
+      x: marginX,
+      y: cursorY - 50,
+      width: 150,
+      height: 60,
+      color: colors.emeraldLight,
+      borderColor: colors.emerald,
+      borderWidth: 2,
     });
 
-    // filled bar
-    const w = (barWidth * score) / 100;
-    page.drawRectangle({
-      x: x + 50,
-      y: y - lineHeight + 6,
-      width: w,
-      height: barHeight,
-      color: rgb(0.0, 0.7, 0.55),
+    page.drawText("OVERALL SCORE", {
+      x: marginX + 10,
+      y: cursorY - 20,
+      size: 9,
+      font: fontBold,
+      color: colors.emerald,
     });
-  };
 
-  let idx = 0;
-  for (const [key, raw] of scoreEntries) {
-    const label = key
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-    const score = normalizeScoreTo100(raw);
+    page.drawText(`${avgScore}/100`, {
+      x: marginX + 10,
+      y: cursorY - 42,
+      size: 22,
+      font: fontBold,
+      color: colors.emerald,
+    });
 
-    // Start a new page if we are too low for another row pair
-    if (cursorY < bottomMargin + 3 * lineHeight) {
-      newPage();
-      page.drawText("Score Summary (0–100)", {
-        x: marginX,
-        y: cursorY,
-        size: subtitleSize,
-        font,
-        color: rgb(0.0, 0.35, 0.5),
+    cursorY -= 70;
+
+    // Score Grid
+    const colWidth = 250;
+    const rowHeight = 35;
+
+    for (let i = 0; i < scoreEntries.length; i++) {
+      const [key, raw] = scoreEntries[i];
+      const label = sanitizeTextForPdf(
+        key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      );
+      const score = normalizeScoreTo100(raw);
+
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+
+      const x = marginX + col * colWidth;
+      const y = cursorY - row * rowHeight;
+
+      checkSpace(rowHeight + 10);
+
+      // Score label
+      page.drawText(label, {
+        x,
+        y,
+        size: bodySize,
+        font: fontBold,
+        color: colors.slate,
       });
-      cursorY -= lineHeight;
-      idx = 0; // reset pair layout on new page
+
+      // Score value
+      page.drawText(`${score}`, {
+        x: x + 140,
+        y,
+        size: bodySize,
+        font: fontBold,
+        color: score >= 70 ? colors.emerald : colors.amber,
+      });
+
+      // Progress bar background
+      page.drawRectangle({
+        x,
+        y: y - 15,
+        width: 180,
+        height: 6,
+        color: colors.slateLight,
+      });
+
+      // Progress bar fill
+      const barWidth = (180 * score) / 100;
+      page.drawRectangle({
+        x,
+        y: y - 15,
+        width: barWidth,
+        height: 6,
+        color: score >= 70 ? colors.emerald : colors.amber,
+      });
     }
 
-    const colX = idx % 2 === 0 ? leftColX : rightColX;
+    cursorY -= Math.ceil(scoreEntries.length / 2) * rowHeight + 40;
 
-    if (idx % 2 === 0 && idx > 0) {
-      cursorY -= lineHeight * 2;
+    // Add visual radar/spider graph representation
+    checkSpace(250);
+    
+    page.drawText("Score Distribution Graph", {
+      x: marginX,
+      y: cursorY,
+      size: 12,
+      font: fontBold,
+      color: colors.slate,
+    });
+    
+    cursorY -= 30;
+    
+    // Draw simple bar chart
+    const chartX = marginX;
+    const chartY = cursorY - 180;
+    const chartWidth = width - 2 * marginX;
+    const chartHeight = 150;
+    const barSpacing = chartWidth / scoreEntries.length;
+    
+    // Draw chart background
+    page.drawRectangle({
+      x: chartX,
+      y: chartY,
+      width: chartWidth,
+      height: chartHeight,
+      color: rgb(0.98, 0.98, 0.98),
+      borderColor: rgb(0.85, 0.85, 0.85),
+      borderWidth: 1,
+    });
+    
+    // Draw horizontal grid lines
+    for (let i = 0; i <= 4; i++) {
+      const y = chartY + (chartHeight * i) / 4;
+      page.drawLine({
+        start: { x: chartX, y },
+        end: { x: chartX + chartWidth, y },
+        color: rgb(0.9, 0.9, 0.9),
+        thickness: 0.5,
+      });
+      
+      // Y-axis labels
+      page.drawText(`${25 * i}`, {
+        x: chartX - 25,
+        y: y - 5,
+        size: 8,
+        font: fontRegular,
+        color: rgb(0.5, 0.5, 0.5),
+      });
     }
-
-    drawScoreRow(colX, cursorY, label, score);
-
-    if (idx % 2 === 1) {
-      cursorY -= lineHeight * 2;
-    }
-
-    idx++;
+    
+    // Draw bars
+    scoreEntries.forEach(([key, raw], i) => {
+      const score = normalizeScoreTo100(raw);
+      const barWidth = barSpacing * 0.7;
+      const barHeight = (chartHeight * score) / 100;
+      const x = chartX + barSpacing * i + barSpacing * 0.15;
+      
+      // Bar
+      page.drawRectangle({
+        x,
+        y: chartY,
+        width: barWidth,
+        height: barHeight,
+        color: score >= 70 ? colors.emerald : score >= 50 ? colors.amber : colors.red,
+      });
+      
+      // Score label on top
+      page.drawText(`${score}`, {
+        x: x + barWidth / 2 - 8,
+        y: chartY + barHeight + 5,
+        size: 8,
+        font: fontBold,
+        color: colors.slate,
+      });
+      
+      // X-axis label (rotated text simulation with shortened labels)
+      const label = key.replace(/_/g, " ").substring(0, 8);
+      page.drawText(label, {
+        x: x,
+        y: chartY - 15,
+        size: 7,
+        font: fontRegular,
+        color: colors.slate,
+      });
+    });
+    
+    cursorY = chartY - 30;
   }
-
-  cursorY -= lineHeight * 3;
 
   // ---------------------------------------------------------------------------
   // STRENGTHS
   // ---------------------------------------------------------------------------
   const strengths = Array.isArray(report.strengths) ? report.strengths : [];
   if (strengths.length > 0) {
-    if (cursorY < bottomMargin + 4 * lineHeight) {
-      newPage();
-    }
+    newPage();
 
-    page.drawText("Top Strengths", {
+    page.drawRectangle({
+      x: 0,
+      y: cursorY + 10,
+      width: width,
+      height: 40,
+      color: colors.emeraldLight,
+    });
+
+    page.drawText("TOP STRENGTHS", {
       x: marginX,
       y: cursorY,
-      size: subtitleSize,
-      font,
-      color: rgb(0.0, 0.5, 0.25),
+      size: 18,
+      font: fontBold,
+      color: colors.emerald,
     });
-    cursorY -= lineHeight;
 
-    strengths.slice(0, 4).forEach((s, i) => {
-      // Make sure we have space for this block
-      if (cursorY < bottomMargin + 4 * lineHeight) {
-        newPage();
-        page.drawText("Top Strengths (cont.)", {
-          x: marginX,
-          y: cursorY,
-          size: subtitleSize,
-          font,
-          color: rgb(0.0, 0.5, 0.25),
-        });
-        cursorY -= lineHeight;
-      }
+    cursorY -= 50;
 
-      const title = s.title || `Strength ${i + 1}`;
-      const scoreText =
-        typeof s.score === "number"
-          ? ` (${normalizeScoreTo100(s.score)}/100)`
-          : "";
-      const summary = s.summary || "";
+    strengths.slice(0, 5).forEach((s, i) => {
+      checkSpace(80);
 
-      cursorY = addWrappedText({
-        page,
-        text: `${i + 1}. ${title}${scoreText}`,
-        x: marginX,
-        y: cursorY,
-        maxWidth: width - marginX * 2,
-        lineHeight,
-        font,
-        size: bodySize,
-        color: rgb(0.0, 0.35, 0.2),
+      const title = sanitizeTextForPdf(s.title || `Strength ${i + 1}`);
+      const summary = sanitizeTextForPdf(s.summary || "");
+      const score = typeof s.score === "number" ? normalizeScoreTo100(s.score) : null;
+
+      // Strength Box
+      page.drawRectangle({
+        x: marginX - 5,
+        y: cursorY - 55,
+        width: width - 2 * marginX + 10,
+        height: 60,
+        color: colors.emeraldLight,
       });
 
+      // Left border accent
+      page.drawRectangle({
+        x: marginX - 5,
+        y: cursorY - 55,
+        width: 4,
+        height: 60,
+        color: colors.emerald,
+      });
+
+      // Number badge
+      page.drawCircle({
+        x: marginX + 15,
+        y: cursorY - 15,
+        size: 12,
+        color: colors.emerald,
+      });
+
+      page.drawText(`${i + 1}`, {
+        x: marginX + (i < 9 ? 12 : 9),
+        y: cursorY - 19,
+        size: 10,
+        font: fontBold,
+        color: colors.white,
+      });
+
+      // Title
+      page.drawText(title, {
+        x: marginX + 35,
+        y: cursorY - 15,
+        size: 11,
+        font: fontBold,
+        color: colors.slate,
+      });
+
+      // Score badge
+      if (score !== null) {
+        page.drawText(`${score}/100`, {
+          x: width - marginX - 60,
+          y: cursorY - 15,
+          size: 10,
+          font: fontBold,
+          color: colors.emerald,
+        });
+      }
+
+      // Summary
       cursorY = addWrappedText({
         page,
         text: summary,
-        x: marginX + 12,
-        y: cursorY,
-        maxWidth: width - marginX * 2 - 12,
-        lineHeight,
-        font,
-        size: bodySize,
-        color: rgb(0.1, 0.1, 0.1),
+        x: marginX + 35,
+        y: cursorY - 32,
+        maxWidth: width - 2 * marginX - 40,
+        lineHeight: 11,
+        font: fontRegular,
+        size: smallSize,
+        color: colors.slate,
       });
 
-      cursorY -= lineHeight / 2;
+      cursorY -= 10;
     });
-
-    cursorY -= lineHeight;
   }
 
   // ---------------------------------------------------------------------------
   // IMPROVEMENT AREAS
   // ---------------------------------------------------------------------------
-  const improvements = Array.isArray(report.improvements)
-    ? report.improvements
-    : [];
-
+  const improvements = Array.isArray(report.improvements) ? report.improvements : [];
   if (improvements.length > 0) {
-    if (cursorY < bottomMargin + 4 * lineHeight) {
-      newPage();
-    }
+    newPage();
 
-    page.drawText("Improvement Areas", {
+    page.drawRectangle({
+      x: 0,
+      y: cursorY + 10,
+      width: width,
+      height: 40,
+      color: colors.redLight,
+    });
+
+    page.drawText("IMPROVEMENT AREAS", {
       x: marginX,
       y: cursorY,
-      size: subtitleSize,
-      font,
-      color: rgb(0.7, 0.15, 0.15),
+      size: 18,
+      font: fontBold,
+      color: colors.red,
     });
-    cursorY -= lineHeight;
 
-    improvements.slice(0, 4).forEach((imp, i) => {
-      if (cursorY < bottomMargin + 4 * lineHeight) {
-        newPage();
-        page.drawText("Improvement Areas (cont.)", {
-          x: marginX,
-          y: cursorY,
-          size: subtitleSize,
-          font,
-          color: rgb(0.7, 0.15, 0.15),
-        });
-        cursorY -= lineHeight;
-      }
+    cursorY -= 50;
 
-      const area = imp.area || `Area ${i + 1}`;
-      const scoreText =
-        typeof imp.score === "number"
-          ? ` (current: ${normalizeScoreTo100(imp.score)}/100)`
-          : "";
-      const suggestion =
-        imp.suggestion || "Consider strengthening this area.";
+    improvements.slice(0, 5).forEach((imp, i) => {
+      checkSpace(80);
 
-      cursorY = addWrappedText({
-        page,
-        text: `${i + 1}. ${area}${scoreText}`,
-        x: marginX,
-        y: cursorY,
-        maxWidth: width - marginX * 2,
-        lineHeight,
-        font,
-        size: bodySize,
-        color: rgb(0.5, 0.1, 0.1),
+      const area = sanitizeTextForPdf(imp.area || `Area ${i + 1}`);
+      const suggestion = sanitizeTextForPdf(imp.suggestion || "");
+      const score = typeof imp.score === "number" ? normalizeScoreTo100(imp.score) : null;
+
+      page.drawRectangle({
+        x: marginX - 5,
+        y: cursorY - 55,
+        width: width - 2 * marginX + 10,
+        height: 60,
+        color: colors.redLight,
       });
+
+      page.drawRectangle({
+        x: marginX - 5,
+        y: cursorY - 55,
+        width: 4,
+        height: 60,
+        color: colors.red,
+      });
+
+      page.drawCircle({
+        x: marginX + 15,
+        y: cursorY - 15,
+        size: 12,
+        color: colors.red,
+      });
+
+      page.drawText(`${i + 1}`, {
+        x: marginX + (i < 9 ? 12 : 9),
+        y: cursorY - 19,
+        size: 10,
+        font: fontBold,
+        color: colors.white,
+      });
+
+      page.drawText(area, {
+        x: marginX + 35,
+        y: cursorY - 15,
+        size: 11,
+        font: fontBold,
+        color: colors.slate,
+      });
+
+      if (score !== null) {
+        page.drawText(`${score}/100`, {
+          x: width - marginX - 60,
+          y: cursorY - 15,
+          size: 10,
+          font: fontBold,
+          color: colors.red,
+        });
+      }
 
       cursorY = addWrappedText({
         page,
         text: suggestion,
-        x: marginX + 12,
-        y: cursorY,
-        maxWidth: width - marginX * 2 - 12,
-        lineHeight,
-        font,
-        size: bodySize,
-        color: rgb(0.1, 0.1, 0.1),
+        x: marginX + 35,
+        y: cursorY - 32,
+        maxWidth: width - 2 * marginX - 40,
+        lineHeight: 11,
+        font: fontRegular,
+        size: smallSize,
+        color: colors.slate,
       });
 
-      cursorY -= lineHeight / 2;
+      cursorY -= 10;
     });
-
-    cursorY -= lineHeight;
   }
 
   // ---------------------------------------------------------------------------
-  // ACTIONABLE RECOMMENDATIONS
+  // ADCOM PANEL
   // ---------------------------------------------------------------------------
-  const recommendations = Array.isArray(report.recommendations)
-    ? report.recommendations
-    : [];
+  const adcom = report.adcom_panel || {};
+  const excites = Array.isArray(adcom.what_excites) ? adcom.what_excites : [];
+  const concerns = Array.isArray(adcom.what_concerns) ? adcom.what_concerns : [];
+  const preempt = Array.isArray(adcom.how_to_preempt) ? adcom.how_to_preempt : [];
 
-  if (recommendations.length > 0) {
-    if (cursorY < bottomMargin + 4 * lineHeight) {
-      newPage();
-    }
+  if (excites.length || concerns.length || preempt.length) {
+    newPage();
 
-    page.drawText("Actionable Recommendations", {
+    page.drawRectangle({
+      x: 0,
+      y: cursorY + 10,
+      width: width,
+      height: 40,
+      color: colors.amberLight,
+    });
+
+    page.drawText("ADCOM PERSPECTIVE", {
       x: marginX,
       y: cursorY,
-      size: subtitleSize,
-      font,
-      color: rgb(0.0, 0.35, 0.6),
+      size: 18,
+      font: fontBold,
+      color: colors.amber,
     });
-    cursorY -= lineHeight;
 
-    recommendations.slice(0, 8).forEach((rec, i) => {
-      if (cursorY < bottomMargin + 5 * lineHeight) {
-        newPage();
-        page.drawText("Actionable Recommendations (cont.)", {
-          x: marginX,
-          y: cursorY,
-          size: subtitleSize,
-          font,
-          color: rgb(0.0, 0.35, 0.6),
-        });
-        cursorY -= lineHeight;
-      }
+    cursorY -= 50;
 
-      const area = rec.area || "General";
-      const priority = (rec.priority || "medium").toUpperCase();
-      const action = rec.action || "";
-      const impact = rec.estimated_impact || "";
-
-      let header = `${i + 1}. [${priority}] ${area}`;
-      cursorY = addWrappedText({
-        page,
-        text: header,
+    if (excites.length) {
+      checkSpace(60);
+      page.drawText("What Excites AdCom:", {
         x: marginX,
         y: cursorY,
-        maxWidth: width - marginX * 2,
-        lineHeight,
-        font,
-        size: bodySize,
-        color: rgb(0.0, 0.25, 0.45),
+        size: 12,
+        font: fontBold,
+        color: colors.emerald,
+      });
+      cursorY -= 15;
+
+      excites.slice(0, 3).forEach((item) => {
+        cursorY = addWrappedText({
+          page,
+          text: `- ${sanitizeTextForPdf(item)}`,
+          x: marginX + 10,
+          y: cursorY,
+          maxWidth: width - 2 * marginX - 10,
+          lineHeight: 12,
+          font: fontRegular,
+          size: bodySize,
+          color: colors.slate,
+        });
+        cursorY -= 5;
       });
 
-      if (action) {
+      cursorY -= 15;
+    }
+
+    if (concerns.length) {
+      checkSpace(60);
+      page.drawText("What Concerns AdCom:", {
+        x: marginX,
+        y: cursorY,
+        size: 12,
+        font: fontBold,
+        color: colors.red,
+      });
+      cursorY -= 15;
+
+      concerns.slice(0, 3).forEach((item) => {
         cursorY = addWrappedText({
           page,
-          text: `Action: ${action}`,
-          x: marginX + 12,
+          text: `- ${sanitizeTextForPdf(item)}`,
+          x: marginX + 10,
           y: cursorY,
-          maxWidth: width - marginX * 2 - 12,
-          lineHeight,
-          font,
+          maxWidth: width - 2 * marginX - 10,
+          lineHeight: 12,
+          font: fontRegular,
           size: bodySize,
-          color: rgb(0.1, 0.1, 0.1),
+          color: colors.slate,
         });
-      }
+        cursorY -= 5;
+      });
 
-      if (impact) {
+      cursorY -= 15;
+    }
+
+    if (preempt.length) {
+      checkSpace(60);
+      page.drawText("How to Preempt Concerns:", {
+        x: marginX,
+        y: cursorY,
+        size: 12,
+        font: fontBold,
+        color: colors.primary,
+      });
+      cursorY -= 15;
+
+      preempt.slice(0, 3).forEach((item) => {
         cursorY = addWrappedText({
           page,
-          text: `Impact: ${impact}`,
-          x: marginX + 12,
+          text: `- ${sanitizeTextForPdf(item)}`,
+          x: marginX + 10,
           y: cursorY,
-          maxWidth: width - marginX * 2 - 12,
-          lineHeight,
-          font,
+          maxWidth: width - 2 * marginX - 10,
+          lineHeight: 12,
+          font: fontRegular,
           size: bodySize,
-          color: rgb(0.1, 0.1, 0.1),
+          color: colors.slate,
         });
-      }
+        cursorY -= 5;
+      });
+    }
+  }
 
-      cursorY -= lineHeight / 2;
+  // ---------------------------------------------------------------------------
+  // ACTION PLAN
+  // ---------------------------------------------------------------------------
+  const recommendations = Array.isArray(report.recommendations) ? report.recommendations : [];
+  if (recommendations.length > 0) {
+    newPage();
+
+    page.drawRectangle({
+      x: 0,
+      y: cursorY + 10,
+      width: width,
+      height: 40,
+      color: colors.slateLight,
+    });
+
+    page.drawText("YOUR ACTION PLAN", {
+      x: marginX,
+      y: cursorY,
+      size: 18,
+      font: fontBold,
+      color: colors.primary,
+    });
+
+    cursorY -= 50;
+
+    // Group by timeframe
+    const buckets: Record<string, any[]> = {
+      "1-3 weeks": [],
+      "3-6 weeks": [],
+      "3 months": [],
+    };
+
+    recommendations.forEach((rec) => {
+      const tf = (rec.timeframe || "").toLowerCase();
+      if (tf.includes("1-3") || tf.includes("1_3")) {
+        buckets["1-3 weeks"].push(rec);
+      } else if (tf.includes("3-6") || tf.includes("4-6")) {
+        buckets["3-6 weeks"].push(rec);
+      } else {
+        buckets["3 months"].push(rec);
+      }
+    });
+
+    Object.entries(buckets).forEach(([timeframe, items]) => {
+      if (items.length === 0) return;
+
+      checkSpace(50);
+
+      page.drawText(`Next ${timeframe}:`, {
+        x: marginX,
+        y: cursorY,
+        size: 12,
+        font: fontBold,
+        color: colors.primary,
+      });
+      cursorY -= 18;
+
+      items.slice(0, 3).forEach((rec, i) => {
+        checkSpace(50);
+
+        const area = sanitizeTextForPdf(rec.area || "General");
+        const action = sanitizeTextForPdf(rec.action || "");
+        const priority = (rec.priority || "medium").toUpperCase();
+
+        page.drawText(`${i + 1}. [${priority}] ${area}`, {
+          x: marginX + 10,
+          y: cursorY,
+          size: bodySize,
+          font: fontBold,
+          color: colors.slate,
+        });
+        cursorY -= 14;
+
+        if (action) {
+          cursorY = addWrappedText({
+            page,
+            text: action,
+            x: marginX + 20,
+            y: cursorY,
+            maxWidth: width - 2 * marginX - 25,
+            lineHeight: 11,
+            font: fontRegular,
+            size: smallSize,
+            color: colors.slate,
+          });
+          cursorY -= 8;
+        }
+      });
+
+      cursorY -= 15;
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // FOOTER ON ALL PAGES
+  // ---------------------------------------------------------------------------
+  const pages = pdfDoc.getPages();
+  pages.forEach((pg, idx) => {
+    pg.drawText(`Page ${idx + 1} of ${pages.length}`, {
+      x: width / 2 - 30,
+      y: 30,
+      size: 8,
+      font: fontRegular,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+
+    pg.drawText("Generated by Admit55", {
+      x: width - 150,
+      y: 30,
+      size: 8,
+      font: fontRegular,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+  });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
