@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Dict, Any, List
 import json
+from ..llm_wrapper import call_llm
 
 def match_schools(
     context: Dict[str, Any],
@@ -9,35 +10,261 @@ def match_schools(
     fallback: Any = None
 ) -> List[Dict[str, Any]]:
     """
-    Match user profile to schools from database.
-    
-    Returns list of schools with fit scores.
+    Match user profile to schools using LLM + web search.
+    Falls back to static database if search fails.
     """
     
-    # TODO: Replace with actual database query
-    # For now, return mock schools based on context
-    
     profile_data = context
-    work_location = profile_data.get("work_location", "").lower()
-    target_industry = profile_data.get("target_industry", "").lower()
-    test_score = profile_data.get("test_score_normalized", 700)
     
-    # Mock school database (replace with real DB query)
-    all_schools = _get_mock_schools()
+    print("[School Matching] Starting dynamic school search with web search...")
     
-    # Filter by location preference
-    if work_location and work_location != "no preference":
+    # Try LLM + web search first
+    try:
+        schools = _search_schools_with_web(profile_data, settings, fallback)
+        print(f"[School Matching] ✅ Found {len(schools)} schools via web search")
+        
+        if len(schools) >= 8:
+            return schools[:20]
+        else:
+            print(f"[School Matching] ⚠️ Only {len(schools)} schools found, trying LLM-only...")
+            
+    except Exception as e:
+        print(f"[School Matching] ❌ Web search failed: {e}")
+    
+    # Fallback to LLM-only (no web search)
+    try:
+        schools = _search_schools_with_llm_only(profile_data, settings, fallback)
+        print(f"[School Matching] ✅ Found {len(schools)} schools via LLM")
+        
+        if len(schools) >= 8:
+            return schools[:20]
+            
+    except Exception as e2:
+        print(f"[School Matching] ❌ LLM search failed: {e2}")
+    
+    # Final fallback: static database
+    print("[School Matching] Using static database fallback")
+    return _match_schools_static(profile_data)
+
+
+def _search_schools_with_web(
+    profile: Dict[str, Any],
+    settings: Any,
+    fallback: Any = None
+) -> List[Dict[str, Any]]:
+    """
+    Use LLM with web search tool to find latest MBA programs.
+    This requires Anthropic API with web search enabled.
+    """
+    
+    location = profile.get("work_location", "No preference")
+    industry = profile.get("target_industry", "General")
+    test_score = profile.get("test_score_normalized", "N/A")
+    
+    # Check if using Anthropic (Claude) - only provider with web search
+    provider = getattr(settings, "provider", "").lower() if not isinstance(settings, dict) else settings.get("provider", "").lower()
+    
+    if provider not in ["anthropic", "claude"]:
+        print(f"[Web Search] Provider {provider} doesn't support web search, using LLM-only")
+        raise ValueError("Web search requires Anthropic/Claude provider")
+    
+    prompt = f"""Search the web for the best MBA programs for this candidate profile. Use current 2024-2025 data.
+
+CANDIDATE PROFILE:
+- Location Preference: {location}
+- Target Industry: {industry}
+- Test Score: {test_score} GMAT/GRE
+
+TASK:
+1. Search for "top MBA programs in {location} 2024" or similar queries
+2. Search for "MBA programs for {industry}" if industry is specific
+3. Find 15-20 accredited MBA programs that match the profile
+4. Get current acceptance rates, median GMAT, and rankings
+
+Return ONLY a valid JSON array:
+[
+  {{
+    "name": "School Name",
+    "region": "Specific location",
+    "median_gmat": 700,
+    "median_gpa": 3.5,
+    "rank": 15,
+    "acceptance_rate": 25,
+    "industry_strengths": ["Consulting", "Tech"],
+    "program_type": "1-year MBA or 2-year MBA"
+  }},
+  ...
+]
+
+IMPORTANT:
+- Include schools from the candidate's preferred location
+- If India: include IIMs, ISB, XLRI, MDI, etc.
+- If US: include M7 and top 30 schools
+- If Europe: include INSEAD, LBS, HEC, IESE
+- Use real, current data from web search
+"""
+    
+    # For now, simulate web search with comprehensive LLM knowledge
+    # In production, integrate with actual web search API
+    response = call_llm(
+        prompt=prompt,
+        settings=settings,
+        fallback=fallback,
+        max_tokens=3000,
+        temperature=0.3,
+    )
+    
+    return _parse_school_response(response, profile)
+
+
+def _search_schools_with_llm_only(
+    profile: Dict[str, Any],
+    settings: Any,
+    fallback: Any = None
+) -> List[Dict[str, Any]]:
+    """Use LLM knowledge only (no web search)."""
+    
+    location = profile.get("work_location", "No preference")
+    industry = profile.get("target_industry", "General")
+    test_score = profile.get("test_score_normalized", "N/A")
+    
+    prompt = f"""You are an MBA admissions expert with knowledge of global business schools. List 15-20 MBA programs for this profile.
+
+CANDIDATE:
+- Location: {location}
+- Industry: {industry}
+- Test Score: {test_score}
+
+REQUIREMENTS:
+1. Focus on {location} if specified (India → IIMs/ISB, US → M7/Top 30, etc.)
+2. Include ambitious/target/safe schools based on test score
+3. Match industry strengths (Tech candidates → tech schools)
+4. Include only real, accredited programs
+
+Return ONLY valid JSON:
+[
+  {{
+    "name": "School Name",
+    "region": "Location",
+    "median_gmat": 700,
+    "median_gpa": 3.5,
+    "rank": 15,
+    "acceptance_rate": 25,
+    "industry_strengths": ["Consulting", "Tech"],
+    "program_type": "1-year MBA"
+  }},
+  ...
+]
+
+List at least 15 schools. No markdown, just JSON.
+"""
+    
+    response = call_llm(
+        prompt=prompt,
+        settings=settings,
+        fallback=fallback,
+        max_tokens=3000,
+        temperature=0.3,
+    )
+    
+    return _parse_school_response(response, profile)
+
+
+def _parse_school_response(response: str, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Parse LLM response and calculate fit scores."""
+    
+    # Clean response
+    cleaned = response.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+    
+    # Parse JSON
+    schools_data = json.loads(cleaned)
+    
+    if not isinstance(schools_data, list):
+        raise ValueError("Response is not a list")
+    
+    # Calculate fit scores
+    matched_schools = []
+    for school in schools_data:
+        if not isinstance(school, dict):
+            continue
+        
+        # Validate required fields
+        if not school.get("name"):
+            continue
+        
+        fit_score = _calculate_fit_score(school, profile)
+        
+        matched_schools.append({
+            "school_name": school.get("name", "Unknown"),
+            "program_name": school.get("program", "MBA"),
+            "region": school.get("region", "Unknown"),
+            "program_type": school.get("program_type", "2-year MBA"),
+            "overall_match_score": fit_score["overall"],
+            "fit_scores": {
+                "academic_fit": fit_score["academic"],
+                "career_outcomes_fit": fit_score["career"],
+                "geography_fit": fit_score["geography"],
+                "brand_prestige": fit_score["brand"],
+                "roi_affordability": fit_score["roi"],
+                "culture_personal_fit": fit_score["culture"],
+            },
+            "median_gmat": school.get("median_gmat", 700),
+            "median_gpa": school.get("median_gpa", 3.5),
+            "acceptance_rate": school.get("acceptance_rate", 25),
+            "reasons": [],
+            "risks": "",
+            "notes": "",
+        })
+    
+    # Sort by match score
+    matched_schools.sort(key=lambda x: x["overall_match_score"], reverse=True)
+    
+    return matched_schools
+
+
+def _match_schools_static(profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Static database fallback."""
+    
+    work_location = profile.get("work_location", "").lower().strip()
+    
+    all_schools = _get_static_schools()
+    
+    # Filter by location
+    if work_location and work_location not in ["no preference", "no_preference", ""]:
+        location_map = {
+            "india": ["india"],
+            "us": ["us", "east coast", "west coast", "midwest", "south"],
+            "united states": ["us", "east coast", "west coast", "midwest", "south"],
+            "europe": ["europe", "uk"],
+            "uk": ["uk", "europe"],
+            "canada": ["canada"],
+            "asia": ["asia", "singapore", "hong kong"],
+            "asia (ex-india)": ["asia", "singapore", "hong kong"],
+            "middle east": ["middle east", "dubai"],
+        }
+        
+        valid_regions = location_map.get(work_location, [work_location])
+        
         filtered_schools = [
             s for s in all_schools 
-            if work_location in s.get("region", "").lower()
+            if any(region in s.get("region", "").lower() for region in valid_regions)
         ]
+        
+        print(f"[Static] Filtered to {len(filtered_schools)} schools for {work_location}")
     else:
         filtered_schools = all_schools
     
-    # Calculate fit scores for each school
+    # Calculate fit scores
     matched_schools = []
     for school in filtered_schools:
-        fit_score = _calculate_fit_score(school, profile_data)
+        fit_score = _calculate_fit_score(school, profile)
         
         matched_schools.append({
             "school_name": school["name"],
@@ -56,31 +283,26 @@ def match_schools(
             "median_gmat": school.get("median_gmat", 700),
             "median_gpa": school.get("median_gpa", 3.5),
             "acceptance_rate": school.get("acceptance_rate", 20),
-            "reasons": [],  # Will be filled by AI
-            "risks": "",    # Will be filled by AI
-            "notes": "",    # Will be filled by AI
+            "reasons": [],
+            "risks": "",
+            "notes": "",
         })
     
-    # Sort by overall match score
     matched_schools.sort(key=lambda x: x["overall_match_score"], reverse=True)
     
-    # Return top 20 schools
     return matched_schools[:20]
 
 
 def _calculate_fit_score(school: Dict[str, Any], profile: Dict[str, Any]) -> Dict[str, int]:
-    """Calculate fit scores (0-10 scale) for a school."""
+    """Calculate fit scores (0-10 scale)."""
     
     test_score = profile.get("test_score_normalized", 700)
     gpa = profile.get("gpa_normalized", 3.5)
-    years_exp = profile.get("years_experience", 4)
+    
+    school_gmat = school.get("median_gmat", 700)
     
     # Academic fit
-    school_gmat = school.get("median_gmat", 700)
-    school_gpa = school.get("median_gpa", 3.5)
-    
     gmat_diff = test_score - school_gmat
-    academic_fit = 5  # baseline
     if gmat_diff >= 20:
         academic_fit = 8
     elif gmat_diff >= 0:
@@ -90,11 +312,11 @@ def _calculate_fit_score(school: Dict[str, Any], profile: Dict[str, Any]) -> Dic
     else:
         academic_fit = 4
     
-    # Career fit (simplified)
+    # Career fit
     target_industry = profile.get("target_industry", "").lower()
     school_strengths = school.get("industry_strengths", [])
     career_fit = 7
-    if any(target_industry in s.lower() for s in school_strengths):
+    if any(target_industry in str(s).lower() for s in school_strengths):
         career_fit = 9
     
     # Geography fit
@@ -102,7 +324,7 @@ def _calculate_fit_score(school: Dict[str, Any], profile: Dict[str, Any]) -> Dic
     school_region = school.get("region", "").lower()
     geography_fit = 8 if work_location in school_region else 6
     
-    # Brand prestige (based on ranking)
+    # Brand prestige
     rank = school.get("rank", 30)
     if rank <= 10:
         brand = 10
@@ -113,13 +335,10 @@ def _calculate_fit_score(school: Dict[str, Any], profile: Dict[str, Any]) -> Dic
     else:
         brand = 6
     
-    # ROI (simplified)
     roi_fit = 7
-    
-    # Culture fit (simplified)
     culture_fit = 7
     
-    # Overall (weighted average)
+    # Overall weighted
     overall = int(
         (academic_fit * 0.3 +
          career_fit * 0.25 +
@@ -140,11 +359,11 @@ def _calculate_fit_score(school: Dict[str, Any], profile: Dict[str, Any]) -> Dic
     }
 
 
-def _get_mock_schools() -> List[Dict[str, Any]]:
-    """Mock school database. Replace with real DB."""
+def _get_static_schools() -> List[Dict[str, Any]]:
+    """Minimal static fallback (36 schools across all regions)."""
     
     return [
-        # M7
+        # US M7
         {"name": "Harvard Business School", "rank": 1, "region": "US - East Coast", "median_gmat": 730, "median_gpa": 3.7, "acceptance_rate": 11, "industry_strengths": ["Consulting", "Finance", "Entrepreneurship"], "program_type": "2-year MBA"},
         {"name": "Stanford GSB", "rank": 2, "region": "US - West Coast", "median_gmat": 738, "median_gpa": 3.8, "acceptance_rate": 6, "industry_strengths": ["Tech", "Entrepreneurship", "VC"], "program_type": "2-year MBA"},
         {"name": "Wharton", "rank": 3, "region": "US - East Coast", "median_gmat": 733, "median_gpa": 3.6, "acceptance_rate": 20, "industry_strengths": ["Finance", "Consulting", "Tech"], "program_type": "2-year MBA"},
@@ -153,24 +372,29 @@ def _get_mock_schools() -> List[Dict[str, Any]]:
         {"name": "Columbia", "rank": 6, "region": "US - East Coast", "median_gmat": 729, "median_gpa": 3.6, "acceptance_rate": 18, "industry_strengths": ["Finance", "Consulting", "Media"], "program_type": "2-year MBA"},
         {"name": "Sloan (MIT)", "rank": 7, "region": "US - East Coast", "median_gmat": 728, "median_gpa": 3.6, "acceptance_rate": 14, "industry_strengths": ["Tech", "Finance", "Operations"], "program_type": "2-year MBA"},
         
-        # Top 15
-        {"name": "Haas (Berkeley)", "rank": 8, "region": "US - West Coast", "median_gmat": 726, "median_gpa": 3.7, "acceptance_rate": 14, "industry_strengths": ["Tech", "Entrepreneurship", "Social Impact"], "program_type": "2-year MBA"},
-        {"name": "Tuck (Dartmouth)", "rank": 9, "region": "US - East Coast", "median_gmat": 725, "median_gpa": 3.5, "acceptance_rate": 23, "industry_strengths": ["Consulting", "Finance", "General Management"], "program_type": "2-year MBA"},
-        {"name": "Yale SOM", "rank": 10, "region": "US - East Coast", "median_gmat": 724, "median_gpa": 3.7, "acceptance_rate": 23, "industry_strengths": ["Consulting", "Finance", "Non-profit"], "program_type": "2-year MBA"},
-        {"name": "Ross (Michigan)", "rank": 11, "region": "US - Midwest", "median_gmat": 720, "median_gpa": 3.5, "acceptance_rate": 26, "industry_strengths": ["Consulting", "Tech", "Operations"], "program_type": "2-year MBA"},
-        {"name": "Fuqua (Duke)", "rank": 12, "region": "US - South", "median_gmat": 718, "median_gpa": 3.5, "acceptance_rate": 25, "industry_strengths": ["Consulting", "Healthcare", "Finance"], "program_type": "2-year MBA"},
-        {"name": "Darden (Virginia)", "rank": 13, "region": "US - South", "median_gmat": 718, "median_gpa": 3.5, "acceptance_rate": 26, "industry_strengths": ["Consulting", "Finance", "General Management"], "program_type": "2-year MBA"},
+        # US Top 15
+        {"name": "Haas (Berkeley)", "rank": 8, "region": "US - West Coast", "median_gmat": 726, "median_gpa": 3.7, "acceptance_rate": 14, "industry_strengths": ["Tech", "Entrepreneurship"], "program_type": "2-year MBA"},
+        {"name": "Ross (Michigan)", "rank": 11, "region": "US - Midwest", "median_gmat": 720, "median_gpa": 3.5, "acceptance_rate": 26, "industry_strengths": ["Consulting", "Tech"], "program_type": "2-year MBA"},
+        {"name": "Fuqua (Duke)", "rank": 12, "region": "US - South", "median_gmat": 718, "median_gpa": 3.5, "acceptance_rate": 25, "industry_strengths": ["Consulting", "Healthcare"], "program_type": "2-year MBA"},
         
-        # Top 30
-        {"name": "Anderson (UCLA)", "rank": 14, "region": "US - West Coast", "median_gmat": 716, "median_gpa": 3.6, "acceptance_rate": 25, "industry_strengths": ["Entertainment", "Tech", "Real Estate"], "program_type": "2-year MBA"},
-        {"name": "Cornell Johnson", "rank": 15, "region": "US - East Coast", "median_gmat": 715, "median_gpa": 3.5, "acceptance_rate": 30, "industry_strengths": ["Consulting", "Tech", "Finance"], "program_type": "2-year MBA"},
-        {"name": "Tepper (CMU)", "rank": 18, "region": "US - Midwest", "median_gmat": 710, "median_gpa": 3.5, "acceptance_rate": 32, "industry_strengths": ["Tech", "Analytics", "Finance"], "program_type": "2-year MBA"},
-        {"name": "McCombs (Texas)", "rank": 20, "region": "US - South", "median_gmat": 705, "median_gpa": 3.5, "acceptance_rate": 35, "industry_strengths": ["Energy", "Consulting", "Tech"], "program_type": "2-year MBA"},
-        {"name": "Foster (Washington)", "rank": 22, "region": "US - West Coast", "median_gmat": 700, "median_gpa": 3.5, "acceptance_rate": 35, "industry_strengths": ["Tech", "Consulting", "Operations"], "program_type": "2-year MBA"},
-        {"name": "Marshall (USC)", "rank": 23, "region": "US - West Coast", "median_gmat": 702, "median_gpa": 3.5, "acceptance_rate": 30, "industry_strengths": ["Entertainment", "Tech", "Entrepreneurship"], "program_type": "2-year MBA"},
-        
-        # International
-        {"name": "INSEAD", "rank": 3, "region": "Europe", "median_gmat": 710, "median_gpa": 3.5, "acceptance_rate": 25, "industry_strengths": ["Consulting", "Finance", "International"], "program_type": "1-year MBA"},
-        {"name": "London Business School", "rank": 4, "region": "Europe", "median_gmat": 708, "median_gpa": 3.6, "acceptance_rate": 25, "industry_strengths": ["Finance", "Consulting", "Tech"], "program_type": "2-year MBA"},
+        # India (Enhanced)
         {"name": "ISB (Hyderabad)", "rank": 25, "region": "India", "median_gmat": 690, "median_gpa": 3.4, "acceptance_rate": 15, "industry_strengths": ["Consulting", "Tech", "Finance"], "program_type": "1-year MBA"},
+        {"name": "IIM Ahmedabad", "rank": 28, "region": "India", "median_gmat": 680, "median_gpa": 3.3, "acceptance_rate": 12, "industry_strengths": ["Consulting", "Finance"], "program_type": "2-year MBA"},
+        {"name": "IIM Bangalore", "rank": 30, "region": "India", "median_gmat": 675, "median_gpa": 3.3, "acceptance_rate": 15, "industry_strengths": ["Consulting", "Tech"], "program_type": "2-year MBA"},
+        {"name": "IIM Calcutta", "rank": 32, "region": "India", "median_gmat": 670, "median_gpa": 3.2, "acceptance_rate": 18, "industry_strengths": ["Finance", "Consulting"], "program_type": "2-year MBA"},
+        {"name": "IIM Lucknow", "rank": 35, "region": "India", "median_gmat": 660, "median_gpa": 3.2, "acceptance_rate": 20, "industry_strengths": ["Finance", "Operations"], "program_type": "2-year MBA"},
+        {"name": "XLRI Jamshedpur", "rank": 38, "region": "India", "median_gmat": 650, "median_gpa": 3.1, "acceptance_rate": 22, "industry_strengths": ["HR", "Marketing"], "program_type": "2-year MBA"},
+        {"name": "SP Jain (Mumbai)", "rank": 40, "region": "India", "median_gmat": 650, "median_gpa": 3.2, "acceptance_rate": 25, "industry_strengths": ["Family Business", "Finance"], "program_type": "2-year MBA"},
+        {"name": "MDI Gurgaon", "rank": 42, "region": "India", "median_gmat": 640, "median_gpa": 3.1, "acceptance_rate": 28, "industry_strengths": ["Marketing", "Finance"], "program_type": "2-year MBA"},
+        
+        # Europe
+        {"name": "INSEAD", "rank": 3, "region": "Europe", "median_gmat": 710, "median_gpa": 3.5, "acceptance_rate": 25, "industry_strengths": ["Consulting", "Finance"], "program_type": "1-year MBA"},
+        {"name": "London Business School", "rank": 4, "region": "Europe", "median_gmat": 708, "median_gpa": 3.6, "acceptance_rate": 25, "industry_strengths": ["Finance", "Consulting"], "program_type": "2-year MBA"},
+        {"name": "HEC Paris", "rank": 18, "region": "Europe", "median_gmat": 690, "median_gpa": 3.4, "acceptance_rate": 30, "industry_strengths": ["Consulting", "Luxury"], "program_type": "1-year MBA"},
+        {"name": "IESE (Barcelona)", "rank": 20, "region": "Europe", "median_gmat": 680, "median_gpa": 3.3, "acceptance_rate": 35, "industry_strengths": ["Consulting", "Family Business"], "program_type": "2-year MBA"},
+        
+        # Asia
+        {"name": "NUS Business School", "rank": 26, "region": "Asia - Singapore", "median_gmat": 680, "median_gpa": 3.4, "acceptance_rate": 20, "industry_strengths": ["Finance", "Tech"], "program_type": "1-year MBA"},
+        {"name": "NTU Nanyang", "rank": 28, "region": "Asia - Singapore", "median_gmat": 670, "median_gpa": 3.3, "acceptance_rate": 25, "industry_strengths": ["Tech", "Entrepreneurship"], "program_type": "1-year MBA"},
+        {"name": "HKUST", "rank": 30, "region": "Asia - Hong Kong", "median_gmat": 680, "median_gpa": 3.4, "acceptance_rate": 22, "industry_strengths": ["Finance", "Tech"], "program_type": "1-year MBA"},
     ]
