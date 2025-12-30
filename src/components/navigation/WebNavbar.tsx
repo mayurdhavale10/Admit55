@@ -9,11 +9,7 @@ import Navbar, { type LinkItem, type LinkComp } from "./Navbar";
 const BASE_ITEMS: LinkItem[] = [
   { href: "/", label: "Home" },
   { href: "/your-tools", label: "YourTools" },
-
-  // ⬇️ CHANGED: was "/profile-review"
   { href: "/profile", label: "Your Profile" },
-
-  { href: "/mba/tools/bschool-match", label: "B-School Match" },
   { href: "/alum-coaches", label: "Alum Coaches" },
   { href: "/contact", label: "Contact" },
 ];
@@ -33,7 +29,6 @@ export default function WebNavbar() {
   const items: LinkItem[] = [...BASE_ITEMS];
 
   if (!session) {
-    // Not logged in → show Login chip
     items.push({
       href: "#login",
       label: "Login",
@@ -42,7 +37,6 @@ export default function WebNavbar() {
       },
     });
   } else {
-    // Logged in
     if (session.user?.email && session.user.email === adminEmail) {
       items.push({
         href: "/admin/dashboard",

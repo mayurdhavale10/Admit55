@@ -3,8 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useState, useEffect } from 'react';
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useSession } from 'next-auth/react';
+import {
+  ChevronRight,
+} from 'lucide-react';
 
 /* ---------- routes ---------- */
 const PROFILE_ROUTE = '/mba/tools/profileresumetool';
@@ -32,8 +34,7 @@ const toolCards: ToolCard[] = [
   },
   {
     title: 'Resume Writer',
-    subtitle:
-      'Create a professional, ATS-friendly resume tailored for MBA recruiting.',
+    subtitle: 'Create a professional, ATS-friendly resume tailored for MBA recruiting.',
     src: '/logo/resumewriteicon.webp',
     href: RESUME_ROUTE,
     tone: 'green',
@@ -64,235 +65,251 @@ const toolCards: ToolCard[] = [
 export default function HowTop() {
   const [activeTab, setActiveTab] = useState<'tools' | 'experts'>('tools');
   const [isMobile, setIsMobile] = useState(false);
-
   const { data: session } = useSession();
-  const router = useRouter();
 
   /* ---------- detect mobile ---------- */
   useEffect(() => {
-    const handleResize = () => {
-      if (typeof window !== 'undefined') {
-        setIsMobile(window.innerWidth < 640);
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  return (
-    <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-10 text-center">
-      <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black">
-        Your MBA Journey, Guided by AI and Experience
-      </h2>
+  const handleBookNow = () => {
+    const phoneNumber = '919632301231';
+    const message = encodeURIComponent(
+      "Hi Admit55, I'm interested in learning more about your mentorship and guidance programs"
+    );
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+  };
 
-      {/* Logo directly under the heading */}
-      <div className="mt-4 flex justify-center">
-        <Image
-          src="/logo/admit55_final_logo.webp"
-          alt="Admit55 Logo"
-          width={80}
-          height={80}
-          className="object-contain w-16 h-16 sm:w-20 sm:h-20"
-        />
+  return (
+    <section className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-20">
+
+      {/* HEADER */}
+      <div className="text-center">
+        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black">
+          Your MBA Journey, Guided by AI and Experience
+        </h2>
+
+        <div className="mt-4 flex justify-center">
+          <Image
+            src="/logo/admit55_final_logo.webp"
+            alt="Admit55 Logo"
+            width={80}
+            height={80}
+            className="object-contain"
+          />
+        </div>
+
+        <p className="mt-3 text-base sm:text-lg text-black max-w-2xl mx-auto">
+          Comprehensive tools to elevate every aspect of your application
+        </p>
       </div>
 
-      {/* Line below logo */}
-      <p className="mt-3 text-base sm:text-lg lg:text-xl text-black max-w-2xl mx-auto">
-        Comprehensive tools to elevate every aspect of your application
-      </p>
-
-      {/* Tabs */}
+      {/* TABS */}
       <div className="mt-8 flex justify-center">
         <div className="inline-flex rounded-full bg-slate-100 p-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab('tools')}
-            className={`w-32 sm:w-40 py-2 text-sm sm:text-base font-semibold rounded-full transition-all ${
-              activeTab === 'tools'
-                ? 'bg-gradient-to-r from-[#3F37C9] to-[#12D8B5] text-white shadow-md'
-                : 'bg-white text-slate-700'
-            }`}
-          >
-            Tools
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('experts')}
-            className={`w-32 sm:w-40 ml-2 py-2 text-sm sm:text-base font-semibold rounded-full transition-all ${
-              activeTab === 'experts'
-                ? 'bg-gradient-to-r from-[#3F37C9] to-[#12D8B5] text-white shadow-md'
-                : 'bg-white text-slate-700'
-            }`}
-          >
-            Our Experts
-          </button>
+          {(['tools', 'experts'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`w-32 sm:w-40 py-2 text-sm sm:text-base font-semibold rounded-full transition ${
+                activeTab === tab
+                  ? 'bg-gradient-to-r from-[#3F37C9] to-[#12D8B5] text-white shadow'
+                  : 'bg-white text-slate-700'
+              }`}
+            >
+              {tab === 'tools' ? 'Tools' : 'Our Experts'}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* TOOLS TAB CONTENT */}
+      {/* ---------------- TOOLS TAB ---------------- */}
       {activeTab === 'tools' && (
-        <>
-          {/* MOBILE: grid layout */}
-          {isMobile ? (
-            <div className="mt-10 max-w-md mx-auto grid grid-cols-2 gap-x-6 gap-y-10">
-              {toolCards.map((t, i) => {
-                const size = 130;
+        <div className="mt-12">
+          <div className={`grid ${isMobile ? 'grid-cols-2 gap-6' : 'grid-cols-5 gap-10'} justify-items-center`}>
+            {toolCards.map((t, i) => {
+              const size = isMobile ? 120 : 180;
 
-                const Inner = (
-                  <div className="flex flex-col items-center gap-3 group">
-                    <div
-                      style={{
-                        width: size,
-                        height: size,
-                        display: 'grid',
-                        placeItems: 'center',
-                      }}
-                      className="transition-transform duration-300 group-hover:-translate-y-2"
-                    >
-                      <Image
-                        src={t.src}
-                        alt={t.title}
-                        width={size}
-                        height={size}
-                        className="object-contain drop-shadow-md group-hover:drop-shadow-2xl transition-shadow duration-300"
-                      />
-                    </div>
-                    <div className="text-xs font-semibold text-slate-700 text-center">
-                      {t.title}
-                    </div>
-                    <div className="text-[11px] text-slate-500 text-center leading-snug">
-                      {t.subtitle}
-                    </div>
+              const Card = (
+                <div className="flex flex-col items-center text-center gap-3 group">
+                  <div
+                    style={{ width: size, height: size }}
+                    className="grid place-items-center transition-transform group-hover:-translate-y-2"
+                  >
+                    <Image
+                      src={t.src}
+                      alt={t.title}
+                      width={size}
+                      height={size}
+                      className="object-contain drop-shadow-md group-hover:drop-shadow-xl transition"
+                    />
                   </div>
-                );
+                  <div className="font-semibold text-slate-800">{t.title}</div>
+                  <div className="text-sm text-slate-500">{t.subtitle}</div>
+                </div>
+              );
 
-                return t.href && !t.comingSoon ? (
-                  <Link href={t.href} key={i} prefetch={false}>
-                    {Inner}
-                  </Link>
-                ) : (
-                  <div key={i}>{Inner}</div>
-                );
-              })}
-            </div>
-          ) : (
-            /* DESKTOP / TABLET */
-            <div className="mt-12 relative mx-auto max-w-5xl pb-8">
-              <div className="flex items-start justify-between gap-6 sm:gap-10 px-4">
-                {toolCards.map((t, i) => {
-                  const iconSize = 190;
-
-                  const Inner = (
-                    <div className="flex flex-col items-center gap-4 flex-1 group">
-                      <div
-                        style={{
-                          width: iconSize,
-                          height: iconSize,
-                          display: 'grid',
-                          placeItems: 'center',
-                        }}
-                        className="transition-transform duration-300 group-hover:-translate-y-3"
-                      >
-                        <Image
-                          src={t.src}
-                          alt={t.title}
-                          width={iconSize}
-                          height={iconSize}
-                          className="object-contain drop-shadow-lg group-hover:drop-shadow-2xl transition-shadow duration-300"
-                        />
-                      </div>
-
-                      <div className="text-base sm:text-xl text-slate-700 font-semibold mt-2 text-center">
-                        {t.title}
-                      </div>
-                      <div className="text-sm sm:text-base text-slate-500 text-center">
-                        {t.subtitle}
-                      </div>
-                    </div>
-                  );
-
-                  return t.href && !t.comingSoon ? (
-                    <Link
-                      href={t.href}
-                      key={i}
-                      className="block flex-1"
-                      prefetch={false}
-                    >
-                      {Inner}
-                    </Link>
-                  ) : (
-                    <div key={i} className="block flex-1">
-                      {Inner}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* OUR EXPERTS TAB CONTENT */}
-      <div className={`mt-16 ${activeTab === 'experts' ? 'block' : 'hidden'}`}>
-        <div className="max-w-6xl mx-auto text-left">
-          <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 text-center lg:text-left">
-            Admissions Intelligence Engineered by an Ex-ISB MBA and Trained on
-            Authentic Profiles, Essays &amp; Outcomes
-          </h3>
-
-          <div className="mt-10 flex flex-col lg:flex-row items-center lg:items-start gap-10">
-            {/* Left side */}
-            <div className="w-full lg:w-5/12 flex flex-col items-center lg:items-start gap-6">
-              <div className="w-full max-w-sm">
-                <Image
-                  src="/how/credentials.webp"
-                  alt="Admit55 expert credentials"
-                  width={480}
-                  height={360}
-                  className="w-full h-auto rounded-xl shadow-md object-contain"
-                />
-              </div>
-
-              <p className="text-sm sm:text-base text-slate-700 leading-relaxed text-center lg:text-left">
-                Work 1:1 with ISB, IIM, and INSEAD alumni who've helped hundreds
-                of candidates succeed. If you don't secure admission to your top
-                5 B-Schools, we'll refund you — no questions asked.
-              </p>
-
-              {/* UPDATED BUTTON WITH LOGIN CHECK */}
-              <button
-                onClick={() => {
-                  if (session?.user?.email) {
-                    router.push("/profile#booking"); // logged in
-                  } else {
-                    router.push(
-                      "/api/auth/signin?callbackUrl=/profile#booking"
-                    ); // login then redirect
-                  }
-                }}
-                className="mt-2 inline-flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 px-7 py-3 text-sm sm:text-base font-semibold text-white shadow-md transition-colors"
-              >
-                Grab your seat now
-              </button>
-            </div>
-
-            {/* Right: YouTube */}
-            <div className="w-full lg:w-7/12">
-              <div className="relative w-full pt-[56.25%] rounded-2xl overflow-hidden shadow-lg">
-                <iframe
-                  className="absolute inset-0 w-full h-full"
-                  src="https://www.youtube.com/embed/LPZh9BOjkQs"
-                  title="Admit55 Experts"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
-              </div>
-            </div>
+              return t.href && !t.comingSoon ? (
+                <Link key={i} href={t.href} prefetch={false}>
+                  {Card}
+                </Link>
+              ) : (
+                <div key={i}>{Card}</div>
+              );
+            })}
           </div>
         </div>
+      )}
+
+      {/* ---------------- EXPERTS TAB ---------------- */}
+      {activeTab === 'experts' && (
+        <div className="mt-20 grid grid-cols-1 lg:grid-cols-12 gap-12">
+
+          {/* LEFT */}
+          <div className="lg:col-span-6">
+            <h3 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
+              Built by admissions experts.
+              <span className="block">Powered by AI.</span>
+            </h3>
+
+            <p className="mt-5 text-slate-600">
+              Admit55 is founded by top admissions mentors and AI professionals who’ve personally
+              guided <strong>1,000+</strong> candidates to their dream B-schools.
+            </p>
+
+            <p className="mt-3 text-slate-600">
+              The journey started with the bestselling book <em>55 Successful ISB Essays</em> —
+              now reimagined for the AI era.
+            </p>
+
+            {/* Founder Card */}
+            <div className="mt-8 rounded-2xl bg-emerald-50 p-6 ring-1 ring-emerald-200">
+              <p className="italic text-slate-700">
+                “We’ve seen what works. Now we’re making it accessible to everyone.”
+              </p>
+
+              <div className="mt-4 flex items-center gap-4">
+                <Image
+                  src="/mentor/mentor2.webp"
+                  alt="Vaishali Gupta"
+                  width={56}
+                  height={56}
+                  className="rounded-full object-cover"
+                />
+                <div>
+                  <div className="font-semibold text-slate-900">Vaishali Gupta</div>
+                  <div className="text-sm text-slate-600">Co-Founder, Admit55</div>
+                  <div className="text-sm font-medium text-emerald-700">
+                    IIM Ahmedabad
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-emerald-200 pt-4">
+                <p className="text-sm text-slate-600">
+                  Other founding team includes alums from <strong>ISB</strong>,{' '}
+                  <strong>INSEAD</strong>
+                </p>
+
+                <div className="mt-3 flex items-center gap-3">
+                  <SocialIcon
+                    href="https://www.linkedin.com/company/admit55/"
+                    type="linkedin"
+                  />
+                  <SocialIcon
+                    href="https://www.instagram.com/admit55_mba/"
+                    type="instagram"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleBookNow}
+              className="mt-8 inline-flex rounded-full bg-red-600 px-8 py-3 text-white font-semibold shadow hover:bg-red-700"
+            >
+              Book a Session
+            </button>
+          </div>
+
+          {/* RIGHT */}
+          <div className="lg:col-span-6 space-y-6">
+            <Testimonial
+              quote="The profile review gave me clarity I couldn't get anywhere else. Helped me target the right schools."
+              name="Kartik Mittal"
+              subtitle="IIM Bangalore EPGP ’23"
+              link="https://www.linkedin.com/in/kartikmittal1792/"
+            />
+            <Testimonial
+              quote="Admit55 helped me understand my strengths and weaknesses objectively. The insights were spot on."
+              name="Armaan Bansal"
+              subtitle="ISB PGP ’20"
+              link="https://www.linkedin.com/in/armaan-bansal-aa93b95b/"
+            />
+            <Testimonial
+              quote="A game-changer for working professionals. Saved me months of confusion and gave me a clear roadmap."
+              name="Apoorva Tripathi"
+              subtitle="XLRI Exec. MBA ’22"
+              link="https://www.linkedin.com/in/apoorvatripathi91/"
+            />
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- helpers ---------- */
+
+function Testimonial({
+  quote,
+  name,
+  subtitle,
+  link,
+}: {
+  quote: string;
+  name: string;
+  subtitle: string;
+  link: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-white p-6 ring-1 ring-slate-200 shadow-sm">
+      <p className="text-slate-700">“{quote}”</p>
+      <div className="mt-4 flex items-center justify-between">
+        <div>
+          <div className="font-semibold text-slate-900">{name}</div>
+          <div className="text-sm text-slate-500">{subtitle}</div>
+        </div>
+        <a href={link} target="_blank" rel="noopener noreferrer">
+          <ChevronRight className="h-5 w-5 text-[#0A66C2]" />
+        </a>
       </div>
     </div>
+  );
+}
+
+function SocialIcon({
+  href,
+  type,
+}: {
+  href: string;
+  type: 'linkedin' | 'instagram';
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition ${
+        type === 'linkedin'
+          ? 'bg-[#0A66C2]'
+          : 'bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#515BD4]'
+      }`}
+    >
+      {type === 'linkedin' ? 'in' : 'ig'}
+    </a>
   );
 }
