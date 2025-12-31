@@ -7,16 +7,36 @@ from typing import Any, Dict, Optional
 from pipeline.core.llm.retry import call_llm
 from pipeline.core.parsing.json_parse import parse_json_strictish
 
+# ✅ Import the CORRECT context formatter
+from .context_builder import format_context_for_prompt
+
 from ..version import PIPELINE_VERSION, TOKENS
-from ..prompts import context_block, prompt_prefix
 from ..prompts.header_summary import HEADER_SUMMARY_PROMPT
 from . import as_list, as_str, response_format_for
 
-def run_header_summary(resume_text: str, scores: Dict[str, float], settings, fallback, context: Optional[Dict[str, str]]) -> Dict[str, Any]:
-    prompt = prompt_prefix(PIPELINE_VERSION) + HEADER_SUMMARY_PROMPT.format(
+
+def _prompt_prefix(version: str) -> str:
+    return f"[ProfileResumeTool v{version}]\n\n"
+
+
+def run_header_summary(
+    resume_text: str,
+    scores: Dict[str, float],
+    settings,
+    fallback,
+    context: Optional[Dict[str, str]]
+) -> Dict[str, Any]:
+    
+    # ✅ CRITICAL FIX: Use proper context formatter
+    context_str = format_context_for_prompt(context) if context else "No specific context provided. Analyze profile generically."
+    
+    # ✅ DEBUG: Log context
+    print(f"[HEADER_SUMMARY] Context being used:\n{context_str}\n")
+    
+    prompt = _prompt_prefix(PIPELINE_VERSION) + HEADER_SUMMARY_PROMPT.format(
         resume=resume_text or "",
         scores=json.dumps(scores, indent=2),
-        context=context_block(context),
+        context=context_str,
     )
 
     try:
@@ -30,7 +50,9 @@ def run_header_summary(resume_text: str, scores: Dict[str, float], settings, fal
             retries=1,
         )
         data = parse_json_strictish(raw)
-    except Exception:
+        print("[HEADER_SUMMARY] ✅ Summary generated successfully")
+    except Exception as e:
+        print(f"[HEADER_SUMMARY] ❌ Failed: {e}")
         data = {}
 
     highlights = [as_str(x) for x in as_list(data.get("highlights")) if as_str(x)]

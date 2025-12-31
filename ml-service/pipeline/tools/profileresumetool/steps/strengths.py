@@ -7,15 +7,36 @@ from typing import Any, Dict, List, Optional
 from pipeline.core.llm.retry import call_llm
 from pipeline.core.parsing.json_parse import parse_json_strictish
 
+# ✅ Import the CORRECT context formatter
+from .context_builder import format_context_for_prompt
+
 from ..version import PIPELINE_VERSION, TOKENS
-from ..prompts import context_block, prompt_prefix
 from ..prompts.strengths import STRENGTHS_PROMPT
 from . import as_list, as_str, clamp_int, response_format_for
 
-def run_strengths(resume_text: str, settings, fallback, context: Optional[Dict[str, str]], max_retries: int = 2) -> List[Dict[str, Any]]:
-    base = prompt_prefix(PIPELINE_VERSION) + STRENGTHS_PROMPT.format(
+
+def _prompt_prefix(version: str) -> str:
+    """Simple version stamp for prompts"""
+    return f"[ProfileResumeTool v{version}]\n\n"
+
+
+def run_strengths(
+    resume_text: str,
+    settings,
+    fallback,
+    context: Optional[Dict[str, str]],
+    max_retries: int = 2
+) -> List[Dict[str, Any]]:
+    
+    # ✅ CRITICAL FIX: Use proper context formatter
+    context_str = format_context_for_prompt(context) if context else "No specific context provided. Analyze profile generically."
+    
+    # ✅ DEBUG: Log context
+    print(f"[STRENGTHS] Context being used:\n{context_str}\n")
+    
+    base = _prompt_prefix(PIPELINE_VERSION) + STRENGTHS_PROMPT.format(
         resume=resume_text or "",
-        context=context_block(context),
+        context=context_str,
     )
 
     for attempt in range(max_retries):
@@ -35,7 +56,8 @@ def run_strengths(resume_text: str, settings, fallback, context: Optional[Dict[s
             )
             data = parse_json_strictish(raw)
             items = as_list(data.get("strengths"))
-        except Exception:
+        except Exception as e:
+            print(f"[STRENGTHS] Attempt {attempt+1} failed: {e}")
             items = []
 
         cleaned: List[Dict[str, Any]] = []
@@ -49,6 +71,8 @@ def run_strengths(resume_text: str, settings, fallback, context: Optional[Dict[s
             })
 
         if cleaned:
+            print(f"[STRENGTHS] ✅ Found {len(cleaned)} strengths")
             return cleaned
 
+    print("[STRENGTHS] ⚠️ No strengths extracted after retries")
     return []

@@ -5,24 +5,22 @@ import json
 import re
 from typing import Any, Dict, Optional, Tuple
 
-# ✅ NEW: Use requests instead of urllib
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# ✅ Import the CORRECT context formatter
+from .context_builder import format_context_for_prompt
 
-# --- robust import for SCORING_PROMPT (works even if prompts/ has no __init__.py) ---
 try:
-    from ..prompts.scoring import SCORING_PROMPT  # preferred
+    from ..prompts.scoring import SCORING_PROMPT
 except Exception:
-    # fallback absolute import (namespace package friendly)
     import importlib
     SCORING_PROMPT = importlib.import_module(
         "pipeline.tools.profileresumetool.prompts.scoring"
     ).SCORING_PROMPT
 
 
-# ✅ NEW: Reuse session (better for TLS + avoids WAF blocks)
 _SESSION = requests.Session()
 _RETRY = Retry(
     total=2,
@@ -34,7 +32,6 @@ _SESSION.mount("https://", HTTPAdapter(max_retries=_RETRY))
 
 
 def _get(s: Any, key: str, default: Any = None) -> Any:
-    """Support settings as dict OR dataclass-like object."""
     if isinstance(s, dict):
         return s.get(key, default)
     return getattr(s, key, default)
@@ -48,30 +45,14 @@ def _base_url(provider: str, base_url: Optional[str]) -> str:
     return "https://api.openai.com/v1"
 
 
-def _format_context(context: Optional[Dict[str, Any]]) -> str:
-    if not context:
-        return "Generic mode (no discovery context)."
-    lines = []
-    for k, v in context.items():
-        if v is None:
-            continue
-        s = str(v).strip()
-        if not s:
-            continue
-        lines.append(f"- {k}: {s}")
-    return "\n".join(lines) if lines else "Generic mode (no discovery context)."
-
-
 def _extract_first_json(text: str) -> Optional[str]:
     if not text:
         return None
 
-    # ```json ... ``` block
     m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
     if m:
         return m.group(1).strip()
 
-    # first balanced {...}
     start = text.find("{")
     if start == -1:
         return None
@@ -89,14 +70,8 @@ def _extract_first_json(text: str) -> Optional[str]:
     return None
 
 
-# ✅ REPLACED: Use requests instead of urllib
 def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeout: int = 60) -> Dict[str, Any]:
-    """
-    POST JSON to LLM API using requests library (avoids Cloudflare WAF blocks).
-    """
     h = dict(headers or {})
-    
-    # ✅ WAF-friendly headers (helps avoid bot detection)
     h.setdefault("User-Agent", "Admit55-MBA-Tool/3.0 (+https://admit55.onrender.com)")
     h.setdefault("Accept", "application/json")
     h.setdefault("Content-Type", "application/json")
@@ -104,7 +79,6 @@ def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeo
     try:
         resp = _SESSION.post(url, headers=h, json=payload, timeout=timeout)
         
-        # Check for errors
         if resp.status_code >= 400:
             error_body = resp.text[:900] if resp.text else f"HTTP {resp.status_code}"
             raise RuntimeError(f"HTTP {resp.status_code} from {url}: {error_body}")
@@ -131,14 +105,13 @@ def _call_llm_json_once(
     timeout = int(_get(settings, "timeout", 60) or 60)
     base_url = _base_url(provider, _get(settings, "base_url", None))
 
-    # We only support Groq/OpenAI here because both are OpenAI-compatible
     if provider not in ("groq", "openai"):
-        raise RuntimeError(f"Unsupported provider for scoring step: {provider}. Use groq/openai or provide fallback.")
+        raise RuntimeError(f"Unsupported provider for scoring: {provider}")
 
     if not api_key:
-        raise RuntimeError(f"{provider.upper()} api_key missing in settings")
+        raise RuntimeError(f"{provider.upper()} api_key missing")
     if not model:
-        raise RuntimeError(f"{provider.upper()} model missing in settings")
+        raise RuntimeError(f"{provider.upper()} model missing")
 
     url = f"{base_url}/chat/completions"
     headers = {
@@ -151,12 +124,10 @@ def _call_llm_json_once(
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "max_tokens": max_tokens,
-        # Force strict JSON output when supported
         "response_format": {"type": "json_object"},
     }
 
     resp = _post_json(url, headers, payload, timeout=timeout)
-
     raw = resp["choices"][0]["message"]["content"]
     raw = raw.strip() if isinstance(raw, str) else str(raw)
 
@@ -193,12 +164,17 @@ def run_scoring(
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Must exist because orchestrator.py imports:
-        from .steps.scoring import run_scoring
+    Score resume with consultant context awareness.
     """
+    
+    # ✅ CRITICAL FIX: Use the proper context formatter
+    context_str = format_context_for_prompt(context) if context else "No specific context provided. Analyze profile generically."
+    
+    # ✅ DEBUG: Log what's being sent to LLM
+    print(f"[SCORING] Context being used:\n{context_str}\n")
 
     prompt = SCORING_PROMPT.format(
-        context=_format_context(context),
+        context=context_str,
         resume=resume_text or "",
     )
 
@@ -215,7 +191,6 @@ def run_scoring(
         "industry": _clamp_0_10(data.get("industry")),
     }
 
-    # Optional consultant note (won't break old UI)
     if isinstance(data.get("consultant_note"), str) and data["consultant_note"].strip():
         out["consultant_note"] = data["consultant_note"].strip()
 
