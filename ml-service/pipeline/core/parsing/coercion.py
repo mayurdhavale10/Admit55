@@ -11,11 +11,16 @@ def as_list(x: Any) -> List[Any]:
     return []
 
 
+# ✅ ADD THIS: Alias for underscore version
+def _as_list(x: Any) -> List[Any]:
+    """Alias for as_list (for backwards compatibility)"""
+    return as_list(x)
+
+
 def as_str(x: Any) -> str:
     return x.strip() if isinstance(x, str) else ""
 
 
-# ✅ NEW: Add alias for underscore version
 def _as_str(x: Any) -> str:
     """Alias for as_str (for backwards compatibility)"""
     return as_str(x)

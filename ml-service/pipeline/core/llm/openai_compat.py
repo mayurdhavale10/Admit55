@@ -30,7 +30,7 @@ def call_openai_compat(
     prompt: str,
     max_tokens: int,
     temperature: float,
-    response_format: Optional[str] = None,  # "json" or None
+    response_format: Optional[str] = None,
 ) -> str:
     if not settings.api_key:
         raise LLMError(f"Missing API key for provider={settings.provider}")
@@ -60,3 +60,40 @@ def call_openai_compat(
     if not out:
         raise LLMError("Empty response")
     return out
+
+
+# ✅ ADD THIS: Wrapper function with different signature
+def call_openai_compatible(
+    api_key: str,
+    model: str,
+    messages: list,
+    base_url: str = None,
+    max_tokens: int = 1000,
+    temperature: float = 0.7,
+) -> str:
+    """
+    Wrapper for call_openai_compat with simpler signature.
+    Used by bschoolmatchtool pipeline.
+    """
+    # Create a settings object
+    settings = LLMSettings(
+        provider="openai",
+        model=model,
+        api_key=api_key,
+        base_url=base_url or "https://api.openai.com/v1",
+        timeout=30,
+    )
+    
+    # Convert messages to a simple prompt (for basic compatibility)
+    # In production, you'd want to handle this more carefully
+    prompt = "\n\n".join([
+        f"{msg.get('role', 'user')}: {msg.get('content', '')}"
+        for msg in messages
+    ])
+    
+    return call_openai_compat(
+        settings=settings,
+        prompt=prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
