@@ -9,7 +9,10 @@ interface DiscoveryQuestionsProps {
   onSkip: () => void;
 }
 
-export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQuestionsProps) {
+export default function DiscoveryQuestions({
+  onComplete,
+  onSkip,
+}: DiscoveryQuestionsProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
@@ -85,27 +88,26 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
         "International exposure gaps",
       ],
     },
-  ];
+  ] as const;
 
+  const total = questions.length;
   const currentQuestion = questions[currentStep];
-  const progress = ((currentStep + 1) / questions.length) * 100;
+  const progress = Math.round(((currentStep + 1) / total) * 100);
 
   const handleAnswer = (option: string) => {
-    const newAnswers = { ...answers, [currentQuestion.id]: option };
+    const q = questions[currentStep];
+    const newAnswers = { ...answers, [q.id]: option };
     setAnswers(newAnswers);
 
-    // Move to next question or complete
-    if (currentStep < questions.length - 1) {
-      setTimeout(() => setCurrentStep(currentStep + 1), 200);
+    if (currentStep < total - 1) {
+      setTimeout(() => setCurrentStep((s) => s + 1), 150);
     } else {
-      setTimeout(() => onComplete(newAnswers), 200);
+      setTimeout(() => onComplete(newAnswers), 150);
     }
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
+    if (currentStep > 0) setCurrentStep((s) => s - 1);
   };
 
   return (
@@ -124,11 +126,13 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
             <div>
               <h2 className="text-xl font-bold text-slate-900">Quick Discovery</h2>
               <p className="text-sm text-slate-600">
-                Answer {questions.length} questions for personalized recommendations
+                Answer {total} questions for personalized recommendations
               </p>
             </div>
           </div>
+
           <button
+            type="button"
             onClick={onSkip}
             className="text-sm font-medium text-slate-500 hover:text-slate-700 underline"
           >
@@ -146,9 +150,9 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
           </div>
           <div className="flex justify-between mt-2">
             <span className="text-xs font-medium text-slate-600">
-              Question {currentStep + 1} of {questions.length}
+              Question {currentStep + 1} of {total}
             </span>
-            <span className="text-xs font-medium text-blue-600">{Math.round(progress)}%</span>
+            <span className="text-xs font-medium text-blue-600">{progress}%</span>
           </div>
         </div>
       </div>
@@ -161,7 +165,9 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
             <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-2xl">
               {currentQuestion.icon}
             </div>
-            <h3 className="text-2xl font-bold text-slate-900">{currentQuestion.question}</h3>
+            <h3 className="text-2xl font-bold text-slate-900">
+              {currentQuestion.question}
+            </h3>
           </div>
           <p className="text-sm text-slate-500 ml-15">
             Select the option that best describes your situation
@@ -175,6 +181,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
             return (
               <button
                 key={idx}
+                type="button"
                 onClick={() => handleAnswer(option)}
                 className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all duration-200 ${
                   isSelected
@@ -196,6 +203,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -214,6 +222,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
         {/* Navigation */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
           <button
+            type="button"
             onClick={handleBack}
             disabled={currentStep === 0}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
@@ -227,6 +236,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -239,7 +249,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
           </button>
 
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path
                 fillRule="evenodd"
                 d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
@@ -250,6 +260,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
           </div>
 
           <button
+            type="button"
             onClick={onSkip}
             className="px-4 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-all"
           >
@@ -263,9 +274,7 @@ export default function DiscoveryQuestions({ onComplete, onSkip }: DiscoveryQues
         <div className="flex items-start gap-3">
           <div className="text-2xl flex-shrink-0">✨</div>
           <div>
-            <h4 className="font-semibold text-slate-900 mb-1">
-              Why answer these questions?
-            </h4>
+            <h4 className="font-semibold text-slate-900 mb-1">Why answer these questions?</h4>
             <ul className="text-sm text-slate-700 space-y-1">
               <li>• Get recommendations tailored to your timeline and goals</li>
               <li>• See school matches (reach/target/safe) based on your profile</li>

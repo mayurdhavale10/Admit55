@@ -199,7 +199,6 @@ def run_pipeline(
 ) -> Dict[str, Any]:
     """
     ProfileResumeTool pipeline with optional consultant-mode context.
-    Called from ml-service/app.py.
 
     Returns keys used by frontend:
       scores, header_summary, strengths, improvements, adcom_panel, recommendations,
@@ -215,11 +214,11 @@ def run_pipeline(
 
     resume_text = (resume_text or "").strip()
 
-    # Build context
+    # Build consultant context (if keys match)
     context = build_consultant_context(discovery_answers) if discovery_answers else {}
     consultant_mode = bool(context)
 
-    print(f"[ProfileResumeTool] Pipeline starting...")
+    print("[ProfileResumeTool] Pipeline starting...")
     print(f"[ProfileResumeTool] Mode: {'CONSULTANT' if consultant_mode else 'GENERIC'}")
     if consultant_mode:
         try:
@@ -241,13 +240,23 @@ def run_pipeline(
         run_adcom_panel(resume_text, scores, strengths, improvements, primary, fb, context)
     )
 
-    recommendations_out = run_recommendations(resume_text, scores, strengths, improvements, primary, fb, context)
+    # ✅ FIXED: run_recommendations returns dict with consultant_summary + meta
+    recs_out = run_recommendations(
+        resume_text, scores, strengths, improvements, primary, fb, context
+    )
 
     consultant_summary = None
-    recommendations = recommendations_out
-    if isinstance(recommendations_out, dict):
-        consultant_summary = recommendations_out.get("consultant_summary")
-        recommendations = recommendations_out.get("recommendations", [])
+    recs_meta: Dict[str, Any] = {}
+    recommendations: list = []
+
+    if isinstance(recs_out, dict):
+        consultant_summary = recs_out.get("consultant_summary")
+        recs_meta = recs_out.get("meta") or {}
+        recommendations = recs_out.get("recommendations") or []
+    elif isinstance(recs_out, list):
+        # defensive fallback if old version returns list
+        recommendations = recs_out
+
     if not isinstance(recommendations, list):
         recommendations = []
 
@@ -303,10 +312,17 @@ def run_pipeline(
             "model": primary.model,
             "fallback_provider": fb.provider if fb else None,
             "fallback_model": fb.model if fb else None,
+
             "consultant_mode": consultant_mode,
             "context_provided": consultant_mode,
+            "context_keys": list(context.keys()) if consultant_mode else [],
+
             # Optional helpers (safe to ignore in UI)
             "prioritize_test_prep": bool(should_prioritize_test_prep(context)) if consultant_mode else False,
             "recommendation_distribution": get_recommendation_distribution(context) if consultant_mode else None,
+
+            # ✅ Debug visibility: tells you if LLM JSON parse failed and you fell back
+            "recommendations_parse_ok": recs_meta.get("parse_ok"),
+            "recommendations_error": recs_meta.get("error"),
         },
     }
