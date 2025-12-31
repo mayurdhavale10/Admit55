@@ -1,17 +1,18 @@
-// src/app/api/mba/profileresumetool/analyze/route.ts
-// Forward-only API (Next.js) -> Render FastAPI (ML_SERVICE_URL)
-// ✅ Uses Admin-configured LLM settings (via /api/admin/mba/llm-settings)
-// ✅ Forwards optional discovery context as "discovery_answers" (preferred) to FastAPI
-// ✅ Backward-compatible: accepts incoming "context" too
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+export const dynamic = "force-dynamic";
 
 // ============================================================
 // CONFIG
 // ============================================================
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "https://admit55.onrender.com";
+const ML_SERVICE_URL =
+  process.env.ML_SERVICE_URL ||
+  process.env.MBA_TOOLS_API_URL ||
+  process.env.NEXT_PUBLIC_MBA_TOOLS_API_URL ||
+  "https://admit55.onrender.com";
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // ------------------------------------------------------------
@@ -35,9 +36,6 @@ async function getAdminLLMHeaders(req: Request): Promise<Record<string, string>>
 
   const json = (await r.json()) as any;
   const data = json?.data as { provider?: string; model?: string } | undefined;
-
-  // NOTE: you must return raw key only for server-authenticated requests.
-  // If your admin endpoint returns it as `rawApiKey`, we forward it.
   const rawKey = json?.rawApiKey as string | undefined;
 
   const headers: Record<string, string> = {};
@@ -83,7 +81,6 @@ async function readDiscoveryFromForm(formData: FormData): Promise<Record<string,
 }
 
 function readDiscoveryFromJsonBody(body: any): Record<string, any> | null {
-  // Accept multiple possible keys
   return (
     safeParseJsonObject(body?.discovery_answers) ||
     safeParseJsonObject(body?.discoveryAnswers) ||
@@ -95,7 +92,7 @@ function readDiscoveryFromJsonBody(body: any): Record<string, any> | null {
 // ============================================================
 // MAIN ENDPOINT - Forward to Render ML Service
 // ============================================================
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
   try {
@@ -107,7 +104,12 @@ export async function POST(req: Request) {
     // ----------------------------
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
+
+      // Debug: what did we receive?
+      console.log("[PROXY] multipart incoming keys:", Array.from(formData.keys()));
+
       const file = formData.get("file") as File | null;
+      const resumeText = formData.get("resume_text");
 
       if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
       if (file.size === 0) return NextResponse.json({ error: "File is empty" }, { status: 400 });
@@ -132,12 +134,19 @@ export async function POST(req: Request) {
       const mlFormData = new FormData();
       mlFormData.append("file", file);
 
-      // ✅ IMPORTANT: FastAPI expects discovery_answers (preferred)
+      if (resumeText) {
+        mlFormData.append("resume_text", String(resumeText));
+      }
+
       const discovery = await readDiscoveryFromForm(formData);
+      console.log("[PROXY] multipart has discovery:", Boolean(discovery));
+
       if (discovery) {
-        mlFormData.append("discovery_answers", JSON.stringify(discovery));
-        // optional: also send legacy key (won't hurt, but not required)
-        // mlFormData.append("context", JSON.stringify(discovery));
+        const s = JSON.stringify(discovery);
+        // ✅ FastAPI prefers discovery_answers
+        mlFormData.append("discovery_answers", s);
+        // ✅ also send legacy context as backup (harmless)
+        mlFormData.append("context", s);
       }
 
       const mlResponse = await fetch(`${ML_SERVICE_URL}/analyze`, {
@@ -146,19 +155,19 @@ export async function POST(req: Request) {
         headers: { ...llmHeaders },
       });
 
+      const text = await mlResponse.text();
       if (!mlResponse.ok) {
-        const errorText = await mlResponse.text();
         return NextResponse.json(
           {
             error: "ML service failed to process request",
             status: mlResponse.status,
-            details: errorText,
+            details: text,
           },
           { status: mlResponse.status }
         );
       }
 
-      const result = await mlResponse.json();
+      const result = JSON.parse(text);
       const totalDuration = ((Date.now() - startTime) / 1000).toFixed(2);
 
       return NextResponse.json({
@@ -168,50 +177,48 @@ export async function POST(req: Request) {
           total_duration_seconds: parseFloat(totalDuration),
           ml_service_url: ML_SERVICE_URL,
           timestamp: new Date().toISOString(),
+          proxy_received_discovery: Boolean(discovery),
         },
       });
     }
 
     // ----------------------------
-    // DIRECT TEXT (application/json)
+    // DIRECT TEXT (application/json) -> FastAPI /analyze-json
     // ----------------------------
     if (contentType.includes("application/json")) {
       const body = (await req.json()) as any;
 
-      if (!body.resume_text || typeof body.resume_text !== "string") {
+      if (!body?.resume_text || typeof body.resume_text !== "string") {
         return NextResponse.json({ error: "resume_text required (string)" }, { status: 400 });
       }
 
-      const mlFormData = new FormData();
-      mlFormData.append("resume_text", body.resume_text);
-
-      // ✅ IMPORTANT: FastAPI expects discovery_answers (preferred)
       const discovery = readDiscoveryFromJsonBody(body);
-      if (discovery) {
-        mlFormData.append("discovery_answers", JSON.stringify(discovery));
-        // optional legacy:
-        // mlFormData.append("context", JSON.stringify(discovery));
-      }
+      console.log("[PROXY] json has discovery:", Boolean(discovery));
 
-      const mlResponse = await fetch(`${ML_SERVICE_URL}/analyze`, {
+      const payload = {
+        resume_text: body.resume_text,
+        discovery_answers: discovery, // ✅ dict (not string) for /analyze-json
+      };
+
+      const mlResponse = await fetch(`${ML_SERVICE_URL}/analyze-json`, {
         method: "POST",
-        body: mlFormData,
-        headers: { ...llmHeaders },
+        headers: { "content-type": "application/json", ...llmHeaders },
+        body: JSON.stringify(payload),
       });
 
+      const text = await mlResponse.text();
       if (!mlResponse.ok) {
-        const errorText = await mlResponse.text();
         return NextResponse.json(
           {
             error: "ML service failed to process request",
             status: mlResponse.status,
-            details: errorText,
+            details: text,
           },
           { status: mlResponse.status }
         );
       }
 
-      const result = await mlResponse.json();
+      const result = JSON.parse(text);
       const totalDuration = ((Date.now() - startTime) / 1000).toFixed(2);
 
       return NextResponse.json({
@@ -221,6 +228,7 @@ export async function POST(req: Request) {
           total_duration_seconds: parseFloat(totalDuration),
           ml_service_url: ML_SERVICE_URL,
           timestamp: new Date().toISOString(),
+          proxy_received_discovery: Boolean(discovery),
         },
       });
     }
@@ -236,8 +244,7 @@ export async function POST(req: Request) {
       {
         error: err instanceof Error ? err.message : "Unexpected error occurred",
         duration_seconds: parseFloat(duration),
-        details:
-          process.env.NODE_ENV === "development" && err instanceof Error ? err.stack : undefined,
+        details: process.env.NODE_ENV === "development" && err instanceof Error ? err.stack : undefined,
       },
       { status: 500 }
     );
@@ -249,7 +256,7 @@ export async function POST(req: Request) {
 // ============================================================
 export async function GET() {
   try {
-    const response = await fetch(`${ML_SERVICE_URL}/health`, { method: "GET" });
+    const response = await fetch(`${ML_SERVICE_URL}/health`, { method: "GET", cache: "no-store" });
     const mlHealth = response.ok ? await response.json().catch(() => ({})) : { status: "unreachable" };
 
     return NextResponse.json(

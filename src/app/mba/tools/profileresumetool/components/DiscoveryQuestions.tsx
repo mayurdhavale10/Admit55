@@ -88,21 +88,19 @@ export default function DiscoveryQuestions({
         "International exposure gaps",
       ],
     },
-  ] as const;
+  ];
 
-  const total = questions.length;
   const currentQuestion = questions[currentStep];
-  const progress = Math.round(((currentStep + 1) / total) * 100);
+  const progress = ((currentStep + 1) / questions.length) * 100;
 
   const handleAnswer = (option: string) => {
-    const q = questions[currentStep];
-    const newAnswers = { ...answers, [q.id]: option };
-    setAnswers(newAnswers);
+    const next = { ...answers, [currentQuestion.id]: option };
+    setAnswers(next);
 
-    if (currentStep < total - 1) {
-      setTimeout(() => setCurrentStep((s) => s + 1), 150);
+    if (currentStep < questions.length - 1) {
+      setTimeout(() => setCurrentStep((s) => s + 1), 200);
     } else {
-      setTimeout(() => onComplete(newAnswers), 150);
+      setTimeout(() => onComplete(next), 200);
     }
   };
 
@@ -112,7 +110,6 @@ export default function DiscoveryQuestions({
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      {/* Header Card */}
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-blue-100">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -126,11 +123,10 @@ export default function DiscoveryQuestions({
             <div>
               <h2 className="text-xl font-bold text-slate-900">Quick Discovery</h2>
               <p className="text-sm text-slate-600">
-                Answer {total} questions for personalized recommendations
+                Answer {questions.length} questions for personalized recommendations
               </p>
             </div>
           </div>
-
           <button
             type="button"
             onClick={onSkip}
@@ -140,7 +136,6 @@ export default function DiscoveryQuestions({
           </button>
         </div>
 
-        {/* Progress Bar */}
         <div className="relative">
           <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
             <div
@@ -150,16 +145,16 @@ export default function DiscoveryQuestions({
           </div>
           <div className="flex justify-between mt-2">
             <span className="text-xs font-medium text-slate-600">
-              Question {currentStep + 1} of {total}
+              Question {currentStep + 1} of {questions.length}
             </span>
-            <span className="text-xs font-medium text-blue-600">{progress}%</span>
+            <span className="text-xs font-medium text-blue-600">
+              {Math.round(progress)}%
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Question Card */}
       <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
-        {/* Question Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-2xl">
@@ -169,19 +164,18 @@ export default function DiscoveryQuestions({
               {currentQuestion.question}
             </h3>
           </div>
-          <p className="text-sm text-slate-500 ml-15">
+          <p className="text-sm text-slate-500 ml-4">
             Select the option that best describes your situation
           </p>
         </div>
 
-        {/* Options */}
         <div className="space-y-3">
           {currentQuestion.options.map((option, idx) => {
             const isSelected = answers[currentQuestion.id] === option;
             return (
               <button
-                key={idx}
                 type="button"
+                key={idx}
                 onClick={() => handleAnswer(option)}
                 className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all duration-200 ${
                   isSelected
@@ -190,11 +184,7 @@ export default function DiscoveryQuestions({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span
-                    className={`font-medium ${
-                      isSelected ? "text-blue-900" : "text-slate-700"
-                    }`}
-                  >
+                  <span className={`font-medium ${isSelected ? "text-blue-900" : "text-slate-700"}`}>
                     {option}
                   </span>
                   {isSelected && (
@@ -203,7 +193,6 @@ export default function DiscoveryQuestions({
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
-                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -219,7 +208,6 @@ export default function DiscoveryQuestions({
           })}
         </div>
 
-        {/* Navigation */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
           <button
             type="button"
@@ -231,33 +219,11 @@ export default function DiscoveryQuestions({
                 : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back
           </button>
-
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                fillRule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span>Takes ~60 seconds</span>
-          </div>
 
           <button
             type="button"
@@ -266,21 +232,6 @@ export default function DiscoveryQuestions({
           >
             Skip →
           </button>
-        </div>
-      </div>
-
-      {/* Benefits Footer */}
-      <div className="mt-6 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-4 border border-emerald-100">
-        <div className="flex items-start gap-3">
-          <div className="text-2xl flex-shrink-0">✨</div>
-          <div>
-            <h4 className="font-semibold text-slate-900 mb-1">Why answer these questions?</h4>
-            <ul className="text-sm text-slate-700 space-y-1">
-              <li>• Get recommendations tailored to your timeline and goals</li>
-              <li>• See school matches (reach/target/safe) based on your profile</li>
-              <li>• Receive urgent actions if you're applying soon</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>
