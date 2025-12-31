@@ -2,7 +2,7 @@
 """
 app.py — FastAPI wrapper for:
 - ProfileResumeTool (MBA resume analysis pipeline; modularized under pipeline/tools/profileresumetool)
-- B-School Match Pipeline
+- B-School Match Pipeline (NEW modular)
 - Resume Writer Pipeline
 
 Deployed on Render.com
@@ -104,18 +104,24 @@ except Exception:
 
 
 # ------------------------------------------------------------
-# Imports: other pipelines (unchanged)
+# Imports: B-School Match Tool (NEW modular path)
 # ------------------------------------------------------------
+BSCHOOL_PIPELINE_VERSION = "unknown"
+
 try:
-    from pipeline.bschool_match_pipeline import run_bschool_match
-    print("[IMPORT] ✅ B-school match pipeline loaded", file=sys.stderr)
+    from pipeline.tools.bschoolmatchtool import run_pipeline as run_bschool_match_pipeline
+    from pipeline.tools.bschoolmatchtool import PIPELINE_VERSION as BSCHOOL_PIPELINE_VERSION
+    print(f"[IMPORT] ✅ BschoolMatchTool v{BSCHOOL_PIPELINE_VERSION} loaded", file=sys.stderr)
 except Exception as e:
-    print(f"[IMPORT ERROR] bschool_match_pipeline: {e}", file=sys.stderr)
+    print(f"[IMPORT ERROR] bschoolmatchtool pipeline: {e}", file=sys.stderr)
 
-    def run_bschool_match(*args, **kwargs):
-        raise HTTPException(500, "B-school match pipeline not available")
+    def run_bschool_match_pipeline(*args, **kwargs):
+        raise HTTPException(500, "BschoolMatchTool pipeline not available")
 
 
+# ------------------------------------------------------------
+# Imports: Resume Writer Pipeline
+# ------------------------------------------------------------
 try:
     from pipeline.resume_writer_pipeline import generate_resume
     print("[IMPORT] ✅ Resume writer pipeline loaded", file=sys.stderr)
@@ -152,12 +158,18 @@ except Exception:
 
 
 # ------------------------------------------------------------
-# ✅ NEW: Pydantic models for request validation
+# Pydantic models for request validation
 # ------------------------------------------------------------
 class AnalyzeTextRequest(BaseModel):
     """Request model for text-based analysis"""
     resume_text: str
     discovery_answers: Optional[Dict[str, str]] = None
+
+
+class BSchoolMatchRequest(BaseModel):
+    """Request model for B-school matching"""
+    user_profile: Dict[str, Any]
+    resume_text: Optional[str] = None
 
 
 # ------------------------------------------------------------
@@ -186,6 +198,7 @@ async def root():
         "service": "MBA Tools",
         "version": APP_VERSION,
         "profile_resume_tool_version": PIPELINE_VERSION,
+        "bschool_match_version": BSCHOOL_PIPELINE_VERSION,
         "endpoints": {
             "analyze": "POST /analyze",
             "bschool_match": "POST /bschool-match",
@@ -207,6 +220,7 @@ async def health():
         "status": "healthy",
         "pdf_support": PDF_SUPPORT,
         "profile_resume_tool_version": PIPELINE_VERSION,
+        "bschool_match_version": BSCHOOL_PIPELINE_VERSION,
         "llm": {
             "provider": provider,
             "model": model,
@@ -220,12 +234,13 @@ async def health():
             "resume_writer": True,
         },
         "features": {
-            "narrative": False,  # narrative disabled (saves tokens)
+            "narrative": False,
             "multi_provider": True,
             "context_aware": True,
             "modular_architecture": True,
-            "consultant_mode": True,  # ✅ NEW
-            "discovery_questions": True,  # ✅ NEW
+            "consultant_mode": True,
+            "discovery_questions": True,
+            "school_matching": True,
         },
     }
 
@@ -237,33 +252,12 @@ async def health():
 async def analyze_resume(
     file: Optional[UploadFile] = File(None),
     resume_text: Optional[str] = Form(None),
-    discovery_answers: Optional[str] = Form(None),  # ✅ NEW: JSON string of discovery Q&A
-    context: Optional[str] = Form(None),  # Legacy: optional JSON string (kept for backwards compat)
+    discovery_answers: Optional[str] = Form(None),
+    context: Optional[str] = Form(None),
 ):
     """
     Analyze resume from PDF file or direct text with optional discovery context.
-    
-    Args:
-        file: PDF file upload (optional)
-        resume_text: Direct resume text (optional)
-        discovery_answers: JSON string with discovery Q&A answers (optional)
-        context: Legacy context field (optional, for backwards compatibility)
-    
-    Returns:
-        Complete analysis with scores, header_summary, strengths, improvements,
-        adcom_panel, recommendations. If discovery_answers provided, includes
-        consultant_summary and discovery_context.
     """
-    # Handle both FormData (file upload) and JSON body (text input)
-    is_json_request = False
-    parsed_body = None
-    
-    # Check if this is a JSON request
-    if not file and not resume_text:
-        # This might be a JSON request body, but FastAPI doesn't parse it yet
-        # We'll handle this in the exception below
-        pass
-
     if not file and not resume_text:
         raise HTTPException(status_code=400, detail="Provide either 'file' (PDF) or 'resume_text'")
 
@@ -303,7 +297,7 @@ async def analyze_resume(
         print(f"[API] Truncating resume from {len(resume_text)} to 50000 chars", file=sys.stderr)
         resume_text = resume_text[:50000]
 
-    # ✅ NEW: Parse discovery_answers (prioritize over legacy context)
+    # Parse discovery_answers
     discovery_dict: Optional[Dict[str, str]] = None
     
     if discovery_answers:
@@ -316,7 +310,7 @@ async def analyze_resume(
         except Exception as e:
             print(f"[API] ⚠️  Invalid discovery_answers JSON, ignoring: {str(e)}", file=sys.stderr)
     
-    # Legacy context support (fallback)
+    # Legacy context support
     if not discovery_dict and context:
         try:
             parsed = json.loads(context)
@@ -339,39 +333,14 @@ async def analyze_resume(
 
         settings = env_default_settings()
 
-        # Log provider info
-        if isinstance(settings, dict):
-            prov = settings.get("provider", "unknown")
-            mod = settings.get("model", "unknown")
-        else:
-            prov = getattr(settings, "provider", "unknown")
-            mod = getattr(settings, "model", "unknown")
-        
-        print(f"[API] Using provider: {prov}, model: {mod}", file=sys.stderr)
-
-        # ✅ MODIFIED: Pass discovery_answers to pipeline
         result = run_profile_pipeline(
             resume_text=resume_text,
             settings=settings,
-            fallback=None,  # auto-built inside orchestrator
-            discovery_answers=discovery_dict,  # ✅ NEW
+            fallback=None,
+            discovery_answers=discovery_dict,
         )
 
         print("[API] ✅ Analysis complete", file=sys.stderr)
-        print(f"[API] Result keys: {list(result.keys())}", file=sys.stderr)
-        
-        # ✅ NEW: Log consultant mode status
-        if result.get("processing_meta", {}).get("consultant_mode"):
-            print("[API] ✅ Consultant mode output generated", file=sys.stderr)
-        
-        # Verify key fields
-        if "header_summary" in result:
-            print(f"[API] ✅ header_summary: {list(result['header_summary'].keys())}", file=sys.stderr)
-        if "recommendations" in result:
-            print(f"[API] ✅ recommendations: {len(result.get('recommendations', []))} items", file=sys.stderr)
-        if "consultant_summary" in result and result["consultant_summary"]:
-            print(f"[API] ✅ consultant_summary present", file=sys.stderr)
-
         return result
 
     except Exception as e:
@@ -381,19 +350,9 @@ async def analyze_resume(
         raise HTTPException(status_code=500, detail=f"Analysis pipeline failed: {str(e)}")
 
 
-# ✅ NEW: JSON endpoint for text-based analysis (alternative to FormData)
 @app.post("/analyze-json")
 async def analyze_resume_json(request: AnalyzeTextRequest):
-    """
-    Alternative JSON endpoint for text-based analysis (no file upload).
-    Useful for frontend applications that prefer JSON over FormData.
-    
-    Args:
-        request: AnalyzeTextRequest with resume_text and optional discovery_answers
-        
-    Returns:
-        Same as /analyze endpoint
-    """
+    """Alternative JSON endpoint for text-based analysis."""
     resume_text = request.resume_text.strip()
     
     if len(resume_text) < 50:
@@ -406,16 +365,6 @@ async def analyze_resume_json(request: AnalyzeTextRequest):
     discovery_dict = request.discovery_answers
     
     try:
-        print(f"[API] Starting JSON analysis for {len(resume_text)} character resume", file=sys.stderr)
-        print("=" * 60, file=sys.stderr)
-        print(f"MBA RESUME ANALYSIS PIPELINE v{PIPELINE_VERSION}", file=sys.stderr)
-        if discovery_dict:
-            print("🎯 MODE: CONSULTANT (Discovery Q&A provided)", file=sys.stderr)
-            print(f"[API] Discovery keys: {list(discovery_dict.keys())}", file=sys.stderr)
-        else:
-            print("📊 MODE: GENERIC (No discovery context)", file=sys.stderr)
-        print("=" * 60, file=sys.stderr)
-
         settings = env_default_settings()
 
         result = run_profile_pipeline(
@@ -436,56 +385,53 @@ async def analyze_resume_json(request: AnalyzeTextRequest):
 
 
 # ============================================================
-# /bschool-match — unchanged
+# /bschool-match — NEW modular pipeline
 # ============================================================
 @app.post("/bschool-match")
-async def bschool_match(
-    candidate_profile: Dict[str, Any] = Body(..., description="Structured candidate profile JSON"),
-):
+async def bschool_match_endpoint(request: BSchoolMatchRequest):
     """
-    B-School Match engine.
+    B-School Match engine - matches user profile to MBA programs.
+    """
     
-    Args:
-        candidate_profile: Structured JSON with candidate info
-        
-    Returns:
-        School recommendations with reach/target/safe tiers
-    """
-    if not isinstance(candidate_profile, dict) or not candidate_profile:
-        raise HTTPException(status_code=400, detail="candidate_profile must be a non-empty JSON object")
-
+    if not request.user_profile or not isinstance(request.user_profile, dict):
+        raise HTTPException(status_code=400, detail="user_profile must be a non-empty object")
+    
     try:
         print("[BSchoolMatch API] Starting B-school match pipeline", file=sys.stderr)
-        result = run_bschool_match(candidate_profile)
+        print(f"[BSchoolMatch API] Profile keys: {list(request.user_profile.keys())}", file=sys.stderr)
+        
+        settings = env_default_settings()
+        
+        result = run_bschool_match_pipeline(
+            user_profile=request.user_profile,
+            resume_text=request.resume_text,
+            settings=settings,
+            fallback=None,
+        )
+        
         print("[BSchoolMatch API] ✅ Match pipeline complete", file=sys.stderr)
         return result
+        
     except Exception as e:
         print(f"[BSchoolMatch API] ❌ Match pipeline failed: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         raise HTTPException(status_code=500, detail=f"B-school match pipeline failed: {str(e)}")
 
 
 # ============================================================
-# /resumewriter — unchanged
+# /resumewriter
 # ============================================================
 @app.post("/resumewriter")
 async def resume_writer_endpoint(
     payload: Dict[str, Any] = Body(..., description="Structured answers from resume Q&A form"),
 ):
-    """
-    Resume Writer endpoint.
-    
-    Args:
-        payload: Structured answers from Q&A form
-        
-    Returns:
-        Generated resume text + sections + metadata
-    """
+    """Resume Writer endpoint."""
     if not isinstance(payload, dict) or not payload:
         raise HTTPException(status_code=400, detail="Payload must be a non-empty JSON object")
 
     try:
         print("[resumewriter][API] Starting resume generation", file=sys.stderr)
-        print(f"[resumewriter][API] Payload keys: {list(payload.keys())}", file=sys.stderr)
         
         result = generate_resume(payload)
         
@@ -517,7 +463,8 @@ if __name__ == "__main__":
 
     port = int(os.getenv("PORT", 8000))
     print(f"[STARTUP] Starting server on port {port}", file=sys.stderr)
-    print(f"[STARTUP] Pipeline version: {PIPELINE_VERSION}", file=sys.stderr)
+    print(f"[STARTUP] ProfileResumeTool version: {PIPELINE_VERSION}", file=sys.stderr)
+    print(f"[STARTUP] BschoolMatchTool version: {BSCHOOL_PIPELINE_VERSION}", file=sys.stderr)
     print(f"[STARTUP] Consultant mode: ✅ ENABLED", file=sys.stderr)
-    print(f"[STARTUP] Discovery questions: ✅ SUPPORTED", file=sys.stderr)
+    print(f"[STARTUP] School matching: ✅ ENABLED", file=sys.stderr)
     uvicorn.run(app, host="0.0.0.0", port=port)
