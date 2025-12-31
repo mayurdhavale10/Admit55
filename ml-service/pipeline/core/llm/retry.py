@@ -1,90 +1,55 @@
 # ml-service/pipeline/core/llm/retry.py
 
-import random
 import time
-from typing import Optional
+from typing import Callable, TypeVar, Any
+from functools import wraps
 
-from ..settings import LLMSettings, downgraded_model_for
-from .errors import LLMError, LLMRateLimitError
-from .groq import call_groq
-from .gemini import call_gemini
-from .openai_compat import call_openai_compat
+from .errors import LLMRateLimitError
 
-
-def _sleep_backoff(attempt: int) -> None:
-    base = min(2.0, 0.25 * (2 ** attempt))
-    time.sleep(base + random.random() * 0.25)
+T = TypeVar('T')
 
 
-def call_llm_once(
-    settings: LLMSettings,
-    prompt: str,
-    max_tokens: int,
-    temperature: float,
-    response_format: Optional[str],
-) -> str:
-    p = (settings.provider or "").lower().strip()
-
-    if p in ("openai", "groq"):
-        # For openai & groq use OpenAI-compatible path
-        if p == "openai":
-            return call_openai_compat(settings, prompt, max_tokens, temperature, response_format=response_format)
-        return call_groq(settings, prompt, max_tokens, temperature, response_format=response_format)
-
-    if p == "gemini":
-        # Gemini ignores response_format "json" mode (we still parse)
-        return call_gemini(settings, prompt, max_tokens, temperature, response_format=response_format)
-
-    raise LLMError(f"Unsupported provider: {settings.provider}")
-
-
-def call_llm(
-    settings: LLMSettings,
-    prompt: str,
-    max_tokens: int,
-    temperature: float,
-    response_format: Optional[str],
-    fallback: Optional[LLMSettings],
-    retries: int = 1,
-) -> str:
+def with_retry(
+    max_attempts: int = 3,
+    initial_delay: float = 1.0,
+    backoff_factor: float = 2.0,
+    max_delay: float = 60.0,
+):
     """
-    429-proof calling:
-    - try primary (retries)
-    - if rate-limit: try downgraded model (same provider)
-    - then try fallback provider
+    Decorator to retry a function on LLMRateLimitError with exponential backoff.
+    
+    Args:
+        max_attempts: Maximum number of attempts (default: 3)
+        initial_delay: Initial delay in seconds (default: 1.0)
+        backoff_factor: Multiplier for delay after each retry (default: 2.0)
+        max_delay: Maximum delay between retries (default: 60.0)
     """
-    last_err: Optional[Exception] = None
-
-    for a in range(retries + 1):
-        try:
-            return call_llm_once(settings, prompt, max_tokens, temperature, response_format)
-        except LLMRateLimitError as e:
-            last_err = e
-            _sleep_backoff(a)
-        except Exception as e:
-            last_err = e
-            _sleep_backoff(a)
-
-    # downgrade same provider
-    downgraded = downgraded_model_for(settings.provider)
-    if downgraded and downgraded != settings.model:
-        st2 = LLMSettings(
-            provider=settings.provider,
-            api_key=settings.api_key,
-            model=downgraded,
-            base_url=settings.base_url,
-            timeout=settings.timeout,
-        )
-        try:
-            return call_llm_once(st2, prompt, max_tokens, temperature, response_format)
-        except Exception as e:
-            last_err = e
-
-    # fallback provider
-    if fallback and fallback.api_key:
-        try:
-            return call_llm_once(fallback, prompt, max_tokens, temperature, response_format)
-        except Exception as e:
-            last_err = e
-
-    raise LLMError(str(last_err) if last_err else "Unknown LLM failure")
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            delay = initial_delay
+            last_error = None
+            
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except LLMRateLimitError as e:
+                    last_error = e
+                    if attempt < max_attempts - 1:
+                        # Wait before retrying
+                        sleep_time = min(delay, max_delay)
+                        print(f"[RETRY] Rate limited, waiting {sleep_time}s before retry {attempt + 2}/{max_attempts}")
+                        time.sleep(sleep_time)
+                        delay *= backoff_factor
+                    else:
+                        # Last attempt failed
+                        print(f"[RETRY] All {max_attempts} attempts failed")
+                        raise
+            
+            # This shouldn't be reached, but just in case
+            if last_error:
+                raise last_error
+            raise Exception("Unexpected retry logic error")
+        
+        return wrapper
+    return decorator

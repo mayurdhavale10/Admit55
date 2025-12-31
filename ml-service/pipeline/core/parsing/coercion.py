@@ -11,7 +11,6 @@ def as_list(x: Any) -> List[Any]:
     return []
 
 
-# ✅ ADD THIS: Alias for underscore version
 def _as_list(x: Any) -> List[Any]:
     """Alias for as_list (for backwards compatibility)"""
     return as_list(x)
@@ -34,9 +33,21 @@ def clamp_int(n: Any, lo: int, hi: int, default: int) -> int:
         return default
 
 
+# ✅ ADD THIS: Underscore alias
+def _clamp_int(n: Any, lo: int, hi: int, default: int) -> int:
+    """Alias for clamp_int (for backwards compatibility)"""
+    return clamp_int(n, lo, hi, default)
+
+
 def clamp_float(n: Any, lo: float, hi: float, default: float) -> float:
     try:
         v = float(n)
         return max(lo, min(hi, v))
     except Exception:
         return default
+
+
+# ✅ ADD THIS: Underscore alias  
+def _clamp_float(n: Any, lo: float, hi: float, default: float) -> float:
+    """Alias for clamp_float (for backwards compatibility)"""
+    return clamp_float(n, lo, hi, default)
