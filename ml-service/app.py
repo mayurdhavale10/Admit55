@@ -38,6 +38,8 @@ try:
     print(f"[IMPORT] ✅ ProfileResumeTool v{PIPELINE_VERSION} loaded", file=sys.stderr)
 except Exception as e:
     print(f"[IMPORT ERROR] profileresumetool pipeline: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
 
     # LAST resort fallback (if your old single-file pipeline still exists)
     try:
@@ -114,6 +116,8 @@ try:
     print(f"[IMPORT] ✅ BschoolMatchTool v{BSCHOOL_PIPELINE_VERSION} loaded", file=sys.stderr)
 except Exception as e:
     print(f"[IMPORT ERROR] bschoolmatchtool pipeline: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
 
     def run_bschool_match_pipeline(*args, **kwargs):
         raise HTTPException(500, "BschoolMatchTool pipeline not available")
@@ -332,17 +336,49 @@ async def analyze_resume(
         print("=" * 60, file=sys.stderr)
 
         settings = env_default_settings()
+        
+        # Log settings being used
+        if isinstance(settings, dict):
+            print(f"[API] Using provider: {settings.get('provider')}, model: {settings.get('model')}", file=sys.stderr)
+        else:
+            print(f"[API] Using provider: {getattr(settings, 'provider', 'unknown')}, model: {getattr(settings, 'model', 'unknown')}", file=sys.stderr)
+
+        # ✅ KEY FIX: Pass settings as dict (ProfileResumeTool's orchestrator expects dict or None)
+        settings_dict = settings if isinstance(settings, dict) else {
+            "provider": getattr(settings, "provider", "groq"),
+            "api_key": getattr(settings, "api_key", ""),
+            "model": getattr(settings, "model", "llama-3.3-70b-versatile"),
+            "base_url": getattr(settings, "base_url", None),
+            "timeout": getattr(settings, "timeout", 60),
+        }
 
         result = run_profile_pipeline(
             resume_text=resume_text,
-            settings=settings,
-            fallback=None,
+            settings=settings_dict,  # ✅ Pass dict format
+            fallback=None,  # orchestrator builds fallback internally
             discovery_answers=discovery_dict,
         )
 
         print("[API] ✅ Analysis complete", file=sys.stderr)
+        
+        # Validate result structure
+        if not isinstance(result, dict):
+            print(f"[API] ⚠️  Pipeline returned non-dict: {type(result)}", file=sys.stderr)
+            raise HTTPException(500, "Pipeline returned invalid response format")
+        
+        # Log what we got back
+        print(f"[API] Result keys: {list(result.keys())}", file=sys.stderr)
+        if "scores" in result:
+            print(f"[API] ✅ Scores present: {result['scores']}", file=sys.stderr)
+        if "header_summary" in result:
+            print(f"[API] ✅ Header summary present", file=sys.stderr)
+        if "recommendations" in result:
+            print(f"[API] ✅ Recommendations: {len(result.get('recommendations', []))} items", file=sys.stderr)
+        
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[API] ❌ Analysis failed: {e}", file=sys.stderr)
         import traceback
@@ -365,11 +401,22 @@ async def analyze_resume_json(request: AnalyzeTextRequest):
     discovery_dict = request.discovery_answers
     
     try:
+        print(f"[API] Starting JSON analysis for {len(resume_text)} character resume", file=sys.stderr)
+        
         settings = env_default_settings()
+        
+        # Convert to dict format
+        settings_dict = settings if isinstance(settings, dict) else {
+            "provider": getattr(settings, "provider", "groq"),
+            "api_key": getattr(settings, "api_key", ""),
+            "model": getattr(settings, "model", "llama-3.3-70b-versatile"),
+            "base_url": getattr(settings, "base_url", None),
+            "timeout": getattr(settings, "timeout", 60),
+        }
 
         result = run_profile_pipeline(
             resume_text=resume_text,
-            settings=settings,
+            settings=settings_dict,
             fallback=None,
             discovery_answers=discovery_dict,
         )
