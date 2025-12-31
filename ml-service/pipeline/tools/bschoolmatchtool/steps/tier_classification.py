@@ -1,7 +1,75 @@
 # ml-service/pipeline/tools/bschoolmatchtool/steps/tier_classification.py
 from __future__ import annotations
-from typing import Dict, Any, List
 
+import re
+from typing import Any, Dict, List, Optional
+
+
+# ----------------------------
+# Helpers
+# ----------------------------
+def _safe_int(value: Any, default: int = 0) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s or s.lower() in {"none", "null", "na", "n/a"}:
+            return default
+        m = re.search(r"[-+]?\d*\.?\d+", s)
+        if not m:
+            return default
+        try:
+            return int(float(m.group(0)))
+        except Exception:
+            return default
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _safe_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s or s.lower() in {"none", "null", "na", "n/a"}:
+            return default
+        m = re.search(r"[-+]?\d*\.?\d+", s)
+        if not m:
+            return default
+        try:
+            return float(m.group(0))
+        except Exception:
+            return default
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _safe_str(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    s = str(value).strip()
+    if s.lower() in {"none", "null", "na", "n/a"}:
+        return default
+    return s
+
+
+# ----------------------------
+# Main API
+# ----------------------------
 def classify_tiers(
     schools: List[Dict[str, Any]],
     context: Dict[str, Any],
@@ -9,28 +77,29 @@ def classify_tiers(
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Classify schools into Ambitious/Target/Safe tiers.
-    
+
     Based on:
     - User's test scores vs school median
     - GPA comparison
     - Acceptance rates
     - Diversity factors
     """
-    
-    test_score = context.get("test_score_normalized", 700)
-    gpa = context.get("gpa_normalized", 3.5)
-    years_exp = context.get("years_experience", 4)
-    risk_tolerance = context.get("risk_tolerance", "balanced")
-    
-    ambitious = []
-    target = []
-    safe = []
-    
+
+    # IMPORTANT: these can be None depending on user inputs
+    test_score = _safe_int(context.get("test_score_normalized"), default=0)  # 0 means "unknown"
+    gpa = _safe_float(context.get("gpa_normalized"), default=None)          # None means "unknown"
+    years_exp = _safe_int(context.get("years_experience"), default=0)
+    risk_tolerance = _safe_str(context.get("risk_tolerance"), default="balanced") or "balanced"
+
+    ambitious: List[Dict[str, Any]] = []
+    target: List[Dict[str, Any]] = []
+    safe: List[Dict[str, Any]] = []
+
     for school in schools:
-        school_gmat = school.get("median_gmat", 700)
-        school_gpa = school.get("median_gpa", 3.5)
-        acceptance_rate = school.get("acceptance_rate", 25)
-        
+        school_gmat = _safe_int(school.get("median_gmat"), default=700)
+        school_gpa = _safe_float(school.get("median_gpa"), default=3.5)
+        acceptance_rate = _safe_int(school.get("acceptance_rate"), default=25)
+
         # Calculate admission probability
         probability = _calculate_admission_probability(
             user_gmat=test_score,
@@ -41,35 +110,31 @@ def classify_tiers(
             years_exp=years_exp,
             context=context
         )
-        
-        # Add probability to school data
+
         school["admission_probability"] = probability
-        
+
         # Classify into tiers
         if probability < 30:
             ambitious.append(school)
-        elif probability >= 30 and probability < 65:
+        elif probability < 65:
             target.append(school)
         else:
             safe.append(school)
-    
+
     # Adjust based on risk tolerance
     if risk_tolerance == "aggressive":
-        # Move some targets to ambitious
         if len(target) > 4:
             ambitious.extend(target[:2])
             target = target[2:]
     elif risk_tolerance == "safe":
-        # Move some targets to safe
         if len(target) > 4:
             safe.extend(target[-2:])
             target = target[:-2]
-    
-    # Limit to reasonable numbers
+
     ambitious = ambitious[:4]
     target = target[:5]
     safe = safe[:3]
-    
+
     return {
         "ambitious": ambitious,
         "target": target,
@@ -78,73 +143,78 @@ def classify_tiers(
 
 
 def _calculate_admission_probability(
-    user_gmat: int,
+    user_gmat: int,                 # 0 means "unknown"
     school_gmat: int,
-    user_gpa: float,
-    school_gpa: float,
+    user_gpa: Optional[float],      # None means "unknown"
+    school_gpa: Optional[float],
     acceptance_rate: int,
     years_exp: int,
     context: Dict[str, Any]
 ) -> int:
     """
     Calculate admission probability (0-100).
-    
-    Simplified model based on:
-    - GMAT comparison
-    - GPA comparison
-    - Base acceptance rate
-    - Diversity factors
+
+    Robust to missing GMAT/GPA (treat as neutral).
     """
-    
-    # Base probability from acceptance rate
+
     base_prob = acceptance_rate
-    
-    # GMAT adjustment
-    gmat_diff = user_gmat - school_gmat
-    if gmat_diff >= 20:
-        gmat_boost = 20
-    elif gmat_diff >= 0:
-        gmat_boost = 10
-    elif gmat_diff >= -20:
-        gmat_boost = 0
-    elif gmat_diff >= -40:
-        gmat_boost = -15
+
+    # ----------------------------
+    # GMAT adjustment (neutral if unknown)
+    # ----------------------------
+    if not user_gmat or user_gmat <= 0:
+        gmat_boost = 0  # neutral if user hasn't provided a score
     else:
-        gmat_boost = -25
-    
-    # GPA adjustment
-    gpa_diff = user_gpa - school_gpa
-    if gpa_diff >= 0.2:
-        gpa_boost = 10
-    elif gpa_diff >= 0:
-        gpa_boost = 5
-    elif gpa_diff >= -0.2:
-        gpa_boost = 0
+        gmat_diff = user_gmat - school_gmat
+        if gmat_diff >= 20:
+            gmat_boost = 20
+        elif gmat_diff >= 0:
+            gmat_boost = 10
+        elif gmat_diff >= -20:
+            gmat_boost = 0
+        elif gmat_diff >= -40:
+            gmat_boost = -15
+        else:
+            gmat_boost = -25
+
+    # ----------------------------
+    # GPA adjustment (neutral if unknown)
+    # ----------------------------
+    if user_gpa is None or school_gpa is None:
+        gpa_boost = 0  # neutral when missing
     else:
-        gpa_boost = -10
-    
+        gpa_diff = float(user_gpa) - float(school_gpa)
+        if gpa_diff >= 0.2:
+            gpa_boost = 10
+        elif gpa_diff >= 0:
+            gpa_boost = 5
+        elif gpa_diff >= -0.2:
+            gpa_boost = 0
+        else:
+            gpa_boost = -10
+
+    # ----------------------------
     # Work experience adjustment
+    # ----------------------------
     if years_exp < 2:
         exp_boost = -15
-    elif years_exp >= 2 and years_exp <= 7:
+    elif 2 <= years_exp <= 7:
         exp_boost = 5
     else:
         exp_boost = -5  # Too senior
-    
+
+    # ----------------------------
     # Diversity factors
+    # ----------------------------
     diversity_boost = 0
-    nationality = context.get("nationality", "").lower()
-    
-    # Overrepresented: Indian male tech
+    nationality = _safe_str(context.get("nationality", "")).lower()
+
     if "india" in nationality:
-        diversity_boost = -5
-    
-    # Career switch
-    if context.get("career_switch"):
+        diversity_boost -= 5
+
+    if bool(context.get("career_switch")):
         diversity_boost += 5
-    
-    # Calculate final probability
+
     final_prob = base_prob + gmat_boost + gpa_boost + exp_boost + diversity_boost
-    
-    # Clamp to 5-95 range
-    return max(5, min(95, final_prob))
+
+    return max(5, min(95, int(final_prob)))
