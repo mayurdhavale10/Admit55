@@ -240,18 +240,42 @@ export function buildCandidateProfileFromAnswers(
 /**
  * Build a full BschoolMatchRequest from questionnaire answers.
  * This is what you POST to /api/bschool/match.
+ * 
+ * ✅ FIXED: Backend expects "user_profile" not "profile"
  */
 export function buildBschoolMatchRequestFromAnswers(
   answers: QuestionAnswerMap,
   options: BuildProfileOptions & { profileResumeReport?: any }
 ): BschoolMatchRequest {
-  const profile = buildCandidateProfileFromAnswers(answers, options);
-
-  const request: BschoolMatchRequest = {
-    mode: options.mode,
-    profile,
-    raw_answers: answers,
-    profile_resume_report: options.profileResumeReport,
+  // ✅ FIX: Backend expects "user_profile" key
+  const request: any = {
+    user_profile: {
+      // Required fields
+      target_role: answers.target_role || "",
+      target_industry: answers.target_industry || "",
+      preferred_work_location: answers.preferred_work_location || "no preference",
+      test_status: answers.test_status || "",
+      test_type: answers.test_type || "",
+      actual_score: toNumberOrNull(answers.actual_score),
+      
+      // Optional but recommended
+      gpa: toNumberOrNull(answers.gpa),
+      total_experience: toNumberOrNull(answers.total_experience),
+      current_industry: answers.current_industry || "",
+      current_role: answers.current_role || "",
+      has_leadership: answers.leadership_experience || "",
+      career_switch: answers.career_switch === "yes",
+      nationality: answers.nationality || "",
+      preferred_program_type: answers.preferred_program_type || "",
+      budget_consideration: answers.budget_consideration || "",
+      class_size_preference: answers.class_size_preference || "",
+      learning_style_preference: answers.learning_style_preference || "",
+      risk_tolerance: answers.risk_tolerance || "balanced",
+      schools_already_considering: answers.schools_already_considering || "",
+      post_mba_goal: answers.post_mba_goal || "",
+      why_mba_now: answers.why_mba_now || "",
+    },
+    resume_text: options.resumeText || null,
   };
 
   return request;
@@ -280,60 +304,28 @@ export function buildBschoolMatchRequestFromResume(
   opts: BuildFromResumeOptions
 ): BschoolMatchRequest {
   const {
-    mode,
-    name,
-    email,
     resumeText,
-    resumeSummary,
-    resumeAnalysis,
     preferred_regions,
     preferred_program_types,
     target_intake_year,
   } = opts;
 
-  const profile: CandidateProfile = {
-    name,
-    email,
-    mode,
-
-    // Background – could be enriched from resumeAnalysis later
-    current_role: undefined,
-    current_company: undefined,
-    total_work_experience_years: undefined,
-    managerial_experience_years: undefined,
-    has_international_experience: undefined,
-
-    undergrad_degree: undefined,
-    undergrad_institution: undefined,
-    undergrad_grad_year: null,
-    scores: {},
-
-    target_intake_year: target_intake_year ?? null,
-    preferred_regions: preferred_regions ?? [],
-    preferred_program_types: preferred_program_types ?? [],
-    constraints: {
-      // Default to balanced risk if unknown
+  // ✅ FIX: Backend expects "user_profile" key
+  const request: any = {
+    user_profile: {
+      target_role: "",
+      target_industry: "",
+      preferred_work_location: preferred_regions?.[0] || "no preference",
+      test_status: "",
+      test_type: "",
+      actual_score: null,
+      gpa: null,
+      total_experience: null,
+      current_industry: "",
+      current_role: "",
       risk_tolerance: "balanced",
-    } as any,
-
-    goals: {
-      short_term: "",
-      long_term: "",
-      target_functions: [],
-      target_industries: [],
     },
-
     resume_text: resumeText,
-    resume_summary: resumeSummary ?? undefined,
-    resume_analysis: resumeAnalysis,
-    extra_context: undefined,
-  };
-
-  const request: BschoolMatchRequest = {
-    mode,
-    profile,
-    // no raw_answers in pure-resume flow
-    profile_resume_report: resumeAnalysis,
   };
 
   return request;
