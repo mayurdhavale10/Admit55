@@ -17,7 +17,7 @@ from ..version import PIPELINE_VERSION, TOKENS
 from . import as_list, as_str, clamp_int, normalize_timeframe_to_key, response_format_for
 
 
-# ✅ You need to create this prompt file with consultant-aware template
+# ✅ FIXED: Added strong JSON enforcement at the end
 RECOMMENDATIONS_PROMPT = """You are a ₹90,000 MBA consultant creating an ACTION PLAN.
 
 CLIENT CONTEXT:
@@ -70,21 +70,23 @@ BAD EXAMPLE:
   "timeframe": "next_3_months"
 }}
 
-Return JSON:
+Return ONLY valid JSON (no markdown, no preamble, no explanation):
 {{
   "recommendations": [
     {{
       "area": "...",
       "action": "...",
-      "current_score": <0-10>,
-      "target_score": <0-10>,
-      "priority": "critical|high|medium|low",
-      "timeframe": "next_1_3_weeks|next_3_6_weeks|next_3_months",
+      "current_score": 0,
+      "target_score": 0,
+      "priority": "critical",
+      "timeframe": "next_1_3_weeks",
       "why": "..."
     }}
   ],
-  "consultant_summary": "2-3 sentence EXECUTIVE summary of the plan: What's the biggest priority? What's the unlock? What's the risk if they don't act?"
+  "consultant_summary": "2-3 sentence EXECUTIVE summary of the plan"
 }}
+
+CRITICAL: Start your response with {{ and end with }}. No text before or after the JSON. No markdown backticks like ```json. Just pure JSON.
 """
 
 
@@ -105,7 +107,7 @@ def run_recommendations(
     Generate consultant-aware action plan with CONTEXT-DRIVEN prioritization.
     """
     
-    # ✅ CRITICAL: Use proper context formatting
+    # ✅ Use proper context formatting
     context_str = format_context_for_prompt(context) if context else "Generic mode."
     
     # ✅ Get recommendation distribution based on urgency
@@ -125,7 +127,7 @@ def run_recommendations(
     
     prompt = _prompt_prefix(PIPELINE_VERSION) + RECOMMENDATIONS_PROMPT.format(
         context=context_str,
-        resume=resume_text or "",
+        resume=(resume_text or "")[:1000],  # ✅ Truncate to avoid token limits
         scores=str(scores),
         strengths=str(strengths[:3]) if strengths else "None",
         gaps=str(improvements[:3]) if improvements else "None",
@@ -134,14 +136,16 @@ def run_recommendations(
 
     try:
         raw = call_llm(
-            settings=settings,
             prompt=prompt,
             max_tokens=TOKENS.get("recommendations", 2000),
             temperature=0.25,
             response_format=response_format_for(getattr(settings, "provider", "")),
-            fallback=fallback,
-            retries=1,
         )
+        
+        # ✅ DEBUG: Log what we got back
+        print(f"[RECOMMENDATIONS] Raw response length: {len(raw)}")
+        print(f"[RECOMMENDATIONS] First 200 chars: {raw[:200]}")
+        
         data = parse_json_strictish(raw)
         print("[RECOMMENDATIONS] ✅ Generated successfully")
         
@@ -161,6 +165,8 @@ def run_recommendations(
         
         consultant_summary = as_str(data.get("consultant_summary")) or None
         
+        print(f"[RECOMMENDATIONS] ✅ Parsed {len(recommendations)} recommendations")
+        
         return {
             "recommendations": recommendations,
             "consultant_summary": consultant_summary,
@@ -169,6 +175,9 @@ def run_recommendations(
         
     except Exception as e:
         print(f"[RECOMMENDATIONS] ❌ Failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
         return {
             "recommendations": [],
             "consultant_summary": None,
