@@ -17,25 +17,25 @@ from ..version import PIPELINE_VERSION, TOKENS
 from . import as_list, as_str, clamp_int, normalize_timeframe_to_key, response_format_for
 
 
-# ✅ FIXED: Added strong JSON enforcement at the end
+# ✅ OPTIMIZED: Reduced to 8-10 recommendations + stronger JSON instructions
 RECOMMENDATIONS_PROMPT = """You are a ₹90,000 MBA consultant creating an ACTION PLAN.
 
 CLIENT CONTEXT:
 {context}
 
-Resume:
+Resume (excerpt):
 {resume}
 
 Scores:
 {scores}
 
-Strengths:
+Top Strengths:
 {strengths}
 
-Gaps:
+Key Gaps:
 {gaps}
 
-Based on the client's GOAL, TARGET TIER, and TIMELINE, create 10-12 specific action items.
+Based on the client's GOAL, TARGET TIER, and TIMELINE, create 8-10 specific, prioritized action items.
 
 DISTRIBUTION (based on urgency):
 {distribution}
@@ -70,23 +70,23 @@ BAD EXAMPLE:
   "timeframe": "next_3_months"
 }}
 
-Return ONLY valid JSON (no markdown, no preamble, no explanation):
+Return ONLY valid JSON. No preamble, no explanation, no markdown:
 {{
   "recommendations": [
     {{
       "area": "...",
       "action": "...",
-      "current_score": 0,
-      "target_score": 0,
+      "current_score": 3,
+      "target_score": 7,
       "priority": "critical",
       "timeframe": "next_1_3_weeks",
       "why": "..."
     }}
   ],
-  "consultant_summary": "2-3 sentence EXECUTIVE summary of the plan"
+  "consultant_summary": "2-3 sentence EXECUTIVE summary: What's the biggest priority? What's the unlock? What's the risk if they don't act?"
 }}
 
-CRITICAL: Start your response with {{ and end with }}. No text before or after the JSON. No markdown backticks like ```json. Just pure JSON.
+CRITICAL: Your response must start with {{ and end with }}. No text before or after. No ```json markdown. Just pure JSON.
 """
 
 
@@ -105,6 +105,9 @@ def run_recommendations(
 ) -> Dict[str, Any]:
     """
     Generate consultant-aware action plan with CONTEXT-DRIVEN prioritization.
+    
+    Returns:
+        Dict with keys: recommendations (list), consultant_summary (str), meta (dict)
     """
     
     # ✅ Use proper context formatting
@@ -125,30 +128,36 @@ def run_recommendations(
     if context and should_prioritize_test_prep(context):
         print("[RECOMMENDATIONS] 🚨 TEST PREP PRIORITY DETECTED")
     
+    # ✅ Build prompt with truncated inputs to save tokens
     prompt = _prompt_prefix(PIPELINE_VERSION) + RECOMMENDATIONS_PROMPT.format(
         context=context_str,
-        resume=(resume_text or "")[:1000],  # ✅ Truncate to avoid token limits
+        resume=(resume_text or "")[:800],  # ✅ Limit resume excerpt to 800 chars
         scores=str(scores),
-        strengths=str(strengths[:3]) if strengths else "None",
-        gaps=str(improvements[:3]) if improvements else "None",
+        strengths=str(strengths[:3]) if strengths else "None",  # Top 3 only
+        gaps=str(improvements[:3]) if improvements else "None",  # Top 3 only
         distribution=distribution_str,
     )
 
     try:
+        # ✅ CRITICAL FIX: Increased max_tokens to 3500 (from 2000)
+        # This ensures Groq has enough tokens to complete the JSON response
         raw = call_llm(
             prompt=prompt,
-            max_tokens=TOKENS.get("recommendations", 2000),
+            max_tokens=3500,  # ✅ Increased from 2000
             temperature=0.25,
             response_format=response_format_for(getattr(settings, "provider", "")),
         )
         
         # ✅ DEBUG: Log what we got back
-        print(f"[RECOMMENDATIONS] Raw response length: {len(raw)}")
+        print(f"[RECOMMENDATIONS] Raw response length: {len(raw)} chars")
         print(f"[RECOMMENDATIONS] First 200 chars: {raw[:200]}")
+        print(f"[RECOMMENDATIONS] Last 100 chars: {raw[-100:]}")
         
+        # ✅ Parse JSON
         data = parse_json_strictish(raw)
-        print("[RECOMMENDATIONS] ✅ Generated successfully")
+        print("[RECOMMENDATIONS] ✅ JSON parsed successfully")
         
+        # ✅ Extract and clean recommendations
         recommendations = []
         for r in as_list(data.get("recommendations")):
             if not isinstance(r, dict):
@@ -167,19 +176,43 @@ def run_recommendations(
         
         print(f"[RECOMMENDATIONS] ✅ Parsed {len(recommendations)} recommendations")
         
+        # ✅ Validation: Warn if we got too few recommendations
+        if len(recommendations) < 6:
+            print(f"[RECOMMENDATIONS] ⚠️ Only got {len(recommendations)} recommendations (expected 8-10)")
+        
         return {
             "recommendations": recommendations,
             "consultant_summary": consultant_summary,
-            "meta": {"parse_ok": True},
+            "meta": {
+                "parse_ok": True,
+                "count": len(recommendations),
+                "response_length": len(raw),
+            },
         }
         
     except Exception as e:
         print(f"[RECOMMENDATIONS] ❌ Failed: {e}")
+        
+        # ✅ Enhanced error logging
         import traceback
         traceback.print_exc()
+        
+        # ✅ Try to show what we got if parsing failed
+        try:
+            if 'raw' in locals():
+                print(f"[RECOMMENDATIONS] Raw response that failed:")
+                print(f"  Length: {len(raw)}")
+                print(f"  Starts with: {raw[:100]}")
+                print(f"  Ends with: {raw[-100:]}")
+        except Exception:
+            pass
         
         return {
             "recommendations": [],
             "consultant_summary": None,
-            "meta": {"parse_ok": False, "error": str(e)},
+            "meta": {
+                "parse_ok": False,
+                "error": str(e),
+                "response_length": len(raw) if 'raw' in locals() else 0,
+            },
         }
