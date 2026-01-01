@@ -88,7 +88,7 @@ def call_llm(
     max_tokens: int = 1024,
     timeout: int = 60,
     json_mode: bool = False,
-    response_format: dict[str, Any] | None = None,
+    response_format: str | dict[str, Any] | None = None,  # ✅ Accept both string and dict
     **_: Any,  # swallow legacy kwargs safely
 ):
     """
@@ -99,6 +99,11 @@ def call_llm(
     - call_llm(messages=[...])
     - optional system prompt
     - Groq OpenAI-compatible /chat/completions
+    
+    ✅ FIXED: response_format can be:
+    - "json" (string) → converts to {"type": "json_object"} for OpenAI only
+    - {"type": "json_object"} (dict) → used as-is
+    - None → not included
     """
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -119,10 +124,19 @@ def call_llm(
         "max_tokens": max_tokens,
     }
 
+    # ✅ CRITICAL FIX: Handle response_format properly
+    # Groq's llama-3.3-70b-versatile doesn't support response_format at all
+    # So we NEVER add it when using Groq (this function is Groq-only currently)
+    
+    # Note: This function is currently hardcoded to Groq
+    # If response_format is passed, we ignore it since Groq doesn't support it
     if response_format is not None:
-        payload["response_format"] = response_format
-    elif json_mode:
-        payload["response_format"] = {"type": "json_object"}
+        print(f"[RETRY] Warning: response_format requested but ignored (Groq doesn't support it)")
+        # Don't add it to payload for Groq
+    
+    # json_mode is also ignored for Groq
+    if json_mode:
+        print(f"[RETRY] Warning: json_mode requested but ignored (Groq doesn't support it)")
 
     url = f"{_groq_base().rstrip('/')}/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}

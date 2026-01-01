@@ -119,13 +119,21 @@ def _call_llm_json_once(
         "Authorization": f"Bearer {api_key}",
     }
 
+    # ✅ Build base payload WITHOUT response_format
     payload: Dict[str, Any] = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "response_format": {"type": "json_object"},
     }
+    
+    # ✅ CRITICAL FIX: Only add response_format for OpenAI
+    # Groq's llama-3.3-70b-versatile throws 400 error if we include this
+    if provider == "openai":
+        payload["response_format"] = {"type": "json_object"}
+        print(f"[SCORING] Added response_format for OpenAI")
+    else:
+        print(f"[SCORING] Skipping response_format for {provider} (not supported)")
 
     resp = _post_json(url, headers, payload, timeout=timeout)
     raw = resp["choices"][0]["message"]["content"]
@@ -143,8 +151,10 @@ def _call_llm_json_once(
 def _call_llm_json(prompt: str, settings: Any, fallback: Any = None) -> Tuple[Dict[str, Any], str]:
     try:
         return _call_llm_json_once(prompt, settings)
-    except Exception:
+    except Exception as e:
+        print(f"[SCORING] Primary provider failed: {e}")
         if fallback:
+            print(f"[SCORING] Trying fallback provider...")
             return _call_llm_json_once(prompt, fallback)
         raise
 
@@ -167,7 +177,7 @@ def run_scoring(
     Score resume with consultant context awareness.
     """
     
-    # ✅ CRITICAL FIX: Use the proper context formatter
+    # ✅ Use the proper context formatter
     context_str = format_context_for_prompt(context) if context else "No specific context provided. Analyze profile generically."
     
     # ✅ DEBUG: Log what's being sent to LLM
