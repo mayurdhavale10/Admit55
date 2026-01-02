@@ -32,7 +32,7 @@ export interface AnalyzeResponse {
     action: string;
     estimated_impact: string;
     score: number | null;
-    timeframe?: string; // ✅ NEW: next_1_3_weeks, next_3_6_weeks, next_3_months
+    timeframe?: string; // next_1_3_weeks, next_3_6_weeks, next_3_months
   }[];
   gaps: {
     area: string;
@@ -44,7 +44,8 @@ export interface AnalyzeResponse {
     explanation: string;
   };
   improved_resume: string;
-  // ✅ NEW: Discovery context info
+
+  // Discovery context info
   discovery_context?: {
     goal_type?: string;
     target_schools?: string;
@@ -53,8 +54,10 @@ export interface AnalyzeResponse {
     work_experience?: string;
     biggest_concern?: string;
   };
-  // ✅ NEW: Consultant summary
+
+  // Consultant summary
   consultant_summary?: string;
+
   upload_meta?: {
     original_filename: string;
     format: string;
@@ -63,6 +66,7 @@ export interface AnalyzeResponse {
     words?: number;
     extraction_method: string;
   };
+
   processing_meta?: {
     total_duration_seconds: number;
     input_method: string;
@@ -72,8 +76,9 @@ export interface AnalyzeResponse {
     scoring_system: string;
     average_score: number;
     total_score: number;
-    consultant_mode?: boolean; // ✅ NEW: true if discovery answers provided
+    consultant_mode?: boolean;
   };
+
   generated_at: string;
   pipeline_version: string;
 }
@@ -89,6 +94,30 @@ export interface RewriteResponse {
   };
 }
 
+type ApiError = Error & { status?: number; details?: any };
+
+async function buildApiError(res: Response, fallbackMsg: string): Promise<ApiError> {
+  let details: any = null;
+
+  try {
+    const ct = res.headers.get("content-type") || "";
+    details = ct.includes("application/json") ? await res.json() : await res.text();
+  } catch {
+    details = null;
+  }
+
+  const message =
+    (typeof details === "object" && (details?.error || details?.message)) ||
+    (typeof details === "string" && details.trim()) ||
+    fallbackMsg ||
+    `Request failed (${res.status})`;
+
+  const err: ApiError = new Error(message);
+  err.status = res.status;
+  err.details = details;
+  return err;
+}
+
 /* ---------------------------------------------------------
    FILE UPLOAD + FULL ANALYSIS
 --------------------------------------------------------- */
@@ -99,7 +128,7 @@ export async function analyzeResumeFile(
   const form = new FormData();
   form.append("file", file);
 
-  // ✅ NEW: Add discovery answers if provided
+  // Add discovery answers if provided (multipart expects string)
   if (discoveryAnswers) {
     form.append("discovery_answers", JSON.stringify(discoveryAnswers));
   }
@@ -110,8 +139,7 @@ export async function analyzeResumeFile(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to analyze resume" }));
-    throw new Error(err.error || err.details || "Failed to analyze resume");
+    throw await buildApiError(res, "Failed to analyze resume");
   }
 
   return res.json();
@@ -129,13 +157,12 @@ export async function analyzeResumeText(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       resume_text: text,
-      discovery_answers: discoveryAnswers || null, // ✅ NEW
+      discovery_answers: discoveryAnswers || null, // keep as object/null for JSON route
     }),
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to analyze text" }));
-    throw new Error(err.error || err.details || "Failed to analyze text");
+    throw await buildApiError(res, "Failed to analyze text");
   }
 
   return res.json();
@@ -152,8 +179,7 @@ export async function rewriteResume(text: string): Promise<RewriteResponse> {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Rewrite failed" }));
-    throw new Error(err.error || err.details || "Rewrite failed");
+    throw await buildApiError(res, "Rewrite failed");
   }
 
   return res.json();
@@ -177,16 +203,14 @@ export async function checkAnalyzeHealth(): Promise<{
     pdf_extraction: string;
     docx_extraction: string;
     max_file_size_mb: number;
-    discovery_questions_enabled?: boolean; // ✅ NEW
+    discovery_questions_enabled?: boolean;
   };
   timestamp: string;
 }> {
-  const res = await fetch("/api/mba/profileresumetool/analyze", {
-    method: "GET",
-  });
+  const res = await fetch("/api/mba/profileresumetool/analyze", { method: "GET" });
 
   if (!res.ok) {
-    throw new Error("Health check failed");
+    throw await buildApiError(res, "Health check failed");
   }
 
   return res.json();

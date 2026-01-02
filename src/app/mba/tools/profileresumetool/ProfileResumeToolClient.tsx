@@ -3,6 +3,9 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+
 import ResumeUploader from "./components/ResumeUploader";
 import QuickForm from "./components/QuickForm";
 import LoadingState from "./components/LoadingState";
@@ -14,6 +17,8 @@ import { analyzeResumeFile, analyzeResumeText } from "./utils/api";
 type SelectedOption = "quickform" | "consultant" | "upload" | null;
 
 export default function ProfileResumeToolClient() {
+  const router = useRouter();
+
   const [selectedOption, setSelectedOption] = useState<SelectedOption>(null);
   const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, string> | null>(null);
   const [showDiscovery, setShowDiscovery] = useState(false);
@@ -41,14 +46,12 @@ export default function ProfileResumeToolClient() {
     "flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all";
   const btnBlueIdle =
     "bg-blue-800/50 text-white hover:bg-blue-800/70 border border-blue-600/30";
-  const btnBlueActive =
-    "bg-white text-blue-900 shadow-xl scale-105";
+  const btnBlueActive = "bg-white text-blue-900 shadow-xl scale-105";
 
   // Consultant gets a subtle green tint but same “system”
   const btnGreenIdle =
     "bg-emerald-600/25 text-white hover:bg-emerald-600/35 border border-emerald-300/25";
-  const btnGreenActive =
-    "bg-white text-emerald-800 shadow-xl scale-105";
+  const btnGreenActive = "bg-white text-emerald-800 shadow-xl scale-105";
 
   const handleQuickFormClick = () => {
     setSelectedOption("quickform");
@@ -89,6 +92,26 @@ export default function ProfileResumeToolClient() {
     setTimeout(() => scrollToSection(uploadRef), 120);
   };
 
+  // ✅ Central handler for auth/quota/upgrade responses
+  const handleAuthOrQuota = async (err: any) => {
+    const status = err?.status;
+
+    // Not logged in / session expired
+    if (status === 401) {
+      await signIn("google", { callbackUrl: "/mba/tools/profileresumetool" });
+      return true;
+    }
+
+    // Upgrade required / quota exceeded
+    if (status === 402 || status === 403 || status === 429) {
+      setError("Free limit reached. Please upgrade to continue.");
+      router.push("/upgradetopro");
+      return true;
+    }
+
+    return false;
+  };
+
   /** Handle File Upload **/
   const handleFileUpload = async (file: File) => {
     if (loading) return;
@@ -100,7 +123,8 @@ export default function ProfileResumeToolClient() {
       const res = await analyzeResumeFile(file, discoveryAnswers);
       setResult(res);
     } catch (err: any) {
-      setError(err?.message || "Failed to process file.");
+      const handled = await handleAuthOrQuota(err);
+      if (!handled) setError(err?.message || "Failed to process file.");
     } finally {
       setLoading(false);
     }
@@ -127,7 +151,8 @@ GMAT/GRE: ${formData.gmatScore}
       const res = await analyzeResumeText(textData, discoveryAnswers);
       setResult(res);
     } catch (err: any) {
-      setError(err?.message || "Failed to analyze profile.");
+      const handled = await handleAuthOrQuota(err);
+      if (!handled) setError(err?.message || "Failed to analyze profile.");
     } finally {
       setLoading(false);
     }
@@ -145,11 +170,10 @@ GMAT/GRE: ${formData.gmatScore}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-      {/* HERO (✅ keep this gradient, remove dots + blobs) */}
+      {/* HERO */}
       <div className="bg-gradient-to-b from-slate-800 to-blue-900 px-4 pt-24 pb-28">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10">
-            {/* Badge */}
             <div className="inline-flex items-center gap-2 mb-6 px-5 py-2.5 bg-white/10 rounded-full border border-white/15">
               <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -168,7 +192,6 @@ GMAT/GRE: ${formData.gmatScore}
               Review Your MBA Profile
             </h1>
 
-            {/* Bigger "with Admit55" */}
             <div className="flex items-center justify-center gap-3 mb-8">
               <div className="h-px w-10 md:w-14 bg-gradient-to-r from-transparent to-blue-300/80" />
               <div className="flex items-center gap-3">
@@ -196,14 +219,10 @@ GMAT/GRE: ${formData.gmatScore}
             </p>
           </div>
 
-          {/* ✅ Three buttons styled like your second UI */}
           <div className="flex flex-col sm:flex-row justify-center gap-3">
             <button
               onClick={handleQuickFormClick}
-              className={[
-                btnBase,
-                selectedOption === "quickform" ? btnBlueActive : btnBlueIdle,
-              ].join(" ")}
+              className={[btnBase, selectedOption === "quickform" ? btnBlueActive : btnBlueIdle].join(" ")}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -218,10 +237,7 @@ GMAT/GRE: ${formData.gmatScore}
 
             <button
               onClick={handleConsultantModeClick}
-              className={[
-                btnBase,
-                selectedOption === "consultant" ? btnGreenActive : btnGreenIdle,
-              ].join(" ")}
+              className={[btnBase, selectedOption === "consultant" ? btnGreenActive : btnGreenIdle].join(" ")}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -239,10 +255,7 @@ GMAT/GRE: ${formData.gmatScore}
 
             <button
               onClick={handleUploadOnlyClick}
-              className={[
-                btnBase,
-                selectedOption === "upload" ? btnBlueActive : btnBlueIdle,
-              ].join(" ")}
+              className={[btnBase, selectedOption === "upload" ? btnBlueActive : btnBlueIdle].join(" ")}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -269,21 +282,18 @@ GMAT/GRE: ${formData.gmatScore}
       {/* MAIN CONTENT */}
       <div className="py-10 px-4">
         <div className="max-w-7xl mx-auto">
-          {/* QUICK FORM */}
           {selectedOption === "quickform" && !loading && !result && (
             <div ref={quickFormRef} className={INPUT_WRAP}>
               <QuickForm onAnalyze={handleFormSubmit} />
             </div>
           )}
 
-          {/* DISCOVERY QUESTIONS */}
           {selectedOption === "consultant" && showDiscovery && !loading && !result && (
             <div ref={discoveryRef} className={INPUT_WRAP}>
               <DiscoveryQuestions onComplete={handleDiscoveryComplete} onSkip={handleDiscoverySkip} />
             </div>
           )}
 
-          {/* UPLOAD */}
           {((selectedOption === "consultant" && !showDiscovery) || selectedOption === "upload") &&
             !loading &&
             !result && (
@@ -314,7 +324,6 @@ GMAT/GRE: ${formData.gmatScore}
               </div>
             )}
 
-          {/* ERROR */}
           {error && (
             <div className="mt-6 max-w-4xl mx-auto">
               <div className="rounded-2xl bg-red-50 border border-red-200 p-6 text-red-800">
@@ -323,14 +332,12 @@ GMAT/GRE: ${formData.gmatScore}
             </div>
           )}
 
-          {/* LOADING */}
           {loading && (
             <div className="mt-10 max-w-4xl mx-auto">
               <LoadingState />
             </div>
           )}
 
-          {/* RESULTS */}
           {result && !loading && (
             <div className="mt-10">
               <ResultDashboard data={result} onNewAnalysis={handleNewAnalysis} />
