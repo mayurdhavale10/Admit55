@@ -23,6 +23,7 @@ if (!global.__usageMongoClientPromise) {
 
 export async function getUsageDb(): Promise<Db> {
   const client = await global.__usageMongoClientPromise!;
+  // ✅ if dbName not provided, MongoDB driver uses db from URI; otherwise defaults
   return dbName ? client.db(dbName) : client.db();
 }
 
@@ -32,7 +33,6 @@ export async function getProviderQuotaCollection<T extends Document = Document>(
   const db = await getUsageDb();
   const col = db.collection<T>("provider_quota");
 
-  // Ensure indexes once
   if (!global.__providerQuotaIndexesEnsured) {
     await col.createIndex({ email: 1, provider: 1 }, { unique: true });
     await col.createIndex({ updatedAt: -1 });

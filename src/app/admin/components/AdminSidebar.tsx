@@ -14,24 +14,13 @@ type NavLink = {
 };
 
 const links: NavLink[] = [
-  {
-    href: "/admin/dashboard",
-    label: "Dashboard (Logged-in Users)",
-    icon: "📋",
-  },
-  {
-    href: "/admin/bookings",
-    label: "Booked Sessions",
-    icon: "📆",
-  },
-  {
-    href: "/admin/mba/llm-settings",
-    label: "LLM Settings",
-    icon: "🤖",
-  },
+  { href: "/admin/dashboard", label: "Dashboard (Logged-in Users)", icon: "📋" },
+  { href: "/admin/users", label: "Users (Upgrade to Pro)", icon: "👤" }, // ✅ NEW
+  { href: "/admin/bookings", label: "Booked Sessions", icon: "📆" },
+  { href: "/admin/mba/llm-settings", label: "LLM Settings", icon: "🤖" },
+  { href: "/admin/upgrade-requests", label: "Upgrade Requests", icon: "💳" }, // ✅ optional
 ];
 
-// Small util like in Navbar.tsx
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
@@ -39,8 +28,7 @@ function cn(...parts: Array<string | false | null | undefined>) {
 export default function AdminSidebar({ className }: AdminSidebarProps) {
   const pathname = usePathname();
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   const chipBase =
     "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap";
@@ -64,7 +52,6 @@ export default function AdminSidebar({ className }: AdminSidebarProps) {
         className
       )}
     >
-      {/* Header */}
       <div className="border-b border-white/15 px-4 py-4 pb-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200">
           ADMIT55 ADMIN
@@ -72,7 +59,6 @@ export default function AdminSidebar({ className }: AdminSidebarProps) {
         <p className="mt-1 text-sm text-slate-50/90">Back-office dashboard</p>
       </div>
 
-      {/* Main nav */}
       <nav className="flex-1 space-y-2 px-3 py-4 text-sm">
         {links.map((link) => (
           <Link
@@ -85,7 +71,6 @@ export default function AdminSidebar({ className }: AdminSidebarProps) {
           </Link>
         ))}
 
-        {/* Coming soon */}
         <div className="mt-6 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300/80">
           Coming soon
         </div>
@@ -113,7 +98,6 @@ export default function AdminSidebar({ className }: AdminSidebarProps) {
         </button>
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-white/15 px-4 py-3 text-[11px] text-slate-200/80">
         © {new Date().getFullYear()} Admit55
       </div>
