@@ -257,7 +257,7 @@ export default function AboveTheFold() {
     <section
       className="
         relative min-h-screen overflow-hidden
-        w-screen left-1/2 -translate-x-1/2
+        w-full
         flex items-center justify-center text-center
       "
     >
