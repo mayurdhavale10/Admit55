@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
@@ -22,7 +21,14 @@ type Chip = {
 type BP = "mobile" | "tablet" | "desktop";
 
 function useBreakpoint(): BP {
-  const [bp, setBp] = useState<BP>("desktop");
+  const [bp, setBp] = useState<BP>(() => {
+    if (typeof window === "undefined") return "desktop";
+    const w = window.innerWidth;
+    if (w < 640) return "mobile";
+    if (w < 1024) return "tablet";
+    return "desktop";
+  });
+
   useEffect(() => {
     const calc = () => {
       const w = window.innerWidth;
@@ -30,25 +36,29 @@ function useBreakpoint(): BP {
       else if (w < 1024) setBp("tablet");
       else setBp("desktop");
     };
-    calc();
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
   }, []);
+
   return bp;
 }
 
-function vw(p: number) {
-  if (typeof window === "undefined") return 0;
-  return (window.innerWidth * p) / 100;
-}
-
-function vh(p: number) {
-  if (typeof window === "undefined") return 0;
-  return (window.innerHeight * p) / 100;
-}
-
 /** Floating Chip */
-function FloatingChip({ chip, i, start, showTrail, iconSize, drift }: any) {
+function FloatingChip({
+  chip,
+  i,
+  start,
+  showTrail,
+  iconSize,
+  drift,
+}: {
+  chip: Chip;
+  i: number;
+  start: boolean;
+  showTrail: boolean;
+  iconSize: number;
+  drift: number;
+}) {
   const delay = 1 + i * 0.14;
   const s = chip.size ?? iconSize;
 
@@ -67,7 +77,7 @@ function FloatingChip({ chip, i, start, showTrail, iconSize, drift }: any) {
       {showTrail && (
         <motion.div
           whileHover={{ scale: 1.06 }}
-          className="inline-flex items-center px-3 py-1.5 rounded-xl backdrop-blur-xl 
+          className="inline-flex items-center px-3 py-1.5 rounded-xl backdrop-blur-xl
             bg-white/15 border border-white/25 shadow-[0_4px_16px_rgba(0,0,0,0.35)]
             text-white/95 select-none"
         >
@@ -117,16 +127,23 @@ function CyclingThumb({
   h = 180,
   periodMs = 3000,
   delay = 1.2,
-}: any) {
+}: {
+  x: number;
+  y: number;
+  images: string[];
+  start: boolean;
+  w?: number;
+  h?: number;
+  periodMs?: number;
+  delay?: number;
+}) {
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
     if (!start) return;
-
     const interval = setInterval(() => {
       setIdx((prev) => (prev + 1) % images.length);
     }, periodMs);
-
     return () => clearInterval(interval);
   }, [start, images.length, periodMs]);
 
@@ -138,18 +155,12 @@ function CyclingThumb({
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={
-          start
-            ? {
-                opacity: 1,
-                y: 0,
-                transition: { delay, duration: 0.4 },
-              }
-            : {}
+          start ? { opacity: 1, y: 0, transition: { delay, duration: 0.4 } } : {}
         }
         className="relative rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
         style={{ width: w, height: h }}
       >
-        {images.map((img: string, i: number) => (
+        {images.map((img, i) => (
           <motion.img
             key={i}
             src={img}
@@ -167,22 +178,51 @@ export default function AboveTheFold() {
   const [start, setStart] = useState(false);
   const bp = useBreakpoint();
 
+  // ✅ MOBILE uses small fixed px offsets (no vw/vh) to avoid weird layout
   const CHIPS: Chip[] = useMemo(() => {
     if (bp === "mobile") {
       return [
-        { src: "/logo/profileicon.webp", label: "Profile Snapshot", x: -vw(28), y: -vh(32), size: vw(22), href: PROFILE_ROUTE },
-        { src: "/logo/resumewriteicon.webp", label: "Resumewriter", x: vw(28), y: -vh(32), size: vw(24), href: RESUMEWRITER_ROUTE },
-        { src: "/logo/communitytoolicon.webp", label: "Community Tool", x: -vw(28), y: vh(34), size: vw(24), href: COMMUNITY_ROUTE },
-        { src: "/logo/Bschool.webp", label: "B-School Match", x: vw(28), y: vh(36), size: vw(24), href: BSCHOOL_ROUTE },
+        {
+          src: "/logo/profileicon.webp",
+          label: "Profile Snapshot",
+          x: -120,
+          y: -180,
+          size: 72,
+          href: PROFILE_ROUTE,
+        },
+        {
+          src: "/logo/resumewriteicon.webp",
+          label: "Resumewriter",
+          x: 120,
+          y: -180,
+          size: 76,
+          href: RESUMEWRITER_ROUTE,
+        },
+        {
+          src: "/logo/communitytoolicon.webp",
+          label: "Community Tool",
+          x: -120,
+          y: 190,
+          size: 76,
+          href: COMMUNITY_ROUTE,
+        },
+        {
+          src: "/logo/Bschool.webp",
+          label: "B-School Match",
+          x: 120,
+          y: 190,
+          size: 76,
+          href: BSCHOOL_ROUTE,
+        },
       ];
     }
 
     if (bp === "tablet") {
       return [
-        { src: "/logo/profileicon.webp", label: "Profile Snapshot", x: -360, y: -170, href: PROFILE_ROUTE },
-        { src: "/logo/communitytoolicon.webp", label: "Community Tool", x: -360, y: 210, href: COMMUNITY_ROUTE },
-        { src: "/logo/resumewriteicon.webp", label: "Resumewriter", x: 300, y: -180, href: RESUMEWRITER_ROUTE },
-        { src: "/logo/Bschool.webp", label: "B-School Match", x: 320, y: 210, href: BSCHOOL_ROUTE },
+        { src: "/logo/profileicon.webp", label: "Profile Snapshot", x: -340, y: -160, href: PROFILE_ROUTE },
+        { src: "/logo/communitytoolicon.webp", label: "Community Tool", x: -340, y: 200, href: COMMUNITY_ROUTE },
+        { src: "/logo/resumewriteicon.webp", label: "Resumewriter", x: 280, y: -170, href: RESUMEWRITER_ROUTE },
+        { src: "/logo/Bschool.webp", label: "B-School Match", x: 300, y: 200, href: BSCHOOL_ROUTE },
       ];
     }
 
@@ -194,16 +234,15 @@ export default function AboveTheFold() {
     ];
   }, [bp]);
 
-  const iconSize = bp === "mobile" ? 88 : bp === "tablet" ? 104 : 124;
-  const drift = bp === "mobile" ? 12 : 48;
+  const iconSize = bp === "mobile" ? 76 : bp === "tablet" ? 104 : 124;
+  const drift = bp === "mobile" ? 6 : bp === "tablet" ? 24 : 48;
   const showTrail = bp !== "mobile";
 
   useEffect(() => {
-    const t = setTimeout(() => setStart(true), 1000);
+    const t = setTimeout(() => setStart(true), 600);
     return () => clearTimeout(t);
   }, []);
 
-  // LEFT slideshow images
   const SLIDES = [
     "/landing/profiledemoslide1.webp",
     "/landing/profiledemoslide2.webp",
@@ -211,14 +250,17 @@ export default function AboveTheFold() {
     "/landing/profiledemoslide4.webp",
   ];
 
-  // RIGHT slideshow images
-  const RIGHT_SLIDES = [
-    "/landing/bschooldemo.webp",
-    "/landing/yourtoolsdemo.webp",
-  ];
+  const RIGHT_SLIDES = ["/landing/bschooldemo.webp", "/landing/yourtoolsdemo.webp"];
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center text-center overflow-hidden">
+    // ✅ FULL-BLEED: works even if parent uses container/max-w
+    <section
+      className="
+        relative min-h-screen overflow-hidden
+        w-screen left-1/2 -translate-x-1/2
+        flex items-center justify-center text-center
+      "
+    >
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url('/landing/mbaheroschool.webp')` }}
@@ -230,7 +272,10 @@ export default function AboveTheFold() {
           Your{" "}
           <span
             className="bg-clip-text text-transparent"
-            style={{ backgroundImage: "linear-gradient(90deg, #3F37C9 0%, #12D8B5 100%)" }}
+            style={{
+              backgroundImage:
+                "linear-gradient(90deg, #3F37C9 0%, #12D8B5 100%)",
+            }}
           >
             AI powered
           </span>{" "}
@@ -273,27 +318,8 @@ export default function AboveTheFold() {
 
         {bp === "desktop" && (
           <>
-            {/* LEFT slideshow */}
-            <CyclingThumb
-              x={-720}
-              y={-50}
-              images={SLIDES}
-              start={start}
-              w={300}
-              h={180}
-              delay={1.1}
-            />
-
-            {/* RIGHT slideshow (moved left by 100px) */}
-            <CyclingThumb
-              x={420}   // updated position
-              y={-10}
-              images={RIGHT_SLIDES}
-              start={start}
-              w={300}
-              h={180}
-              delay={1.3}
-            />
+            <CyclingThumb x={-720} y={-50} images={SLIDES} start={start} w={300} h={180} delay={1.1} />
+            <CyclingThumb x={420} y={-10} images={RIGHT_SLIDES} start={start} w={300} h={180} delay={1.3} />
           </>
         )}
       </div>

@@ -15,11 +15,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className="w-full">
+      <body className="min-h-screen w-full overflow-x-hidden">
         <Providers>
           <WebNavbar />
-          {children}
+          <main className="w-full">{children}</main>
         </Providers>
       </body>
     </html>

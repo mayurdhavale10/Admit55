@@ -1,25 +1,25 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import { useEffect, useState, useRef } from 'react';
-import { Quote } from 'lucide-react';
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import { Quote } from "lucide-react";
 
 /* ---------- testimonials content ---------- */
 const testimonials = [
   {
-    text: 'The profile insights were eerily accurate — felt like talking to a real admissions consultant.',
-    author: 'Priya S.',
-    meta: 'ISB ’24',
+    text: "The profile insights were eerily accurate — felt like talking to a real admissions consultant.",
+    author: "Priya S.",
+    meta: "ISB ’24",
   },
   {
-    text: 'Clear, concise, and actually helpful. The Snapshot told me exactly what to fix.',
-    author: 'Arjun M.',
-    meta: 'IIM A ’25',
+    text: "Clear, concise, and actually helpful. The Snapshot told me exactly what to fix.",
+    author: "Arjun M.",
+    meta: "IIM A ’25",
   },
   {
-    text: 'Way better than random forum advice. Data-backed and super practical next steps.',
-    author: 'Shreya K.',
-    meta: 'XLRI ’24',
+    text: "Way better than random forum advice. Data-backed and super practical next steps.",
+    author: "Shreya K.",
+    meta: "XLRI ’24",
   },
 ];
 
@@ -37,18 +37,18 @@ export default function HowTestimonials() {
   }, []);
 
   return (
-    <div className="bg-slate-50/70 py-20">
+    // ✅ full width section wrapper
+    <section className="w-full bg-slate-50/70 py-20 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-        {/* Heading with logo + text on one line */}
+        {/* ✅ FIX: removed whitespace-nowrap, allow wrapping on small screens */}
         <h3
           className="
-          text-3xl sm:text-4xl lg:text-5xl 
-          font-extrabold text-slate-900 
-          text-center mb-12 
-          inline-flex items-center justify-center gap-3 
-          whitespace-nowrap
-        "
+            text-3xl sm:text-4xl lg:text-5xl
+            font-extrabold text-slate-900
+            text-center mb-12
+            flex items-center justify-center gap-3
+            flex-wrap
+          "
         >
           <Image
             src="/logo/admit55_final_logo.webp"
@@ -57,23 +57,16 @@ export default function HowTestimonials() {
             height={60}
             className="object-contain w-12 h-12 sm:w-16 sm:h-16"
           />
-          <span>Admit55. Backed by Results. Proven by Data.</span>
+          <span className="leading-tight">
+            Admit55. Backed by Results. Proven by Data.
+          </span>
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
-          {/* Stats – animated on scroll + glass UI */}
+          {/* Stats */}
           <div className="lg:col-span-5 flex flex-col gap-6">
-            <Stat
-              target={1000}
-              suffix="+"
-              label="Students Guided"
-            />
-            <Stat
-              target={100}
-              suffix="+"
-              label="Admits to ISB, IIM A/B/C/L, XLRI"
-            />
+            <Stat target={1000} suffix="+" label="Students Guided" />
+            <Stat target={100} suffix="+" label="Admits to ISB, IIM A/B/C/L, XLRI" />
             <Stat
               target={4000}
               suffix="+"
@@ -91,34 +84,32 @@ export default function HowTestimonials() {
                 “{testimonials[active].text}”
               </blockquote>
 
-              <div className="mt-6 flex items-center justify-between">
+              <div className="mt-6 flex items-center justify-between gap-4">
                 <div className="text-sm text-slate-600">
                   <span className="font-semibold text-slate-900">
                     {testimonials[active].author}
-                  </span>{' '}
+                  </span>{" "}
                   • {testimonials[active].meta}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   {testimonials.map((_, i) => (
                     <button
                       key={i}
                       onClick={() => setActive(i)}
                       className={`h-2.5 w-2.5 rounded-full transition ${
-                        i === active ? 'bg-teal-500' : 'bg-slate-300'
+                        i === active ? "bg-teal-500" : "bg-slate-300"
                       }`}
+                      aria-label={`Show testimonial ${i + 1}`}
                     />
                   ))}
                 </div>
               </div>
-
             </div>
           </div>
-
         </div>
-
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -128,7 +119,7 @@ export default function HowTestimonials() {
 function Stat({
   target,
   label,
-  suffix = '',
+  suffix = "",
   href,
 }: {
   target: number;
@@ -140,7 +131,6 @@ function Stat({
   const [hasAnimated, setHasAnimated] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
-  // Scroll trigger: start animation when stat enters viewport
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -148,86 +138,65 @@ function Stat({
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && !hasAnimated) {
-            setHasAnimated(true);
-          }
+          if (entry.isIntersecting && !hasAnimated) setHasAnimated(true);
         });
       },
-      {
-        threshold: 0.4, // 40% visible
-      }
+      { threshold: 0.4 }
     );
 
     observer.observe(el);
-
     return () => observer.disconnect();
   }, [hasAnimated]);
 
-  // Number animation
   useEffect(() => {
     if (!hasAnimated) {
-      // Reset to 0 before animation starts
       setValue(0);
       return;
     }
 
     let frameId: number;
     let startTime: number | null = null;
-    const duration = 1400; // ms
+    const duration = 1400;
 
     const animate = (timestamp: number) => {
       if (startTime === null) startTime = timestamp;
       const progress = Math.min((timestamp - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      const current = Math.floor(eased * target);
-      setValue(current);
-
-      if (progress < 1) {
-        frameId = requestAnimationFrame(animate);
-      }
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.floor(eased * target));
+      if (progress < 1) frameId = requestAnimationFrame(animate);
     };
 
     frameId = requestAnimationFrame(animate);
-
     return () => cancelAnimationFrame(frameId);
   }, [hasAnimated, target]);
 
-  const formatted = value.toLocaleString('en-IN');
+  const formatted = value.toLocaleString("en-IN");
 
   const inner = (
     <div
       className="
-        flex items-baseline gap-4 
-        px-5 py-4
-        rounded-2xl
-        bg-white/20 
-        backdrop-blur-xl 
-        border border-white/40 
+        flex items-baseline gap-4
+        px-5 py-4 rounded-2xl
+        bg-white/20 backdrop-blur-xl
+        border border-white/40
         shadow-lg shadow-slate-300/40
-        transition-transform transition-shadow
-        duration-300
+        transition-transform transition-shadow duration-300
         hover:-translate-y-1 hover:shadow-2xl
+        overflow-hidden
       "
     >
       <div className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-indigo-600 to-teal-500 bg-clip-text text-transparent">
         {formatted}
         {suffix}
       </div>
-      <div className="text-slate-700 text-sm sm:text-base">
-        {label}
-      </div>
+      <div className="text-slate-700 text-sm sm:text-base">{label}</div>
     </div>
   );
 
   return (
     <div ref={ref}>
       {href ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="block cursor-pointer"
-        >
+        <a href={href} target="_blank" rel="noreferrer" className="block cursor-pointer">
           {inner}
         </a>
       ) : (
