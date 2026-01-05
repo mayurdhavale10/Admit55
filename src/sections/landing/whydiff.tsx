@@ -5,19 +5,17 @@ import { Brain, Globe, Layers } from 'lucide-react';
 
 export default function WhyDiff() {
   return (
-    <section className="relative w-full py-28">
-      {/* Premium glass background */}
-      <div className="absolute inset-0 -z-10 rounded-[2.5rem] bg-gradient-to-br from-emerald-50/70 via-sky-50/60 to-violet-50/70 backdrop-blur-3xl" />
-
+    <section className="w-full bg-slate-50 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
         {/* Header */}
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="flex items-center justify-center gap-4 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="flex items-center justify-center gap-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
             <Image
               src="/logo/admit55_final_logo.webp"
               alt="Admit55"
-              width={56}
-              height={56}
+              width={44}
+              height={44}
               className="object-contain"
             />
             <span>
@@ -25,30 +23,29 @@ export default function WhyDiff() {
             </span>
           </h2>
 
-          <div className="mt-5 mx-auto h-1.5 w-28 rounded-full bg-gradient-to-r from-emerald-400 via-sky-500 to-violet-500" />
+          <p className="mt-4 text-base sm:text-lg text-slate-600">
+            Built with real admissions intelligence — not generic AI guesses
+          </p>
         </div>
 
         {/* Cards */}
-        <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
-          <GlassCard
-            icon={<Brain className="h-7 w-7 text-emerald-600" />}
-            iconBg="from-emerald-200 to-emerald-100"
+        <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <FeatureCard
+            icon={<Brain className="h-6 w-6 text-emerald-600" />}
             title="Trained on real admits"
-            description="Proprietary intelligence built from 10,000+ real admits — not scraped data, not guesswork."
+            description="Proprietary intelligence built from 10,000+ verified admits — not scraped data, not assumptions."
           />
 
-          <GlassCard
-            icon={<Globe className="h-7 w-7 text-sky-600" />}
-            iconBg="from-sky-200 to-sky-100"
-            title="Indian + Global MBA contexts"
-            description="Designed for ISB, IIMs, INSEAD, Harvard, and top B-schools across geographies."
+          <FeatureCard
+            icon={<Globe className="h-6 w-6 text-emerald-600" />}
+            title="Indian + global MBA context"
+            description="Designed specifically for ISB, IIMs, INSEAD, Harvard, and other top global B-schools."
           />
 
-          <GlassCard
-            icon={<Layers className="h-7 w-7 text-violet-600" />}
-            iconBg="from-violet-200 to-violet-100"
-            title="Multi-AI intelligence"
-            description="Multiple LLM agents combine AI pattern recognition with seasoned human admissions logic."
+          <FeatureCard
+            icon={<Layers className="h-6 w-6 text-emerald-600" />}
+            title="Human + AI intelligence"
+            description="AI pattern recognition combined with real admissions mentor logic — not AI alone."
           />
         </div>
       </div>
@@ -57,54 +54,28 @@ export default function WhyDiff() {
 }
 
 /* ===============================
-   Glass Card Component
+   Feature Card
 ================================ */
-function GlassCard({
+function FeatureCard({
   icon,
-  iconBg,
   title,
   description,
 }: {
   icon: React.ReactNode;
-  iconBg: string;
   title: string;
   description: string;
 }) {
   return (
-    <div
-      className="
-        group
-        relative
-        rounded-[2rem]
-        border border-white/50
-        bg-white/55
-        backdrop-blur-2xl
-        p-10
-        shadow-xl shadow-slate-300/40
-        transition-all
-        duration-300
-        hover:-translate-y-1.5
-        hover:shadow-2xl
-      "
-    >
-      {/* Icon */}
-      <div
-        className={`
-          flex h-16 w-16 items-center justify-center
-          rounded-2xl
-          bg-gradient-to-br ${iconBg}
-          shadow-md
-        `}
-      >
+    <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition hover:shadow-md">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
         {icon}
       </div>
 
-      {/* Content */}
-      <h3 className="mt-8 text-xl font-semibold text-slate-900">
+      <h3 className="mt-6 text-lg font-semibold text-slate-900">
         {title}
       </h3>
 
-      <p className="mt-4 text-base text-slate-600 leading-relaxed">
+      <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
         {description}
       </p>
     </div>
