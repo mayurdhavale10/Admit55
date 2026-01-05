@@ -13,7 +13,9 @@ export default function Page() {
   return (
     <main>
       <AboveTheFold />
+    
       <How />
+      
       <WhyAdmit55 />
       <School />
       <Testimonial />
