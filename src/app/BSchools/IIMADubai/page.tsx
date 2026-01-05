@@ -3,6 +3,7 @@ import AdmissionInfo from "./components/admissioninfo";
 import Brochure from "./components/brochure";
 import Ideal from "./components/ideal";
 import WhatsAppSection from "./components/whatsapp";
+import Footer from "@src/components/footer/footer";
 
 export default function Page() {
   return (
@@ -12,6 +13,7 @@ export default function Page() {
       <Brochure />
       <Ideal />
       <WhatsAppSection />
+      <Footer />
     </main>
   );
 }

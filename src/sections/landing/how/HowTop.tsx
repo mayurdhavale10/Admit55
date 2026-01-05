@@ -109,15 +109,15 @@ export default function HowTop() {
 
       {/* TABS */}
       <div className="mt-8 flex justify-center">
-        <div className="inline-flex rounded-full bg-slate-100 p-1">
+        <div className="inline-flex rounded-full p-1 gap-3">
           {(['tools', 'experts'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`w-32 sm:w-40 py-2 text-sm sm:text-base font-semibold rounded-full transition ${
                 activeTab === tab
-                  ? 'bg-gradient-to-r from-[#3F37C9] to-[#12D8B5] text-white shadow'
-                  : 'bg-white text-slate-700'
+                  ? 'bg-gradient-to-r from-[#3F37C9] to-[#12D8B5] text-white shadow-md'
+                  : 'bg-white text-slate-700 shadow-sm'
               }`}
             >
               {tab === 'tools' ? 'Tools' : 'Our Experts'}
@@ -176,7 +176,7 @@ export default function HowTop() {
             </h3>
 
             <p className="mt-5 text-slate-600">
-              Admit55 is founded by top admissions mentors and AI professionals who’ve personally
+              Admit55 is founded by top admissions mentors and AI professionals who've personally
               guided <strong>1,000+</strong> candidates to their dream B-schools.
             </p>
 
@@ -188,7 +188,7 @@ export default function HowTop() {
             {/* Founder Card */}
             <div className="mt-8 rounded-2xl bg-emerald-50 p-6 ring-1 ring-emerald-200">
               <p className="italic text-slate-700">
-                “We’ve seen what works. Now we’re making it accessible to everyone.”
+                "We've seen what works. Now we're making it accessible to everyone."
               </p>
 
               <div className="mt-4 flex items-center gap-4">
@@ -229,7 +229,7 @@ export default function HowTop() {
 
             <button
               onClick={handleBookNow}
-              className="mt-8 inline-flex rounded-full bg-red-600 px-8 py-3 text-white font-semibold shadow hover:bg-red-700"
+              className="mt-8 inline-flex rounded-full bg-red-600 px-8 py-3 text-white font-semibold hover:bg-red-700"
             >
               Book a Session
             </button>
@@ -240,19 +240,19 @@ export default function HowTop() {
             <Testimonial
               quote="The profile review gave me clarity I couldn't get anywhere else. Helped me target the right schools."
               name="Kartik Mittal"
-              subtitle="IIM Bangalore EPGP ’23"
+              subtitle="IIM Bangalore EPGP '23"
               link="https://www.linkedin.com/in/kartikmittal1792/"
             />
             <Testimonial
               quote="Admit55 helped me understand my strengths and weaknesses objectively. The insights were spot on."
               name="Armaan Bansal"
-              subtitle="ISB PGP ’20"
+              subtitle="ISB PGP '20"
               link="https://www.linkedin.com/in/armaan-bansal-aa93b95b/"
             />
             <Testimonial
               quote="A game-changer for working professionals. Saved me months of confusion and gave me a clear roadmap."
               name="Apoorva Tripathi"
-              subtitle="XLRI Exec. MBA ’22"
+              subtitle="XLRI Exec. MBA '22"
               link="https://www.linkedin.com/in/apoorvatripathi91/"
             />
           </div>
@@ -276,18 +276,21 @@ function Testimonial({
   link: string;
 }) {
   return (
-    <div className="rounded-2xl bg-white p-6 ring-1 ring-slate-200 shadow-sm">
-      <p className="text-slate-700">“{quote}”</p>
+    <a 
+      href={link} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="block rounded-2xl bg-white p-6 ring-1 ring-slate-200 hover:ring-2 hover:ring-[#0A66C2] transition-all cursor-pointer"
+    >
+      <p className="text-slate-700">"{quote}"</p>
       <div className="mt-4 flex items-center justify-between">
         <div>
           <div className="font-semibold text-slate-900">{name}</div>
           <div className="text-sm text-slate-500">{subtitle}</div>
         </div>
-        <a href={link} target="_blank" rel="noopener noreferrer">
-          <ChevronRight className="h-5 w-5 text-[#0A66C2]" />
-        </a>
+        <ChevronRight className="h-5 w-5 text-[#0A66C2]" />
       </div>
-    </div>
+    </a>
   );
 }
 
