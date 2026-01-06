@@ -68,7 +68,7 @@ export default function HowTestimonials() {
             <Stat target={1000} suffix="+" label="Students Guided" />
             <Stat target={100} suffix="+" label="Admits to ISB, IIM A/B/C/L, XLRI" />
             <Stat
-              target={4000}
+              target={10000}
               suffix="+"
               label="Books Sold | 4.8★ on Amazon"
               href="https://www.amazon.in/Successful-ISB-Essays-Their-Analysis/dp/1647606160/ref=sr_1_1?crid=3POHFB7T9U2CI&dib=eyJ2IjoiMSJ9.uN1JYchBfdxHWiFoARzgzw.GcoUXmDVlBq5PHECeX_0kDF2t27WeLauHMWek2s1Wr0&dib_tag=se&keywords=55+successful+isb+essays&qid=1765373501&sprefix=55+essay%2Caps%2C171&sr=8-1"
