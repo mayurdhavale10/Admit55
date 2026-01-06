@@ -76,9 +76,11 @@ export default async function ProfilePage() {
         {/* GUIDANCE SECTION */}
         <section className="mt-10">
           <Guidance />
-          <Footer />
         </section>
       </div>
+
+      {/* FOOTER - Full Width */}
+      <Footer />
     </div>
   );
 }
