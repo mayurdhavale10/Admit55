@@ -14,6 +14,7 @@ import { getQuotaStatusForEmail } from "@src/lib/db/usage/getQuotaStatus";
 import type { QuotaStatusResponse } from "@src/lib/db/usage/getQuotaStatus";
 
 import QuotaCard from "./components/QuotaCard";
+import Footer from "@src/components/footer/footer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,6 +76,7 @@ export default async function ProfilePage() {
         {/* GUIDANCE SECTION */}
         <section className="mt-10">
           <Guidance />
+          <Footer />
         </section>
       </div>
     </div>
