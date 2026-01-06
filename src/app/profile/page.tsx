@@ -6,10 +6,12 @@ import { redirect } from "next/navigation";
 import { authOptions } from "../api/auth/[...nextauth]/route";
 import { connectDB, getLoggedInUsersCollection } from "@src/lib/db/loggedinuser/connectDB";
 import type { LoggedInUser } from "@src/models/auth/UserLoggedIn";
+import { getBookingsForUser } from "@src/models/bookings/SessionBooking";
 
 import ProfileSummaryCard from "./components/ProfileSummaryCard";
 import ProfileDetailsPanel from "./components/ProfileDetailsPanel";
-import Guidance from "@src/sections/landing/guidance";
+import ProfileBookingCard from "./components/ProfileBookingCard";
+import type { Booking } from "./components/ProfileBookingCard";
 
 import { getQuotaStatusForEmail } from "@src/lib/db/usage/getQuotaStatus";
 import type { QuotaStatusResponse } from "@src/lib/db/usage/getQuotaStatus";
@@ -70,7 +72,7 @@ function QuotaCard({ quota }: { quota: QuotaStatusResponse | null }) {
       {limitReached && (quota.plan ?? "free") !== "pro" && (quota.role ?? "user") !== "admin" && (
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="text-sm text-amber-900">
-            ⚠️ You've reached the free limit for at least one provider.
+            ⚠️ You’ve reached the free limit for at least one provider.
           </div>
           <Link
             href="/upgradetopro?reason=quota&from=%2Fprofile"
@@ -129,7 +131,7 @@ export default async function ProfilePage() {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
-    redirect("/api/auth/signin?callbackUrl=/profile");
+    redirect("/api/auth/signin?callbackUrl=/profile#booking");
   }
 
   const email = session.user.email;
@@ -149,7 +151,25 @@ export default async function ProfilePage() {
     mentorNotice: existing?.mentorNotice ?? "Important notice from your mentor will appear here.",
   };
 
-  // 3) Load quota status (server-side)
+  // 3) Load bookings for this user (latest first)
+  const rawBookings = await getBookingsForUser(email);
+
+  const bookings: Booking[] = rawBookings.map((b) => ({
+    _id: b._id?.toString() ?? "",
+    userEmail: b.userEmail,
+    userName: b.userName ?? "",
+    userPhone: b.userPhone ?? "",
+    topic: b.topic,
+    preferredTime: b.preferredTime,
+    status: (b.status as Booking["status"]) ?? "pending",
+    coachId: b.coachId ?? "",
+    coachName: b.coachName ?? "",
+    confirmedDate: b.confirmedDate ?? "",
+    adminNotes: b.adminNotes ?? "",
+    createdAt: b.createdAt?.toISOString?.() ?? "",
+  }));
+
+  // 4) Load quota status (server-side)
   let quota: QuotaStatusResponse | null = null;
   try {
     quota = await getQuotaStatusForEmail(email);
@@ -178,9 +198,9 @@ export default async function ProfilePage() {
           <QuotaCard quota={quota} />
         </section>
 
-        {/* GUIDANCE SECTION */}
-        <section className="mt-10">
-          <Guidance />
+        {/* BOOKING */}
+        <section id="booking" className="mt-10 scroll-mt-28">
+          <ProfileBookingCard bookings={bookings} profileEmail={email} />
         </section>
       </div>
     </div>
